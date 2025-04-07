@@ -1,0 +1,19 @@
+---
+title: "embeddings_providers"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{embeddings_providers}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>"
+)
+```
+
+```{r setup}
+library(EndpointR)
+```
