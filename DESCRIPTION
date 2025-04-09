@@ -18,5 +18,9 @@ Imports:
     dplyr,
     httr2,
     purrr,
-    cli
+    cli,
+    rlang,
+    askpass,
+    jsonlite,
+    glue
 VignetteBuilder: knitr
