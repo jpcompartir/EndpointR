@@ -1,0 +1,36 @@
+---
+title: "api_keys"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{api_keys}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>"
+)
+```
+
+```{r setup}
+library(EndpointR)
+usethis::edit_r_environ
+```
+
+# API Keys
+
+For each Endpoint, you will need the correct environment variable stored in your [.Renviron file](https://docs.posit.co/ide/user/ide/guide/environments/r/managing-r.html#renviron)
+
+| Endpoint | Description | Environment Variable |
+|----|----|----|
+| OpenAI API | To access OpenAI models for embedding, classification, structured outputs | OPENAI_API_KEY |
+| Anthropic API | To access Anthropic models for classification and structured outputs | ANTHROPIC_API_KEY |
+| bge-base-en |  | HF_BGE_BASE_KEY |
+|  |  |  |
+|  |  |  |
+|  |  |  |
+|  |  |  |
+
+: API Key Lookup Table
