@@ -18,6 +18,26 @@ knitr::opts_chunk$set(
 library(EndpointR)
 ```
 
+# Quick start
+
+EndpointR has two main functions for managing API keys, they are `get_api_key()` and `set_api_key()`, they both take 'key_name' as an input. For security, `set_api_key()` uses askpass to accept API keys rather than code - this means it will not show up in .Rhistory, and is less likely to be leaked.
+
+First you set your API key:
+
+```{r, eval = FALSE}
+set_api_key("TOY_API_KEY")
+```
+
+Then restart your R session.
+
+Now get your API key
+
+```{r, eval = FALSE}
+api_key <- get_api_key("TOY_API_KEY")
+```
+
+For security reasons, do not print `api_key` to your console, pass it to the function that requires it.
+
 # What is an API?
 
 [API](https://en.wikipedia.org/wiki/API){target="_blank"} stands for 'Application Programming Interface', it is a mechanism for two pieces of software to interact and exchange data. APIs work by requests - a user sends a request to a service, and the service sends a response, fulfilling the user's request, or providing an error message.
@@ -26,7 +46,7 @@ A specific location within an API that allows the user to access some service, o
 
 # What is an API Key?
 
-Because many APIs provide access to sensitive information, or require a credit card to send requests, it's important API providers are able to identify who is sending the request, to determine whether it's safe to respond, and who to charge for the response. An API key is a mechanism for identifying who is sending a request.
+Because many APIs provide access to sensitive information, or require a credit card to send requests, it's important API providers are able to identify who is sending the request, to determine whether it's safe to respond, and who to charge for the response. An API key is *the* mechanism for identifying who is sending a request.
 
 See also: [API keys](https://aws.amazon.com/what-is/api-key/){target="_blank"}
 
