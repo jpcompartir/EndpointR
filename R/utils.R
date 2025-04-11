@@ -1,27 +1,39 @@
 #' Retrieve an API key which has been stored as an Environment Variable.
 #'
-#' @param endpoint
+#' @description
+#' Retrieve an API key from .Renviron. The API key should have been set via
+#' `set_api_key()`or manually placed in your .Renviron file.
 #'
-#' @returns
+#' @param key_name The name of the API in the format "ENDPOINT_API_KEY" -> "ANTHROPIC_API_KEY"
+#'
+#' @returns character
 #' @export
 #'
 #' @examples
-get_api_key <- function(endpoint) {
+#' \dontrun{
+#'   # retrieve an Anthropic API key
+#'   anthropic_key <- get_api_key("ANTHROPIC_API_KEY")
+#'
+#'   # use the key in a function call
+#'   my_function(api_key = anthropic_key)
+#' }
+get_api_key <- function(key_name) {
 
-  stopifnot(is.character(endpoint)) # add && API_KEY check here?
+  stopifnot(is.character(key_name)) # add && API_KEY check here?
 
-  # thinking I probably shouldn't do this for the user, and they should set it with:
-  # ENDPOINT_API_KEY in all caps. If that's documented then it should really be the user's decision
-  # because we don't want weird surprises later when the user tries to retrieve their key.
-  # we should retrieve what they input when they ask for it, I think...
-  if(!grepl("_API_KEY", endpoint)){
-    env_variable <- paste0(toupper(endpoint), "_API_KEY")
+  renviron_path <- path.expand("~/.Renviron")
+  if(!file.exists(renviron_path)){
+    cli::cli_abort("{.file {renviron_path}} not found, please create one.")
   }
 
-  api_key <- Sys.getenv(env_variable)
+  if(!endsWith(key_name, "API_KEY")){
+    cli::cli_abort("{.val {key_name}} is an invalid name. API keys must end with 'API_KEY'")
+  }
+
+  api_key <- Sys.getenv(key_name)
 
   if(identical(api_key, "")) {
-    stop(paste0("`", env_variable, "` not found, please set with `set_api_key_as_env()` or manually edit your `.Renviron` file."))
+    cli::cli_abort("{.val {key_name}} was not found, please set with {.code set_api_key({key_name})}, and restart your R session for changes to take effect.")
   }
 
   return(api_key)
@@ -42,10 +54,10 @@ get_api_key <- function(endpoint) {
 #'
 #' @examples
 #' \dontrun{
-#'   # Set an Anthropic API key
+#'   # set an Anthropic API key
 #'   set_api_key("ANTHROPIC_API_KEY")
 #'
-#'   # Update an existing OpenAI key
+#'   # update an existing OpenAI key
 #'   set_api_key("OPENAI_API_KEY", overwrite = TRUE)
 #' }
 set_api_key <- function(key_name, overwrite = FALSE) {
