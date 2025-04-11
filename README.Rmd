@@ -19,7 +19,11 @@ knitr::opts_chunk$set(
 
 EndpointR is a 'batteries included', open-source R package for connecting to various Application Programming Interfaces ([APIs](https://en.wikipedia.org/wiki/API){target="_blank"}) for Machine Learning model predictions. EndpointR is built for company-specific use cases, so may not be useful to a wide audience. It is built in the Tidyverse style - functions expect a data frame as an input and return a data frame as an output.
 
+EndpointR provides access to endpoints via individual functions: one function - or multiple functions - per endpoint. If you are experienced with hitting APIs or you need to do something that EndpointR doesn't cover, consider going directly to [httr2](https://httr2.r-lib.org/reference/index.html)
+
 # Installation
+
+EndpointR will not be put on CRAN, so you can download and install it with the following code:
 
 ```{r, eval=FALSE}
 remotes::install_github("jpcompartir/EndpointR")
@@ -27,23 +31,6 @@ remotes::install_github("jpcompartir/EndpointR")
 
 # API Key Security
 
-> **WARNING:** EndpointR will try to help you manage API keys safely, but there is a baseline level of responsibility each person using a managed service needs to take on, and a set of best practices which need to be followed.
+-   Read the [httr2 vignette](https://httr2.r-lib.org/articles/wrapping-apis.html#basics){target="_blank"} on managing your API keys securely and encrypting them.
 
-The services we are building [API](https://en.wikipedia.org/wiki/API){target="_blank"} connections for will require us to use [API keys](https://aws.amazon.com/what-is/api-key/){target="_blank"} so that API providers can identify us, and give us access to their services. This presents new security challenges. API keys give us privileged access to services, in the wrong hands these privileges will be misused, leading most commonly to large API bills or the leaking of sensitive data.
-
-It is **paramount** that we handle our API keys securely. You need to avoid the following things:
-
--   Saving unencrypted API keys in notes, emails, Google Docs etc.
--   Sharing API keys with other people
--   Including unencrypted API keys in your code (scripts, R/Quarto/markdown files, .ipynb etc.)
--   Unencypted API keys appearing in your .Rhistory file (**especially** if this file is being uploaded anywhere)
-
-If you suspect you may have done one - or any number - of these things, go directly to where you got your key, invalidate the old one and generate a new one. If the key was given to you, go directly to the person and tell them that your key may have been compromised and they will invalidate it for you, and provide you a new one.
-
-Instead, you need to:
-
--   Encrypt your API keys
--   Store them as environment variables if using in R/Rstudio/VScode
--   Store them as managed secrets by providers like GitHub for use outside of R/Rstudio/VSco de
-
-Read the [httr2 vignette](https://httr2.r-lib.org/articles/wrapping-apis.html#basics){target="_blank"} on managing your API keys securely and encrypting them. Read the [EndpointR API Keys](vignettes/api_keys.Rmd) for information on which API keys you need for wach endpoint we support, and how to securely import those API keys into your .Renvironfile.
+-   Read the [EndpointR API Keys](vignettes/api_keys.Rmd) vignette for information on which API keys you need for wach endpoint we support, and how to securely import those API keys into your .Renvironfile.
