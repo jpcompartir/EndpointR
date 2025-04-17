@@ -91,7 +91,7 @@ set_api_key <- function(key_name, overwrite = FALSE) {
 
   renviron_contents <- readLines(renviron_path)
   key_already_exists <- any(
-    grepl(glue::glue("^{key_name}"), renviron_path)
+    grepl(glue::glue("^{key_name}"), renviron_contents)
     )
 
   if(key_already_exists && !overwrite){

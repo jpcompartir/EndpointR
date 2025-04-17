@@ -2,3 +2,7 @@
 
 export(get_api_key)
 export(hf_embed_text)
+export(safely_perform_request)
+export(set_api_key)
+export(tidy_embedding_response)
+export(validate_hf_endpoint)

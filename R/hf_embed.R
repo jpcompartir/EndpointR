@@ -21,7 +21,7 @@
 #'   # Using default key name
 #'   validate_hf_endpoint("https://my-endpoint.huggingface.cloud")
 #' }
-validate_hf_endpoint <- function(endpoint_url, key_name = "HF_API_KEY") {
+validate_hf_endpoint <- function(endpoint_url, key_name) {
   stopifnot(
     "endpoint_url must be provided" = !is.null(endpoint_url) && nchar(endpoint_url) > 0,
     "endpoint_url must be a character string" = is.character(endpoint_url)
@@ -36,19 +36,17 @@ validate_hf_endpoint <- function(endpoint_url, key_name = "HF_API_KEY") {
     httr2::req_headers("Content-Type" = "application/json") |>
     httr2::req_auth_bearer_token(token = api_key) |>
     httr2::req_body_json(list(inputs = test_text)) |>
-    httr2::req_timeout(10) |> # short timeout to fail fast
-    httr2::req_error(body = function(resp) {
-      body <- httr2::resp_body_json(resp)
-      msg <- body$error %||% "Unknown error occurred"
-      return(paste("Endpoint validation failed:", msg))
-    })
+    httr2::req_timeout(10) # short timeout to fail fast
 
-  # handle both http errors and connection issues separately
+  # Handle both HTTP errors and connection issues
   tryCatch({
     resp <- httr2::req_perform(req)
+
+    # Check if status code indicates an error (400 or above)
     if (httr2::resp_status(resp) >= 400) {
       cli::cli_abort("Endpoint returned error: {httr2::resp_status_desc(resp)}")
     }
+
     return(TRUE)
   }, error = function(e) {
     cli::cli_abort(c(
@@ -56,6 +54,7 @@ validate_hf_endpoint <- function(endpoint_url, key_name = "HF_API_KEY") {
       "i" = "URL: {endpoint_url}",
       "x" = "Error: {conditionMessage(e)}"
     ))
+    return(FALSE)
   })
 }
 
@@ -92,7 +91,7 @@ validate_hf_endpoint <- function(endpoint_url, key_name = "HF_API_KEY") {
 #' }
 hf_embed_request_single <- function(text,
                                     endpoint_url,
-                                    key_name = "HF_API_KEY",
+                                    key_name,
                                     max_retries = 3,
                                     timeout = 10,
                                     validate = FALSE) {
@@ -197,15 +196,12 @@ tidy_embedding_response <- function(response) {
 #'   response <- hf_embed_perform_single(req, tidy = FALSE)
 #' }
 hf_embed_perform_single <- function(request, tidy = TRUE) {
-  # Check input
   stopifnot(
     "request must be an httr2 request object" = inherits(request, "httr2_request")
   )
 
-  # Perform the request
   resp <- httr2::req_perform(request)
 
-  # Return raw response or tidy embeddings
   if (tidy) {
     return(tidy_embedding_response(resp))
   } else {
@@ -247,7 +243,7 @@ hf_embed_perform_single <- function(request, tidy = TRUE) {
 #' }
 hf_embed_text <- function(text,
                          endpoint_url,
-                         key_name = "HF_API_KEY",
+                         key_name,
                          max_retries = 3,
                          timeout = 10,
                          validate = FALSE) {
