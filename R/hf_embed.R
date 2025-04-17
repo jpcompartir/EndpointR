@@ -172,3 +172,104 @@ tidy_embedding_response <- function(response) {
   return(tib)
 }
 
+#' Execute a single embedding request and process the response
+#'
+#' @description
+#' Performs a prepared embedding request and returns the embedding
+#' vector in a tidy format.
+#'
+#' @param request An httr2 request object created by hf_embed_request_single
+#' @param tidy Whether to convert the response to a tidy tibble
+#'
+#' @return A tibble with embedding vectors if tidy=TRUE, otherwise the raw httr2 response
+#' @export
+#'
+#' @examples
+#' \dontrun{
+#'   # Create and perform request
+#'   req <- hf_embed_request_single(
+#'     text = "This is a sample text to embed",
+#'     endpoint_url = "https://my-endpoint.huggingface.cloud"
+#'   )
+#'   embeddings <- hf_embed_perform_single(req)
+#'
+#'   # Get raw response instead of processed embeddings
+#'   response <- hf_embed_perform_single(req, tidy = FALSE)
+#' }
+hf_embed_perform_single <- function(request, tidy = TRUE) {
+  # Check input
+  stopifnot(
+    "request must be an httr2 request object" = inherits(request, "httr2_request")
+  )
+
+  # Perform the request
+  resp <- httr2::req_perform(request)
+
+  # Return raw response or tidy embeddings
+  if (tidy) {
+    return(tidy_embedding_response(resp))
+  } else {
+    return(resp)
+  }
+}
+
+#' Generate embeddings for a single text
+#'
+#' @description
+#' High-level function to generate embeddings for a single text string.
+#' This function handles the entire process from request creation to
+#' response processing.
+#'
+#' @param text Character string to get embeddings for
+#' @param endpoint_url The URL of the Hugging Face Inference API endpoint
+#' @param key_name Name of the environment variable containing the API key
+#' @param max_retries Maximum number of retry attempts for failed requests
+#' @param timeout Request timeout in seconds
+#' @param validate Whether to validate the endpoint before creating the request
+#'
+#' @return A tibble containing the embedding vectors
+#' @export
+#'
+#' @examples
+#' \dontrun{
+#'   # Generate embeddings using API key from environment
+#'   embeddings <- hf_embed_text(
+#'     text = "This is a sample text to embed",
+#'     endpoint_url = "https://my-endpoint.huggingface.cloud"
+#'   )
+#'
+#'   # With custom API key environment variable name
+#'   embeddings <- hf_embed_text(
+#'     text = "This is a sample text to embed",
+#'     endpoint_url = "https://my-endpoint.huggingface.cloud",
+#'     key_name = "MY_CUSTOM_API_KEY"
+#'   )
+#' }
+hf_embed_text <- function(text,
+                         endpoint_url,
+                         key_name = "HF_API_KEY",
+                         max_retries = 3,
+                         timeout = 10,
+                         validate = FALSE) {
+  # build request with the specified parameters
+  req <- hf_embed_request_single(
+    text = text,
+    endpoint_url = endpoint_url,
+    key_name = key_name,
+    max_retries = max_retries,
+    timeout = timeout,
+    validate = validate
+  )
+
+  # perform request and provide user-friendly error messages
+  tryCatch({
+    embeddings <- hf_embed_perform_single(req, tidy = TRUE)
+    return(embeddings)
+  }, error = function(e) {
+    cli::cli_abort(c(
+      "Failed to generate embeddings",
+      "i" = "Text: {cli::cli_vec(text, list('vec-trunc' = 30, 'vec-sep' = ''))}",
+      "x" = "Error: {conditionMessage(e)}"
+    ))
+  })
+}
