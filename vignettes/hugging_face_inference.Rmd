@@ -1,0 +1,243 @@
+---
+title: "Using Hugging Face Inference Endpoints"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Using Hugging Face Inference Endpoints}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>",
+  eval = FALSE
+)
+```
+
+```{r setup}
+library(EndpointR)
+library(dplyr)
+library(tibble)
+library(httr2)
+library(purrr)
+```
+
+# What is Hugging Face?
+
+For the past few years [Hugging Face](https://huggingface.co/) has been the de-facto location for open-source AI. It is a place to save and share datasets & Machine Learning models alike. Importantly, we can train our own models and then upload them to the Hugging Face Hub, so that other people can access them.
+
+# What are Inference Endpoints?
+
+Any model that is saved on Hugging Face can be connected to a Hugging Face Inference Endpoint allowing us to get predictions from that model using Hugging Face's [^1] hardware. Given that modern-day Machine Learning models tend to require a large amount of compute, and not everybody has powerful laptops to use the models locally, this is a democratising force and a useful tool to have at our disposal.
+
+[^1]: or another inference provider's
+
+## Common Use-cases
+
+-   Text embeddings via Sentence Transformers
+-   Sentiment analysis
+-   Text classification
+-   Image recognition
+-   Question answering
+-   Text generation
+
+This vignette focuses on using Hugging Face endpoints for text embeddings.
+
+# API Key Management
+
+Assuming the endpoint has already been set up, you'll need to retrieve your API key from Hugging Face (or the team resposible for providing API keys) and store it securely in an environment variable.
+
+`set_api_key` will ask you to input the value for your API key using askpass, this reduces [^2] the likelihood of your API key ending up in your code somewhere
+
+[^2]: but never reduces to zero, so always be vigilant!
+
+```{r}
+set_api_key("HF_TEST_API_KEY")
+```
+
+# High-level API
+
+The high-level API provides convenient functions for common embedding tasks without needing to understand the underlying request structure.
+
+## Embedding a Single Text
+
+> For this example, I have previously set up a package-level key for encrypting sensitive information, `ENDPOINTR_KEY`, this can be used with {httr2}'s `secret_encrypt` and `secret_decrypt` function to encrypt any information.
+
+1.  Make sure your api key is the correct one for your endpoint
+2.  Get your endpoint's url
+3.  Get a single piece of text you want to embed
+4.  Call `hf_embed_text()`
+
+```{r}
+endpoint_url <- httr2::secret_decrypt("kcZCsc92Ty7PuAk7_FdCcdOU_dlDpvWdDyfpwCWg-wW80eJxJPdQ68nz4V_0922SzSwM5_dYfpTOqsZ-GodUpLN4PQbwE73wlZkBCWIaIXc15g", "ENDPOINTR_KEY")
+
+embeddings <- hf_embed_text(
+  text = "This is a sample text to embed",
+  endpoint_url = endpoint_url,
+  key_name = "HF_TEST_API_KEY",
+  max_retries = 5
+)
+```
+
+The output is tidied into a tibble with 1 row and 384 columns, because the endpoint is using the 'all-minilm-l6-v2' model under the hood:
+
+```{r}
+embeddings
+```
+
+## Processing a Data Frame of Texts
+
+When working with multiple texts, storing them in a data frame allows for organised processing. At a high-level, we want to be able to iterate through each row of the data frame, and embed the text contained in a column.
+
+```{r}
+ids <- 1:99
+texts <- rep(c(
+    "The quick brown fox jumps over the lazy dog",
+    "Machine learning models can process natural language",
+    "Vector embeddings represent text as numerical values"
+  ), 33)
+
+texts_df <- tibble(
+  id = ids,
+  text = texts
+)
+
+
+result_df <- hf_embed_df(
+  df = texts_df,
+  text_var = "text",
+  endpoint_url = endpoint_url,
+  key_name = "HF_TEST_API_KEY",
+  id_var= "id",
+  include_errors = TRUE,
+  batch_size = 5,
+  max_active = 5,
+  parallel = TRUE
+)
+```
+
+```{r}
+result_df <- hf_embed_df(
+  df = texts_df,
+  text_var = text,
+  endpoint_url = endpoint_url,
+  key_name = "HF_TEST_API_KEY",
+  id_var= id,
+  include_errors = TRUE,
+  batch_size = 2,
+  max_active = 5,
+  parallel = TRUE,
+  progress = TRUE
+)
+```
+
+```{r}
+glimpse(result_df)
+```
+
+## Working with Larger Datasets
+
+For larger datasets, batching and parallel processing help manage memory and time constraints.
+
+```{r}
+# process in batches with parallel requests
+result_df <- hf_embed_df(
+  df = texts_df,
+  text_col = "text",
+  endpoint_url = endpoint_url,
+  batch_size = 20,       # process 20 texts at a time
+  parallel = TRUE,       # execute requests in parallel
+  max_active = 5,        # maximum 5 concurrent requests
+  progress = TRUE        # show progress bar
+)
+```
+
+# Low-level API
+
+The low-level API offers more control over the embedding process. This is useful for custom workflows, debugging, or when you need fine-grained control over requests.
+
+## Request Preparation
+
+Prepare requests without executing them, useful for inspection or custom processing:
+
+```{r}
+is_endpoint_active <- validate_hf_endpoint(endpoint_url, "HF_TEST_API_KEY")
+
+req <- hf_embed_request_single(
+  text = "Text for custom request",
+  endpoint_url = endpoint_url,
+  max_retries = 5,       # retry failed requests
+  timeout = 30,          # longer timeout for large texts
+  validate = FALSE,       # skip validation if already done
+  key_name = "HF_TEST_API_KEY"
+)
+
+req # check it before you run it
+```
+
+## Manual Request Execution
+
+If you've checked the request and everything looks ok, go ahead and execute it. We'll set tidy = FALSE first so that we can see what the raw request comes back like, then we'll tidy it up:
+
+```{r}
+response_raw <- hf_embed_perform_single(req, tidy = FALSE)
+
+resp_status <- httr2::resp_status(response_raw)
+resp_headers <- httr2::resp_headers(response_raw)
+```
+
+We should now end up with our tidied data frame where each column is an embedding dimension.
+
+```{r}
+(embeddings <- tidy_embedding_response(response_raw))
+```
+
+## Batch Processing with Data Frames
+
+Work directly with the component functions for custom batch workflows.
+
+First we create a requests data frame, each row will have its own request.
+
+```{r}
+requests_df <- hf_embed_request_df(
+  df = texts_df,
+  text_var = text,
+  id_var = id,
+  endpoint_url = endpoint_url,
+  key_name = "HF_TEST_API_KEY"
+)
+
+str(requests_df$.request[[1]]) # check the structure of the first request
+requests_df$.request[[1]]$body # check the data that's been added
+```
+
+Then we batch our data frames, returning a list of `nrow(df)/batch_size` where each element in the list is its own data frame with `nrow(df) == batch_size`.
+
+Still very much a WIP / TODO as to how this should work, too manual atm, probably.
+
+```{r}
+batch_dfs <- requests_df |>  batch_dataframe(5)
+length(batch_dfs)
+```
+
+```{r}
+responses_batch_dfs <- purrr::map(batch_dfs, ~ hf_embed_perform_sequential(.x), .progress = TRUE)
+
+purrr::map(responses_batch_dfs, ~ process_batch_responses(.x)) |> 
+  bind_rows()
+```
+
+## Error Handling
+
+The low-level API allows more detailed error inspection and recovery. We just wrap `req_perform` in `purrr::safely`. This changes the return object slightly, we now have a list with `$result` and `$error`
+
+```{r}
+result <- safely_perform_request(req)
+
+if (!is.null(result$error)) {
+  print(result$error)
+} else {
+  embeddings <- tidy_embedding_response(result$result)
+}
+```
