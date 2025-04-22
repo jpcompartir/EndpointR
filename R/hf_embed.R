@@ -190,12 +190,12 @@ tidy_embedding_response <- function(response) {
 #'     text = "This is a sample text to embed",
 #'     endpoint_url = "https://my-endpoint.huggingface.cloud"
 #'   )
-#'   embeddings <- hf_embed_perform_single(req)
+#'   embeddings <- hf_perform_single(req)
 #'
 #'   # Get raw response instead of processed embeddings
-#'   response <- hf_embed_perform_single(req, tidy = FALSE)
+#'   response <- hf_perform_single(req, tidy = FALSE)
 #' }
-hf_embed_perform_single <- function(request, tidy = TRUE) {
+hf_perform_single <- function(request, tidy = TRUE) {
   stopifnot(
     "request must be an httr2 request object" = inherits(request, "httr2_request")
   )
@@ -259,7 +259,7 @@ hf_embed_text <- function(text,
 
   # perform request and provide user-friendly error messages
   tryCatch({
-    embeddings <- hf_embed_perform_single(req, tidy = TRUE)
+    embeddings <- hf_perform_single(req, tidy = TRUE)
     return(embeddings)
   }, error = function(e) {
     cli::cli_abort(c(
