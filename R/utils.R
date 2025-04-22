@@ -115,3 +115,64 @@ set_api_key <- function(key_name, overwrite = FALSE) {
 
   invisible(TRUE)
 }
+
+
+#' Validate a Hugging Face Inference Endpoint
+#'
+#' @description
+#' Checks if an endpoint URL is valid and accessible with the provided API key.
+#' This function sends a small test request to verify the endpoint works.
+#'
+#' @param endpoint_url The URL of the Hugging Face Inference API endpoint
+#' @param key_name Name of the environment variable containing the API key
+#'
+#' @return logical TRUE if endpoint is valid, otherwise stops with an error
+#' @export
+#'
+#' @examples
+#' \dontrun{
+#'   # Validate endpoint retrieving API key from environment
+#'   validate_hf_endpoint(
+#'     endpoint_url = "https://my-endpoint.huggingface.cloud",
+#'     key_name = "HF_API_KEY"
+#'   )
+#'
+#'   # Using default key name
+#'   validate_hf_endpoint("https://my-endpoint.huggingface.cloud")
+#' }
+validate_hf_endpoint <- function(endpoint_url, key_name) {
+  stopifnot(
+    "endpoint_url must be provided" = !is.null(endpoint_url) && nchar(endpoint_url) > 0,
+    "endpoint_url must be a character string" = is.character(endpoint_url)
+  )
+
+  api_key <- get_api_key(key_name)
+  test_text <- "Hello world"
+
+  req <- httr2::request(endpoint_url) |>
+    httr2::req_user_agent("EndpointR") |>
+    httr2::req_method("POST") |>
+    httr2::req_headers("Content-Type" = "application/json") |>
+    httr2::req_auth_bearer_token(token = api_key) |>
+    httr2::req_body_json(list(inputs = test_text)) |>
+    httr2::req_timeout(10) # short timeout to fail fast
+
+  # Handle both HTTP errors and connection issues
+  tryCatch({
+    resp <- httr2::req_perform(req)
+
+    # Check if status code indicates an error (400 or above)
+    if (httr2::resp_status(resp) >= 400) {
+      cli::cli_abort("Endpoint returned error: {httr2::resp_status_desc(resp)}")
+    }
+
+    return(TRUE)
+  }, error = function(e) {
+    cli::cli_abort(c(
+      "Cannot connect to Hugging Face endpoint",
+      "i" = "URL: {endpoint_url}",
+      "x" = "Error: {conditionMessage(e)}"
+    ))
+    return(FALSE)
+  })
+}

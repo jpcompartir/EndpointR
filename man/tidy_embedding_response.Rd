@@ -19,7 +19,7 @@ embedding request into a tidy tibble.
 \examples{
 \dontrun{
   # Process response from httr2 request
-  req <- hf_embed_request_single(text, endpoint_url, api_key)
+  req <- hf_build_request(text, endpoint_url, api_key)
   resp <- httr2::req_perform(req)
   embeddings <- tidy_embedding_response(resp)
 
