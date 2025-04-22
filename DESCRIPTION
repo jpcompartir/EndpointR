@@ -4,8 +4,7 @@ Version: 0.0.0.9000
 Authors@R: 
     person("Jack", "Penzer", , "Jack.penzer@sharecreative.com", role = c("aut", "cre"))
 Description: EndpointR is a 'batteries included', open-source R package for connecting to various APIs for Machine Learning model predictions. EndpointR is built for company-specific use cases, so may not be useful to a wide audience.
-License: `use_mit_license()`, `use_gpl3_license()` or friends to pick a
-    license
+License: MIT + file LICENSE
 Encoding: UTF-8
 Roxygen: list(markdown = TRUE)
 RoxygenNote: 7.3.2
@@ -22,5 +21,7 @@ Imports:
     rlang,
     askpass,
     jsonlite,
-    glue
+    glue,
+    tidyr,
+    tibble
 VignetteBuilder: knitr

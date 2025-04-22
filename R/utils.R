@@ -19,7 +19,7 @@
 #' }
 get_api_key <- function(key_name) {
 
-  stopifnot(is.character(key_name)) # add && API_KEY check here?
+  stopifnot("`key_name` should be a string" = is.character(key_name)) # add && API_KEY check here?
 
   renviron_path <- path.expand("~/.Renviron")
   if(!file.exists(renviron_path)){
@@ -49,7 +49,7 @@ get_api_key <- function(key_name) {
 #' @param key_name The name of the API in the format "ENDPOINT_API_KEY" -> "ANTHROPIC_API_KEY"
 #' @param overwrite Whether to overwrite an existing value for the API key.
 #'
-#' @returns
+#' @returns Nothing
 #' @export
 #'
 #' @examples
@@ -91,7 +91,7 @@ set_api_key <- function(key_name, overwrite = FALSE) {
 
   renviron_contents <- readLines(renviron_path)
   key_already_exists <- any(
-    grepl(glue::glue("^{key_name}"), renviron_path)
+    grepl(glue::glue("^{key_name}"), renviron_contents)
     )
 
   if(key_already_exists && !overwrite){
