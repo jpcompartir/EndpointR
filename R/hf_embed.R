@@ -65,53 +65,7 @@ hf_build_request <- function(text,
 }
 
 ## Space for batch function `hf_embed_b`
-
-#' Process embedding API response into a tidy format
-#'
-#' @description
-#' Converts the nested list response from a Hugging Face Inference API
-#' embedding request into a tidy tibble.
-#'
-#' @param response An httr2 response object or the parsed JSON response
-#'
-#' @return A tibble containing the embedding vectors
-#' @export
-#'
-#' @examples
-#' \dontrun{
-#'   # Process response from httr2 request
-#'   req <- hf_build_request(text, endpoint_url, api_key)
-#'   resp <- httr2::req_perform(req)
-#'   embeddings <- tidy_embedding_response(resp)
-#'
-#'   # Process already parsed JSON
-#'   resp_json <- httr2::resp_body_json(resp)
-#'   embeddings <- tidy_embedding_response(resp_json)
-#' }
-tidy_embedding_response <- function(response) {
-  # Handle both httr2 response objects and parsed JSON
-  if (inherits(response, "httr2_response")) {
-    resp_json <- httr2::resp_body_json(response)
-  } else {
-    resp_json <- response
-  }
-
-  # Handle different response formats from Hugging Face
-  if (is.list(resp_json) && !is.null(names(resp_json))) {
-    # Some endpoints return {"embedding": [...]} format
-    if ("embedding" %in% names(resp_json)) {
-      resp_json <- list(resp_json$embedding)
-    }
-  }
-
-  # Process the nested list into a tibble
-  tib <- sapply(resp_json, unlist) |>
-    t() |> # transpose to wide form
-    as.data.frame.matrix() |>
-    tibble::as_tibble()
-
-  return(tib)
-}
+## TODO
 
 #' Execute a single embedding request and process the response
 #'
@@ -189,6 +143,7 @@ hf_embed_text <- function(text,
                          max_retries = 3,
                          timeout = 10,
                          validate = FALSE) {
+
   # build request with the specified parameters
   req <- hf_build_request(
     text = text,
@@ -297,19 +252,6 @@ hf_build_request_df <- function(df,
   return(result_df)
 }
 
-#' Safely perform an embedding request with error handling
-#'
-#' @description
-#' Wrapper around httr2::req_perform that handles errors gracefully.
-#'
-#' @param request An httr2 request object
-#'
-#' @return A list with components $result and $error
-#' @export
-safely_perform_request <- function(request) {
-  purrr::safely(httr2::req_perform)(request)
-}
-
 #' Execute multiple embedding requests in parallel
 #'
 #' @description
@@ -343,9 +285,7 @@ safely_perform_request <- function(request) {
 #'     progress = TRUE
 #'   )
 #' }
-hf_perform_parallel <- function(df,
-                                     max_active = 10,
-                                     progress = TRUE) {
+hf_perform_parallel <- function(df, max_active = 10, progress = TRUE) {
   # the hf_perform functions should probably just become hf_perform
   # they don't really care if the task is embeddings or classification ( or other) TODO
   # the correct tidy/processing function needs to be applied depending on the task.
@@ -444,10 +384,10 @@ chunk_dataframe <- function(df, chunk_size) {
   return(df_chunks)
 }
 
-#' Process batch responses into embeddings
+#' Process chunked data frames into embeddings
 #'
 #' @description
-#' Processes batch responses into tidy embeddings and handles errors.
+#' Processes chunks of responses into tidy embeddings and handles errors.
 #'
 #' @param df Data frame with response objects in '.response' column
 #' @param include_errors Whether to include rows with errors in the result
@@ -458,12 +398,12 @@ chunk_dataframe <- function(df, chunk_size) {
 #' @examples
 #' \dontrun{
 #'   # Process responses into embeddings
-#'   embeddings_df <- process_batch_responses(
+#'   embeddings_df <- process_chunked_df(
 #'     df = responses_df,
 #'     include_errors = FALSE
 #'   )
 #' }
-process_batch_responses <- function(df, include_errors = FALSE) {
+process_chunked_df <- function(df, include_errors = FALSE) {
   # TODO re-work pending changes to batch -> sequential/parallel
 
   stopifnot(
@@ -677,7 +617,7 @@ hf_embed_df <- function(df,
       }
 
       # process completed requests:
-      emb_df <- process_batch_responses(
+      emb_df <- process_chunked_df(
         df = resp_df,
         include_errors = include_errors
       )
@@ -723,7 +663,7 @@ hf_embed_df <- function(df,
       )
     }
 
-    result_df <- process_batch_responses(
+    result_df <- process_chunked_df(
       df = resp_df,
       include_errors = include_errors
     )

@@ -50,7 +50,7 @@ This vignette focuses on using Hugging Face endpoints for text embeddings.
 
 # API Key Management
 
-Assuming the endpoint has already been set up, you'll need to retrieve your API key from Hugging Face (or the team resposible for providing API keys) and store it securely in an environment variable.
+Assuming the endpoint has already been set up, you'll need to retrieve your API key from Hugging Face (or the team responsible for providing API keys) and store it securely in an environment variable.
 
 `set_api_key` will ask you to input the value for your API key using askpass, this reduces [^2] the likelihood of your API key ending up in your code somewhere
 
@@ -147,7 +147,7 @@ There are some other optional arguments:
 -   `max_retries` tells EndpointR how many times it should try to repeat the request before moving on to the next item.
 
 ```{r}
-embedding_df <- hf_embed_df(
+result_df <- hf_embed_df(
   df = embedding_df,
   text_var = sentence,
   id_var = id,
@@ -177,33 +177,31 @@ If you need to select only the columns that contain embeddings - for example if 
 
 ```{r}
 embedding_df |> select(V1:V384)
-
 ```
 
-If I had 768 embedding dimensions, I would want to input `V1:V768`, and similary for 1024 dimensions, `V1:V1024`, you get the idea.
+If I had 768 embedding dimensions, I would want to input `V1:V768`, and similarly for 1024 dimensions, `V1:V1024`, you get the idea.
 
 ```{r}
 embedding_sentences <- rep(embedding_sentences, 10)
 embedding_ids <- 1:10
 ```
 
+## Scaling Performance
+
+So far we've looked at how to send a single piece of text, and how to iterate through a data frame full of texts, sending one request at a time. Whilst these are key workflows, once you're more comfortable with sending requests to APIs and receiving responses, you'll probably need to send a bunch of requests quickly.
+
+Before we get into how, let's go a bit further into why.
+
+For each row of our data frame, we need to create a request which we will then perform. We then need to perform the request by sending our information over the internet to the endpoint. The endpoint accepts our request, performs any computation it needs to make and sends a response. Each of these steps has a cost in time associated with it, and the cost for each step is not equal - some steps are more costly than others.
+
+Creating each request is almost instant, but if we have a larger data frame - e.g. with 100,000 rows: creating 100,000 requests simultaneously will take $\approx$ 30s-90s. If we process them all at once, we'll have to wait the full amount of time before we send any requests and receive any responses. Clearly this is wasteful.
+
+Sending each request to the endpoint and waiting for it to process the data then send its response, will take a lot longer than preparing the request. Therefore, if we can find ways to reduce the time we spend waiting here, we should be able to reduce overall time spent waiting significantly.
+
 ```{r}
-ids <- 1:300
-texts <- rep(c(
-    "The quick brown fox jumps over the lazy dog",
-    "Machine learning models can process natural language",
-    "Vector embeddings represent text as numerical values"
-  ), 100)
-
-texts_df <- tibble(
-  id = ids,
-  text = texts
-)
-
-
 result_df <- hf_embed_df(
-  df = texts_df,
-  text_var = text,
+  df = embedding_df,
+  text_var = sentence,
   id_var= id,
   endpoint_url = endpoint_url,
   key_name = "HF_TEST_API_KEY",
@@ -211,10 +209,11 @@ result_df <- hf_embed_df(
   batch_size = 10,
   # max_active = 3,
   # parallel = TRUE,
-  max_active = 10,
-  parallel = TRUE,
+  # max_active = 2,
+  # parallel = TRUE,
   progress = TRUE
 )
+
 ```
 
 ```{r}
