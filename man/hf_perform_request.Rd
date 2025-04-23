@@ -4,10 +4,12 @@
 \alias{hf_perform_request}
 \title{Execute a single embedding request and process the response}
 \usage{
-hf_perform_request(request, tidy = TRUE)
+hf_perform_request(request, ..., tidy = TRUE)
 }
 \arguments{
 \item{request}{An httr2 request object created by hf_build_request}
+
+\item{...}{ellipsis is sent to \code{httr2::req_perform}, e.g. for \code{path} and \code{verbosity}arguments.}
 
 \item{tidy}{Whether to convert the response to a tidy tibble}
 }

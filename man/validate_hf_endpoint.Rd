@@ -2,7 +2,7 @@
 % Please edit documentation in R/utils.R
 \name{validate_hf_endpoint}
 \alias{validate_hf_endpoint}
-\title{Validate a Hugging Face Inference Endpoint}
+\title{Validate that a Hugging Face Inference Endpoint is available}
 \usage{
 validate_hf_endpoint(endpoint_url, key_name)
 }

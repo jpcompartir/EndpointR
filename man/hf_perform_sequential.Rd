@@ -30,7 +30,7 @@ For example, \code{hf_embed_df} has arguments which determine the strategy.
 
   requests_df <- hf_build_request_df(
     df = df,
-    text_col = "text",
+    text_var = text,
     endpoint_url = "https://my-endpoint.huggingface.cloud"
   )
 

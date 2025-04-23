@@ -29,7 +29,7 @@ Performs multiple prepared embedding requests in parallel and returns the respon
 
   requests_df <- hf_build_request_df(
     df = df,
-    text_col = "text",
+    text_var = text,
     endpoint_url = "https://my-endpoint.huggingface.cloud"
   )
 

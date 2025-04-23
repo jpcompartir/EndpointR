@@ -8,6 +8,7 @@ hf_embed_text(
   text,
   endpoint_url,
   key_name,
+  ...,
   max_retries = 3,
   timeout = 10,
   validate = FALSE
@@ -19,6 +20,8 @@ hf_embed_text(
 \item{endpoint_url}{The URL of the Hugging Face Inference API endpoint}
 
 \item{key_name}{Name of the environment variable containing the API key}
+
+\item{...}{ellipsis sent to \code{hf_perform_request}, which forwards to \code{httr2::req_perform}}
 
 \item{max_retries}{Maximum number of retry attempts for failed requests}
 

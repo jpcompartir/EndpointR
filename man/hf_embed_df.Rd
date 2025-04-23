@@ -53,7 +53,7 @@ A data frame with the original data plus embedding columns
 \description{
 High-level function to generate embeddings for texts in a data frame.
 This function handles the entire process from request creation to
-response processing, with options for batching & parallel exeuction.
+response processing, with options for batching & parallel execution.
 Setting the number of retries,
 }
 \examples{

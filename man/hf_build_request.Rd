@@ -5,7 +5,7 @@
 \title{Prepare a single text embedding request}
 \usage{
 hf_build_request(
-  text,
+  input,
   endpoint_url,
   key_name,
   max_retries = 3,
@@ -14,7 +14,7 @@ hf_build_request(
 )
 }
 \arguments{
-\item{text}{Character string to get embeddings for}
+\item{input}{Character string to get a response for}
 
 \item{endpoint_url}{The URL of the Hugging Face Inference API endpoint}
 
@@ -30,22 +30,27 @@ hf_build_request(
 An httr2 request object
 }
 \description{
-Creates an httr2 request object for obtaining embeddings from a Hugging Face
-Inference endpoint for a single text input.
+Creates an httr2 request object for obtaining a response from a Hugging Face
+Inference endpoint for a single text input. The function can be used for
+multiple tasks, i.e. for embedding an input, or classifying an input
+}
+\details{
+For developers, this function can form the basis of single requests, or a
+if mapped over a list of requests.
 }
 \examples{
 \dontrun{
   # Create request using API key from environment
   req <- hf_build_request(
-    text = "This is a sample text to embed",
-    endpoint_url = "https://my-endpoint.huggingface.cloud",
+    input = "This is a sample text to embed",
+    endpoint_url = "https://my-endpoint.huggingface.cloud/embedding_api",
     key_name = "HF_API_KEY"
   )
 
   # Using default key name
   req <- hf_build_request(
-    text = "This is a sample text to embed",
-    endpoint_url = "https://my-endpoint.huggingface.cloud"
+    input = "This is a sample text to classify",
+    endpoint_url = "https://my-endpoint.huggingface.cloud/classification_api"
   )
 }
 }

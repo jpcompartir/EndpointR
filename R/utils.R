@@ -117,7 +117,7 @@ set_api_key <- function(key_name, overwrite = FALSE) {
 }
 
 
-#' Validate a Hugging Face Inference Endpoint
+#' Validate that a Hugging Face Inference Endpoint is available
 #'
 #' @description
 #' Checks if an endpoint URL is valid and accessible with the provided API key.
@@ -175,55 +175,6 @@ validate_hf_endpoint <- function(endpoint_url, key_name) {
     ))
     return(FALSE)
   })
-}
-
-
-
-#' Process embedding API response into a tidy format
-#'
-#' @description
-#' Converts the nested list response from a Hugging Face Inference API
-#' embedding request into a tidy tibble.
-#'
-#' @param response An httr2 response object or the parsed JSON response
-#'
-#' @return A tibble containing the embedding vectors
-#' @export
-#'
-#' @examples
-#' \dontrun{
-#'   # Process response from httr2 request
-#'   req <- hf_build_request(text, endpoint_url, api_key)
-#'   resp <- httr2::req_perform(req)
-#'   embeddings <- tidy_embedding_response(resp)
-#'
-#'   # Process already parsed JSON
-#'   resp_json <- httr2::resp_body_json(resp)
-#'   embeddings <- tidy_embedding_response(resp_json)
-#' }
-tidy_embedding_response <- function(response) {
-  # Handle both httr2 response objects and parsed JSON
-  if (inherits(response, "httr2_response")) {
-    resp_json <- httr2::resp_body_json(response)
-  } else {
-    resp_json <- response
-  }
-
-  # Handle different response formats from Hugging Face
-  if (is.list(resp_json) && !is.null(names(resp_json))) {
-    # Some endpoints return {"embedding": [...]} format
-    if ("embedding" %in% names(resp_json)) {
-      resp_json <- list(resp_json$embedding)
-    }
-  }
-
-  # Process the nested list into a tibble
-  tib <- sapply(resp_json, unlist) |>
-    t() |> # transpose to wide form
-    as.data.frame.matrix() |>
-    tibble::as_tibble()
-
-  return(tib)
 }
 
 

@@ -1,10 +1,17 @@
+# hf_build_request docs ----
 #' Prepare a single text embedding request
 #'
 #' @description
-#' Creates an httr2 request object for obtaining embeddings from a Hugging Face
-#' Inference endpoint for a single text input.
+#' Creates an httr2 request object for obtaining a response from a Hugging Face
+#' Inference endpoint for a single text input. The function can be used for
+#' multiple tasks, i.e. for embedding an input, or classifying an input
 #'
-#' @param text Character string to get embeddings for
+#' @details
+#' For developers, this function can form the basis of single requests, or a
+#' if mapped over a list of requests.
+#'
+#'
+#' @param input Character string to get a response for
 #' @param endpoint_url The URL of the Hugging Face Inference API endpoint
 #' @param key_name Name of the environment variable containing the API key
 #' @param max_retries Maximum number of retry attempts for failed requests
@@ -18,26 +25,27 @@
 #' \dontrun{
 #'   # Create request using API key from environment
 #'   req <- hf_build_request(
-#'     text = "This is a sample text to embed",
-#'     endpoint_url = "https://my-endpoint.huggingface.cloud",
+#'     input = "This is a sample text to embed",
+#'     endpoint_url = "https://my-endpoint.huggingface.cloud/embedding_api",
 #'     key_name = "HF_API_KEY"
 #'   )
 #'
 #'   # Using default key name
 #'   req <- hf_build_request(
-#'     text = "This is a sample text to embed",
-#'     endpoint_url = "https://my-endpoint.huggingface.cloud"
+#'     input = "This is a sample text to classify",
+#'     endpoint_url = "https://my-endpoint.huggingface.cloud/classification_api"
 #'   )
 #' }
-hf_build_request <- function(text,
-                                    endpoint_url,
-                                    key_name,
-                                    max_retries = 3,
-                                    timeout = 10,
-                                    validate = FALSE) {
+# hf_build_request docs ----
+hf_build_request <- function(input,
+                             endpoint_url,
+                             key_name,
+                             max_retries = 3,
+                             timeout = 10,
+                             validate = FALSE) {
   stopifnot(
-    "text must be provided" = !is.null(text) && nchar(text) > 0,
-    "text must be a character string" = is.character(text),
+    "text must be provided" = !is.null(input) && nchar(input) > 0,
+    "text must be a character string" = is.character(input),
     "endpoint_url must be provided" = !is.null(endpoint_url) && nchar(endpoint_url) > 0,
     "endpoint_url must be a character string" = is.character(endpoint_url),
     "max_retries must be a positive integer" = is.numeric(max_retries) && max_retries > 0,
@@ -55,7 +63,7 @@ hf_build_request <- function(text,
     httr2::req_method("POST") |>
     httr2::req_headers("Content-Type" = "application/json") |>
     httr2::req_auth_bearer_token(token = api_key) |>
-    httr2::req_body_json(list(inputs = text)) |>
+    httr2::req_body_json(list(inputs = input)) |>
     httr2::req_timeout(timeout) |>
     httr2::req_retry(max_tries = max_retries,
                      backoff = ~ 2 ^ .x, # exponential backoff strategy
@@ -64,9 +72,7 @@ hf_build_request <- function(text,
   return(req)
 }
 
-## Space for batch function `hf_embed_b`
-## TODO
-
+# hf_perform_request_docs ----
 #' Execute a single embedding request and process the response
 #'
 #' @description
@@ -74,6 +80,7 @@ hf_build_request <- function(text,
 #' vector in a tidy format.
 #'
 #' @param request An httr2 request object created by hf_build_request
+#' @param ... ellipsis is sent to `httr2::req_perform`, e.g. for `path` and `verbosity`arguments.
 #' @param tidy Whether to convert the response to a tidy tibble
 #'
 #' @return A tibble with embedding vectors if tidy=TRUE, otherwise the raw httr2 response
@@ -83,7 +90,7 @@ hf_build_request <- function(text,
 #' \dontrun{
 #'   # Create and perform request
 #'   req <- hf_build_request(
-#'     text = "This is a sample text to embed",
+#'     input = "This is a sample text to embed",
 #'     endpoint_url = "https://my-endpoint.huggingface.cloud"
 #'   )
 #'   embeddings <- hf_perform_request(req)
@@ -91,12 +98,13 @@ hf_build_request <- function(text,
 #'   # Get raw response instead of processed embeddings
 #'   response <- hf_perform_request(req, tidy = FALSE)
 #' }
-hf_perform_request <- function(request, tidy = TRUE) {
+# hf_perform_request_docs ----
+hf_perform_request <- function(request, ..., tidy = TRUE) {
   stopifnot(
     "request must be an httr2 request object" = inherits(request, "httr2_request")
   )
 
-  resp <- httr2::req_perform(request)
+  resp <- httr2::req_perform(request, ...)
 
   if (tidy) {
     return(tidy_embedding_response(resp))
@@ -105,6 +113,7 @@ hf_perform_request <- function(request, tidy = TRUE) {
   }
 }
 
+# hf_embed_text docs ----
 #' Generate embeddings for a single text
 #'
 #' @description
@@ -115,6 +124,7 @@ hf_perform_request <- function(request, tidy = TRUE) {
 #' @param text Character string to get embeddings for
 #' @param endpoint_url The URL of the Hugging Face Inference API endpoint
 #' @param key_name Name of the environment variable containing the API key
+#' @param ... ellipsis sent to `hf_perform_request`, which forwards to `httr2::req_perform`
 #' @param max_retries Maximum number of retry attempts for failed requests
 #' @param timeout Request timeout in seconds
 #' @param validate Whether to validate the endpoint before creating the request
@@ -137,16 +147,18 @@ hf_perform_request <- function(request, tidy = TRUE) {
 #'     key_name = "MY_CUSTOM_API_KEY"
 #'   )
 #' }
+# hf_embed_text docs ----
 hf_embed_text <- function(text,
                          endpoint_url,
                          key_name,
+                         ...,
                          max_retries = 3,
                          timeout = 10,
                          validate = FALSE) {
 
   # build request with the specified parameters
   req <- hf_build_request(
-    text = text,
+    input = text,
     endpoint_url = endpoint_url,
     key_name = key_name,
     max_retries = max_retries,
@@ -156,7 +168,7 @@ hf_embed_text <- function(text,
 
   # perform request and provide user-friendly error messages
   tryCatch({
-    embeddings <- hf_perform_request(req, tidy = TRUE)
+    embeddings <- hf_perform_request(req, ..., tidy = TRUE)
     return(embeddings)
   }, error = function(e) {
     cli::cli_abort(c(
@@ -167,6 +179,12 @@ hf_embed_text <- function(text,
   })
 }
 
+## Space for batch function `hf_build_batch_request`
+## TODO
+
+## Space for hf_perform_batch_request
+
+# build_request_df docs ----
 #' Prepare embedding requests for texts in a data frame
 #'
 #' @description
@@ -202,6 +220,7 @@ hf_embed_text <- function(text,
 #'     id_var = id
 #'   )
 #' }
+# build_request_df docs ----
 hf_build_request_df <- function(df,
                               text_var,
                               id_var,
@@ -239,7 +258,7 @@ hf_build_request_df <- function(df,
       .request = purrr::map(
         !!text_sym,
         ~ hf_build_request(
-          text = .x,
+          input = .x,
           endpoint_url = endpoint_url,
           key_name = key_name,
           max_retries = max_retries,
@@ -252,6 +271,7 @@ hf_build_request_df <- function(df,
   return(result_df)
 }
 
+# hf_perform_parallel docs ----
 #' Execute multiple embedding requests in parallel
 #'
 #' @description
@@ -274,7 +294,7 @@ hf_build_request_df <- function(df,
 #'
 #'   requests_df <- hf_build_request_df(
 #'     df = df,
-#'     text_col = "text",
+#'     text_var = text,
 #'     endpoint_url = "https://my-endpoint.huggingface.cloud"
 #'   )
 #'
@@ -285,6 +305,7 @@ hf_build_request_df <- function(df,
 #'     progress = TRUE
 #'   )
 #' }
+# hf_perform_parallel docs ----
 hf_perform_parallel <- function(df, max_active = 10, progress = TRUE) {
   # the hf_perform functions should probably just become hf_perform
   # they don't really care if the task is embeddings or classification ( or other) TODO
@@ -307,6 +328,7 @@ hf_perform_parallel <- function(df, max_active = 10, progress = TRUE) {
   return(result_df)
 }
 
+# hf_perform_sequential docs ----
 #' Execute multiple embedding requests located in a data frame sequentially
 #'
 #' @description
@@ -331,7 +353,7 @@ hf_perform_parallel <- function(df, max_active = 10, progress = TRUE) {
 #'
 #'   requests_df <- hf_build_request_df(
 #'     df = df,
-#'     text_col = "text",
+#'     text_var = text,
 #'     endpoint_url = "https://my-endpoint.huggingface.cloud"
 #'   )
 #'
@@ -341,6 +363,7 @@ hf_perform_parallel <- function(df, max_active = 10, progress = TRUE) {
 #'     progress = TRUE
 #'   )
 #' }
+# hf_perform_sequential docs ----
 hf_perform_sequential <- function(df, progress = TRUE) {
 
   stopifnot(
@@ -358,6 +381,7 @@ hf_perform_sequential <- function(df, progress = TRUE) {
   return(result_df)
 }
 
+# chunk_dataframe docs ----
 #' Split a data frame into chunks for batch processing
 #'
 #' @description
@@ -369,6 +393,7 @@ hf_perform_sequential <- function(df, progress = TRUE) {
 #'
 #' @return A list of data frames, each with at most chunk_size rows
 #' @keywords internal
+# hf_perform_sequential docs ----
 chunk_dataframe <- function(df, chunk_size) {
   stopifnot(
     "df must be a data frame" = is.data.frame(df),
@@ -384,6 +409,56 @@ chunk_dataframe <- function(df, chunk_size) {
   return(df_chunks)
 }
 
+# tidy_embedding_response_docs ----
+#' Process embedding API response into a tidy format
+#'
+#' @description
+#' Converts the nested list response from a Hugging Face Inference API
+#' embedding request into a tidy tibble.
+#'
+#' @param response An httr2 response object or the parsed JSON response
+#'
+#' @return A tibble containing the embedding vectors
+#' @export
+#'
+#' @examples
+#' \dontrun{
+#'   # Process response from httr2 request
+#'   req <- hf_build_request(text, endpoint_url, api_key)
+#'   resp <- httr2::req_perform(req)
+#'   embeddings <- tidy_embedding_response(resp)
+#'
+#'   # Process already parsed JSON
+#'   resp_json <- httr2::resp_body_json(resp)
+#'   embeddings <- tidy_embedding_response(resp_json)
+#' }
+# tidy_embedding_response_docs ----
+tidy_embedding_response <- function(response) {
+  # Handle both httr2 response objects and parsed JSON
+  if (inherits(response, "httr2_response")) {
+    resp_json <- httr2::resp_body_json(response)
+  } else {
+    resp_json <- response
+  }
+
+  # Handle different response formats from Hugging Face
+  if (is.list(resp_json) && !is.null(names(resp_json))) {
+    # Some endpoints return {"embedding": [...]} format
+    if ("embedding" %in% names(resp_json)) {
+      resp_json <- list(resp_json$embedding)
+    }
+  }
+
+  # Process the nested list into a tibble
+  tib <- sapply(resp_json, unlist) |>
+    t() |> # transpose to wide form
+    as.data.frame.matrix() |>
+    tibble::as_tibble()
+
+  return(tib)
+}
+
+# tidy_chunked_embedding_df docs ----
 #' Process chunked data frames into embeddings
 #'
 #' @description
@@ -398,12 +473,13 @@ chunk_dataframe <- function(df, chunk_size) {
 #' @examples
 #' \dontrun{
 #'   # Process responses into embeddings
-#'   embeddings_df <- process_chunked_df(
+#'   embeddings_df <- tidy_chunked_embedding_df(
 #'     df = responses_df,
 #'     include_errors = FALSE
 #'   )
 #' }
-process_chunked_df <- function(df, include_errors = FALSE) {
+# tidy_chunked_embedding_df docs ----
+tidy_chunked_embedding_df <- function(df, include_errors = FALSE) {
   # TODO re-work pending changes to batch -> sequential/parallel
 
   stopifnot(
@@ -469,12 +545,13 @@ process_chunked_df <- function(df, include_errors = FALSE) {
   return(result_df)
 }
 
+# hf_embed_df docs ----
 #' Generate embeddings for texts in a data frame
 #'
 #' @description
 #' High-level function to generate embeddings for texts in a data frame.
 #' This function handles the entire process from request creation to
-#' response processing, with options for batching & parallel exeuction.
+#' response processing, with options for batching & parallel execution.
 #' Setting the number of retries,
 #'
 #' @param df A data frame containing texts to embed
@@ -532,6 +609,7 @@ process_chunked_df <- function(df, include_errors = FALSE) {
 #'     batch_size = 10
 #'   )
 #' }
+# hf_embed_df docs ----
 hf_embed_df <- function(df,
                        text_var,
                        endpoint_url,
@@ -617,7 +695,7 @@ hf_embed_df <- function(df,
       }
 
       # process completed requests:
-      emb_df <- process_chunked_df(
+      emb_df <- tidy_chunked_embedding_df(
         df = resp_df,
         include_errors = include_errors
       )
@@ -663,7 +741,7 @@ hf_embed_df <- function(df,
       )
     }
 
-    result_df <- process_chunked_df(
+    result_df <- tidy_chunked_embedding_df(
       df = resp_df,
       include_errors = include_errors
     )
