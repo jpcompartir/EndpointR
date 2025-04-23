@@ -11,13 +11,12 @@ hf_embed_df(
   key_name,
   id_var,
   batch_size = NULL,
-  parallel = FALSE,
-  max_active = 10,
+  concurrent_requests = 1,
   max_retries = 3,
   timeout = 10,
   progress = TRUE,
   validate = FALSE,
-  include_errors = FALSE
+  include_errors = TRUE
 )
 }
 \arguments{
@@ -33,9 +32,7 @@ hf_embed_df(
 
 \item{batch_size}{Number of texts to process in one batch (NULL for no batching)}
 
-\item{parallel}{Whether to execute requests in parallel}
-
-\item{max_active}{Maximum number of concurrent requests when parallel=TRUE}
+\item{concurrent_requests}{Number of requests to send at once. Some APIs do not allow for multiple requests.}
 
 \item{max_retries}{Maximum number of retry attempts for failed requests}
 

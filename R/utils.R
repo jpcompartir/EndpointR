@@ -190,3 +190,32 @@ validate_hf_endpoint <- function(endpoint_url, key_name) {
 safely_perform_request <- function(request) {
   purrr::safely(httr2::req_perform)(request)
 }
+
+
+# chunk_dataframe docs ----
+#' Split a data frame into chunks for batch processing
+#'
+#' @description
+#' Splits a data frame into chunks of specified size.
+
+#'
+#' @param df A data frame to split into batches
+#' @param chunk_size Number of rows per batch
+#'
+#' @return A list of data frames, each with at most chunk_size rows
+#' @keywords internal
+# chunk_dataframe docs ----
+chunk_dataframe <- function(df, chunk_size) {
+  stopifnot(
+    "df must be a data frame" = is.data.frame(df),
+    "chunk_size must be a positive integer" = is.numeric(chunk_size) && chunk_size > 0
+  )
+
+  # don't batch if the df is smaller than batch size
+  if (nrow(df) <= chunk_size) {
+    return(list(df))
+  }
+
+  df_chunks <- split(df, ceiling(seq_len(nrow(df)) / chunk_size))
+  return(df_chunks)
+}
