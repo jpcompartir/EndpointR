@@ -64,6 +64,63 @@ hf_embed_text <- function(text,
   })
 }
 
+
+# hf_embed_batch docs ----
+# hf_embed_batch docs ----
+hf_embed_batch <- function(texts, endpoint_url, key_name, ..., batch_size = 8,
+                           concurrent_requests = 1, max_retries = 5, timeout = 10, validate = FALSE){
+  stopifnot(
+    "Texts must be a list or vector" = is.vector(texts),
+    "batch_size must be a numeric input" = is.numeric(batch_size)
+  )
+
+
+  # batch if we need to, don't if we don't (conditional 1 starts)
+  if(length(texts) > batch_size){
+
+    batch_indices <- split(seq_along(texts), ceiling(seq_along(texts) / batch_size)) # returns list of:
+    # pos 1:batch_size get ceiling'd value of 1
+    # pos batch_size:2(batch_size) get ceiling'd value of 2, and so-on
+
+    batch_texts <- purrr::map(batch_indices, ~texts[.x])
+
+    batch_reqs <- purrr::map(batch_texts, ~hf_build_request_batch(.x, endpoint_url, key_name,
+                                                                  max_retries = max_retries,
+                                                                  timeout = timeout,
+                                                                  validate = validate))
+
+
+    if (concurrent_requests > 1) {  # (conditional 2 starts)
+      # concurrent_requests at a time
+      batch_resps <- httr2::req_perform_parallel(batch_reqs,
+                                                 on_error = "continue",
+                                                 progress = TRUE,
+                                                 max_active = concurrent_requests)
+
+      result_list <- purrr::map(batch_resps, ~tidy_embedding_response(.x))
+
+    } else { # (conditional 2 ends)
+      #  one request at a time
+      result_list <- purrr::map(batch_reqs, ~hf_perform_request(.x, tidy = FALSE) |>
+                                  tidy_embedding_response())
+    }
+
+    result <- purrr::list_rbind(result_list) # purrr-friendly bind_rows()
+
+  } else { # (conditional 1 ends)
+    # we didn't need to batch, so just prepare and send one request
+    batch_req <- hf_build_request_batch(texts, endpoint_url, key_name,
+                                        max_retries = max_retries,
+                                        timeout = timeout,
+                                        validate = validate)
+
+    resp <- hf_perform_request(batch_req, tidy = FALSE)
+    result <- tidy_embedding_response(resp)
+  }
+
+  return(result)
+}
+
 # tidy_embedding_response_docs ----
 #' Process embedding API response into a tidy format
 #'
