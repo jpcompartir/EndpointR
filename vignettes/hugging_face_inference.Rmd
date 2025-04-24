@@ -68,7 +68,7 @@ The high-level API provides convenient functions for common embedding tasks with
 
 > For this example, I have previously set up a package-level key for encrypting sensitive information, `ENDPOINTR_KEY`, this can be used with {httr2}'s `secret_encrypt` and `secret_decrypt` function to encrypt any information. For example, you can use these functions to encrypt your API key itself.
 
-1.  Get your endpoint's url
+1.  Get your endpoint's URL
 2.  Make sure the key_name points to the correct API key for your endpoint
 3.  Get a single piece of text you want to embed
 4.  Call `hf_embed_text()`
@@ -236,27 +236,62 @@ Recording the results: we can see a \~40% reduction in processing time when goin
 |                  10 |                 11.9 | TRUE    |
 |                  20 |                 10.2 | TRUE    |
 
+\*Exact times will fluctuate, so take these as approximates.
+
 ### Batch Requests
 
-Sending concurrent requests is one way to be more efficient - mainly through increasing throughput. Another way to be more efficient would be to send more data inside each request, thus reducing total number of requests, and time spent sending requests to the endpoint.
+Sending concurrent requests is one way to be more efficient - mainly through increasing throughput. Another way is to send more data inside each request, thus reducing total number of requests, and time spent sending requests to the endpoint.
 
-To be concrete, this means sending multiple rows of data inside each request. If we have 1,000 rows of data, and we create batches of size 50, we'll have 1,000/50, or 20 total requests to send, rather than 1,000 requests.
+To be concrete, this means sending multiple rows of data inside each request. If we have 1,000 rows of data, and we create batches of size 50, we'll have $\frac{1000}{50}= 20$ total requests to send, rather than the 1,000 requests we have without batching. If our endpoint is powered by GPU(s) or other hardware accelerators, it will take care of processing the data using parallel computation, increasing speed up.
 
-Endpoints powered by GPUs (or TPUs) make use of parallel computing to speed up computation of requests. Powerful GPUs can deal with 100s - 1000s of requests concurrently
+> **Warning**: experiment with batch sizes to find the sweetspot - usually starting around 8-16, and capping out at \~64. You'll know when you've gone too high because you'll start seeing the retry bar, and/or your responses will contain errors.
+
+TODO: come back to this when batching is fully fleshed out.
+
+Going back to our list of sentences which we aved in the list - `embedding_sentences` above, we can create a single request with all 10 sentences batched in using `hf_build_request_batch()`
 
 ```{r}
-# process in batches with multiple concurrent requests
+batch_request <- hf_build_request_batch(
+  embedding_sentences, endpoint_url, key_name = "HF_TEST_API_KEY")
+```
+
+Now if you inspect the body of the request, and look at data -\> inputs, you'll see the list of 10 sentences.
+
+```{r}
+batch_request$body$data
+```
+
+You can use `hf_perform_request()`to send the request. To the endpoint it will look like a single request, and it will return a single response. Each individual item in our requests `body$data$inputs` will be embedded separately.
+
+```{r}
+batch_result <- hf_perform_request(batch_request)
+```
+
+```{r}
 result_df <- hf_embed_df(
   df = texts_df,
   text_var = text,
   id_var = id, 
   key_name = "HF_TEST_API_KEY",
   endpoint_url = endpoint_url,
-  batch_size = 100,       # process 20 texts at a time
-  concurrent_requests = 5, # maximum 5 concurrent requests
+  batch_size = 20,       # process 20 texts at a time
   progress = TRUE        # show progress bar
 )
 ```
+
+### Chunking Data Frames
+
+When we have a lot of data - 100,000s or 1,000,000s of rows - we may struggle for memory if we try to create the requests all at once
+
+### Writing to Files
+
+Embeddings are returned to us as data frames of floating point numbers, where each column is an embedding dimension. The number of dimensions will usually fall in the range of \$\approx\$300-3000 (and some LLMs have internal represenations in the 10,000s of dimensions range!). That's a lot of data, and our computers only have so much RAM available. If we try to embed 100,000s - 1,000,000 rows at a time, there's a heightened chance of our R session crashing, meaning we lose the results. This wastes time, API credits, energy, and water.
+
+It would be better to chunk our data up, create batches of requests, and write each batched response to a file. The file will persist if our R session crashes.
+
+> At this stage it would normally be advisable to build up your own request directly with httr2 - you'll have full control over batching, concurrent requests, exponential back-off, time-outs and retries, error handling.
+
+However, because it seems quite likely people will run into trouble, and there's a lot at stake if we're sending 100,000s-1,000,000s of requests, we've created a high-level function for chunking a data frame, batching requests, sending concurrent batches, and appending the batch to a file.
 
 # Low-level API
 
