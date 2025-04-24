@@ -1,3 +1,15 @@
+base_request <- function(endpoint_url, api_key){
+  # let other functions handle the input checks for now.
+
+ req <-  httr2::request(endpoint_url) |>
+    httr2::req_user_agent("EndpointR") |>
+    httr2::req_method("POST") |>
+    httr2::req_headers("Content-Type" = "application/json") |>
+    httr2::req_auth_bearer_token(token = api_key)
+
+ return(req)
+}
+
 # hf_build_request docs ----
 #' Prepare a single text embedding request
 #'
@@ -40,7 +52,7 @@
 hf_build_request <- function(input,
                              endpoint_url,
                              key_name,
-                             max_retries = 3,
+                             max_retries = 5,
                              timeout = 10,
                              validate = FALSE) {
   stopifnot(
@@ -58,11 +70,8 @@ hf_build_request <- function(input,
     validate_hf_endpoint(endpoint_url, key_name)
   }
 
-  req <- httr2::request(endpoint_url) |>
-    httr2::req_user_agent("EndpointR") |>
-    httr2::req_method("POST") |>
-    httr2::req_headers("Content-Type" = "application/json") |>
-    httr2::req_auth_bearer_token(token = api_key) |>
+  req <- base_request(endpoint_url, api_key)
+  req <- req |>
     httr2::req_body_json(list(inputs = input)) |>
     httr2::req_timeout(timeout) |>
     httr2::req_retry(max_tries = max_retries,
@@ -72,8 +81,31 @@ hf_build_request <- function(input,
   return(req)
 }
 
-## Space for batch function `hf_build_batch_request`
+## Space for batch function `hf_build_request_batch`
 ## TODO
+hf_build_request_batch <- function(inputs, endpoint_url, key_name, max_retries = 5,
+                                   timeout = 10, validate = FALSE) {
+
+  stopifnot("`inputs` must be a list of inputs" = inherits(inputs, "list")|is.vector(inputs),
+            "endpoint_url must be provided" = !is.null(endpoint_url) && nchar(endpoint_url) > 0,
+            "endpoint_url must be a character string" = is.character(endpoint_url),
+            "max_retries must be a positive integer" = is.numeric(max_retries) && max_retries > 0,
+            "timeout must be a positive number" = is.numeric(timeout) && timeout > 0)
+
+  api_key <- get_api_key(key_name)
+  req <- base_request(
+    endpoint_url = endpoint_url,
+    api_key = api_key)
+
+  req <- req |>
+    httr2::req_body_json(list(inputs = inputs)) |>
+    httr2::req_timeout(timeout) |>
+    httr2::req_retry(max_tries = max_retries, backoff = ~2 ^ .x, retry_on_failure = TRUE)
+
+  return(req)
+
+}
+
 
 ## Space for hf_perform_batch_request
 

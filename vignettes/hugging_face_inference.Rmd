@@ -191,15 +191,15 @@ If I had 768 embedding dimensions, I would input `V1:V768`, and similarly for 10
 
 ## Scaling Performance
 
-So far we've looked at how to send a single piece of text, and how to iterate through a data frame full of texts, sending one request at a time. Whilst these are key workflows, once you're more comfortable with sending requests to APIs and receiving responses, you'll probably need to send a bunch of requests quickly.
+So far we've looked at how to send a single piece of text, and how to iterate through a data frame full of texts, sending one request at a time. Whilst these are key workflows, once you're more comfortable with sending requests to APIs and receiving responses, you'll probably need to send a bunch of requests quickly, or in a more memory-efficient manner.
 
 Before we get into how, let's go a bit further into why.
 
-For each row of our data frame, we need to create a request which we will then perform. We then need to perform the request by sending our information over the internet to the endpoint. The endpoint accepts our request, performs any computation it needs to make and sends a response. Each of these steps has a cost in time associated with it, and the cost for each step is not equal - some steps are more costly than others.
+For each row of our data frame, we need to create a request which we will then perform. We then need to perform the request by sending our information over the internet to the endpoint. The endpoint accepts our request, performs any computation, and sends a successful response or an error. Each of these steps has a cost in time associated with it, and the cost for each step is not equal - some steps are more costly than others.
 
-Creating each request is almost instant, but if we have a larger data frame - e.g. with 100,000 rows: creating 100,000 requests simultaneously will take $\approx$ 30s-90s. If we process them all at once, we'll have to wait the full amount of time before we send any requests and receive any responses. Clearly this is wasteful.
+Creating each request is almost instant, but if we have a larger data frame - e.g. with 100,000 rows: creating 100,000 requests simultaneously will take $\approx$ 30s-90s. If we process them all at once, we'll have to wait the full amount of time before we send any requests and receive any responses. Clearly this is wasteful - if we had created the first request and sent it, we wouldn't be waiting 90s just to start sending requests.
 
-Sending each request to the endpoint and waiting for it to process the data then send its response, will take a lot longer than preparing the request. Therefore, if we can find ways to reduce the time we spend waiting here, we should be able to reduce overall time spent waiting significantly.
+Sending each request to the endpoint and waiting for it to process will usually take a lot longer than preparing the request. Therefore, if we can find ways to reduce the time we spend waiting here, we should be able to reduce the overall time it takes to prepare and send our requests significantly.
 
 ### Concurrent Requests
 
@@ -238,7 +238,11 @@ Recording the results: we can see a \~40% reduction in processing time when goin
 
 ### Batch Requests
 
-For larger datasets, memory may become a concern, batching and sending multiple requests concurrently help manage memory and time constraints. EndpointR will take care of batching your data, performing the requests, and tidying the response. Hugging Face's inference endpoint will take care of how batches are processed on the client's side.
+Sending concurrent requests is one way to be more efficient - mainly through increasing throughput. Another way to be more efficient would be to send more data inside each request, thus reducing total number of requests, and time spent sending requests to the endpoint.
+
+To be concrete, this means sending multiple rows of data inside each request. If we have 1,000 rows of data, and we create batches of size 50, we'll have 1,000/50, or 20 total requests to send, rather than 1,000 requests.
+
+Endpoints powered by GPUs (or TPUs) make use of parallel computing to speed up computation of requests. Powerful GPUs can deal with 100s - 1000s of requests concurrently
 
 ```{r}
 # process in batches with multiple concurrent requests
