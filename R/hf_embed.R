@@ -103,55 +103,93 @@ hf_embed_text <- function(text,
 #' }
 # hf_embed_batch docs ----
 hf_embed_batch <- function(texts, endpoint_url, key_name, ..., batch_size = 8,
-                           concurrent_requests = 1, max_retries = 5, timeout = 10, validate = FALSE){
+                           include_texts = TRUE, concurrent_requests = 1, max_retries = 5, timeout = 10, validate = FALSE){
+
+  if (length(texts) == 0) {
+    cli::cli_warning("Input 'texts' is empty. Returning an empty tibble.")
+    return(tibble::tibble())
+  }
+
   stopifnot(
     "Texts must be a list or vector" = is.vector(texts),
-    "batch_size must be a numeric input" = is.numeric(batch_size)
+    "batch_size must be a positive integer" = is.numeric(batch_size) && batch_size > 0 && batch_size == as.integer(batch_size),
+    "concurrent_requests must be a positive integer" = is.numeric(concurrent_requests) && concurrent_requests > 0 && concurrent_requests == as.integer(concurrent_requests),
+    "max_retries must be a positive integer" = is.numeric(max_retries) && max_retries >= 0 && max_retries == as.integer(max_retries),
+    "timeout must be a positive integer" = is.numeric(timeout) && timeout > 0,
+    "endpoint_url must be a non-empty string" = is.character(endpoint_url) && nchar(endpoint_url) > 0,
+    "key_name must be a non-empty string" = is.character(key_name) && nchar(key_name) > 0
   )
 
 
-  # batch if we need to, don't if we don't (conditional 1 starts)
-  if(length(texts) > batch_size){
+  batch_indices <- split(seq_along(texts), ceiling(seq_along(texts) / batch_size)) # returns list of:
+  # pos 1:batch_size get ceiling'd value of 1
+  # pos batch_size:2(batch_size) get ceiling'd value of 2, and so-on
 
-    batch_indices <- split(seq_along(texts), ceiling(seq_along(texts) / batch_size)) # returns list of:
-    # pos 1:batch_size get ceiling'd value of 1
-    # pos batch_size:2(batch_size) get ceiling'd value of 2, and so-on
+  batch_texts <- purrr::map(batch_indices, ~texts[.x])
+  batch_reqs <- purrr::map(batch_texts, ~hf_build_request_batch(.x, endpoint_url, key_name,
+                                                                max_retries = max_retries,
+                                                                timeout = timeout,
+                                                                validate = FALSE))
 
-    batch_texts <- purrr::map(batch_indices, ~texts[.x])
+  if (concurrent_requests > 1 && length(batch_reqs) > 1) { # batches + concurrent requests
+    batch_resps <- httr2::req_perform_parallel(batch_reqs,
+                                               on_error = "continue",
+                                               progress = TRUE,
+                                               max_active = concurrent_requests)
 
-    batch_reqs <- purrr::map(batch_texts, ~hf_build_request_batch(.x, endpoint_url, key_name,
-                                                                  max_retries = max_retries,
-                                                                  timeout = timeout,
-                                                                  validate = validate))
+    # keep batches and their ids together, and then handle errors gracefully
+    result_list <- purrr::map2(batch_resps, batch_indices, function(resp, indices) {
+      if (inherits(resp, "httr2_response")) {
+        tryCatch({ # catch errors if we can't tidy
+          result <- tidy_embedding_response(resp)
+          result$original_index <- indices # for tracking/preserving order
+          return(result)
+        }, error = function(e) {
+          cli::cli_warn("Error tidying response for batch: {conditionMessage(e)}")
+          return(tibble::tibble(
+            # empty tibble with indices will help to preserve order in worst case (errors)
+            embedding = rep(list(NA), length(indices)),
+            original_index = indices
+          ))
+        })
+      } else {
+        cli::cli_warn("Request failed for batch: {conditionMessage(resp)}")
+        return(tibble::tibble(
+          embedding = rep(list(NA), length(indices)),
+          original_index = indices
+        ))
+      }
+    })
 
-
-    if (concurrent_requests > 1) {  # (conditional 2 starts)
-      # concurrent_requests at a time
-      batch_resps <- httr2::req_perform_parallel(batch_reqs,
-                                                 on_error = "continue",
-                                                 progress = TRUE,
-                                                 max_active = concurrent_requests)
-
-      result_list <- purrr::map(batch_resps, ~tidy_embedding_response(.x))
-
-    } else { # (conditional 2 ends)
-      #  one request at a time
-      result_list <- purrr::map(batch_reqs, ~hf_perform_request(.x, tidy = FALSE) |>
-                                  tidy_embedding_response())
+  } else { # sequential processing
+    safe_perform_and_tidy <- function(req, indices) {
+      tryCatch({ # catch errors if we can't tidy
+        resp <- hf_perform_request(req, tidy = FALSE)
+        result <- tidy_embedding_response(resp)
+        result$original_index <- indices # for tracking/preserving order
+        return(result)
+      }, error = function(e) {
+        cli::cli_warn("Error processing batch sequentially: {conditionMessage(e)}")
+        return(tibble::tibble(
+          embedding = rep(list(NA), length(indices)),
+          original_index = indices
+        ))
+      })
     }
 
-    result <- purrr::list_rbind(result_list) # purrr-friendly bind_rows()
-
-  } else { # (conditional 1 ends)
-    # we didn't need to batch, so just prepare and send one request
-    batch_req <- hf_build_request_batch(texts, endpoint_url, key_name,
-                                        max_retries = max_retries,
-                                        timeout = timeout,
-                                        validate = validate)
-
-    resp <- hf_perform_request(batch_req, tidy = FALSE)
-    result <- tidy_embedding_response(resp)
+    result_list <- purrr::map2(batch_reqs, batch_indices, safe_perform_and_tidy, .progress = TRUE)
   }
+
+
+  result <- purrr::list_rbind(result_list)
+  result <- dplyr::arrange(result, original_index)
+
+  if (include_texts) {
+    result$text <- texts[result$original_index]
+    result <- result |>  dplyr::relocate(text, .before = 1)
+  }
+
+  result$original_index <- NULL # drop index now we're returning
 
   return(result)
 }
