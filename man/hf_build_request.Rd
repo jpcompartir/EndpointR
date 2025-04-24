@@ -8,7 +8,7 @@ hf_build_request(
   input,
   endpoint_url,
   key_name,
-  max_retries = 3,
+  max_retries = 5,
   timeout = 10,
   validate = FALSE
 )

@@ -93,17 +93,18 @@ hf_build_request_batch <- function(inputs, endpoint_url, key_name, max_retries =
             "timeout must be a positive number" = is.numeric(timeout) && timeout > 0)
 
   api_key <- get_api_key(key_name)
+
   req <- base_request(
     endpoint_url = endpoint_url,
     api_key = api_key)
 
+  # for embeddings, should be able to tidy this with tidy_embedding_response()
   req <- req |>
     httr2::req_body_json(list(inputs = inputs)) |>
     httr2::req_timeout(timeout) |>
     httr2::req_retry(max_tries = max_retries, backoff = ~2 ^ .x, retry_on_failure = TRUE)
 
   return(req)
-
 }
 
 

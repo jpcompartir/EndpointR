@@ -34,7 +34,7 @@ hf_embed_df(
 
 \item{concurrent_requests}{Number of requests to send at once. Some APIs do not allow for multiple requests.}
 
-\item{max_retries}{Maximum number of retry attempts for failed requests}
+\item{max_retries}{Maximum number of retry attempts for failed requests.}
 
 \item{timeout}{Request timeout in seconds}
 
