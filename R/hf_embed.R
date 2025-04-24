@@ -66,6 +66,41 @@ hf_embed_text <- function(text,
 
 
 # hf_embed_batch docs ----
+#' Generate batches of embeddings for a list of texts
+#'
+#' @description
+#' High-level function to generate embeddings for multiple text strings.
+#' This function handles batching and parallel processing of embedding requests.
+#'
+#' @param texts Vector or list of character strings to get embeddings for
+#' @param endpoint_url The URL of the Hugging Face Inference API endpoint
+#' @param key_name Name of the environment variable containing the API key
+#' @param ... ellipsis sent to `hf_perform_request` TODO (reserved ATM)
+#' @param batch_size Number of texts to process in one batch
+#' @param concurrent_requests Number of requests to send simultaneously
+#' @param max_retries Maximum number of retry attempts for failed requests
+#' @param timeout Request timeout in seconds
+#' @param validate Whether to validate the endpoint before creating the request
+#'
+#' @return A tibble containing the embedding vectors
+#' @export
+#'
+#' @examples
+#' \dontrun{
+#'   # Generate embeddings for multiple texts using default batch size
+#'   embeddings <- hf_embed_batch(
+#'     texts = c("First example", "Second example", "Third example"),
+#'     endpoint_url = "https://my-endpoint.huggingface.cloud"
+#'   )
+#'
+#'   # With custom batch size and concurrent requests
+#'   embeddings <- hf_embed_batch(
+#'     texts = c("First example", "Second example", "Third example"),
+#'     endpoint_url = "https://my-endpoint.huggingface.cloud",
+#'     batch_size = 10,
+#'     concurrent_requests = 2
+#'   )
+#' }
 # hf_embed_batch docs ----
 hf_embed_batch <- function(texts, endpoint_url, key_name, ..., batch_size = 8,
                            concurrent_requests = 1, max_retries = 5, timeout = 10, validate = FALSE){
