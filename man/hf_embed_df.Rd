@@ -10,13 +10,12 @@ hf_embed_df(
   endpoint_url,
   key_name,
   id_var,
-  batch_size = NULL,
+  batch_size = 8,
   concurrent_requests = 1,
-  max_retries = 3,
-  timeout = 10,
+  max_retries = 5,
+  timeout = 15,
   progress = TRUE,
-  validate = FALSE,
-  include_errors = TRUE
+  validate = FALSE
 )
 }
 \arguments{
@@ -41,8 +40,6 @@ hf_embed_df(
 \item{progress}{Whether to display a progress bar}
 
 \item{validate}{Whether to validate the endpoint before creating requests}
-
-\item{include_errors}{Whether to include rows with errors in the result}
 }
 \value{
 A data frame with the original data plus embedding columns
@@ -51,7 +48,7 @@ A data frame with the original data plus embedding columns
 High-level function to generate embeddings for texts in a data frame.
 This function handles the entire process from request creation to
 response processing, with options for batching & parallel execution.
-Setting the number of retries,
+Setting the number of retries
 }
 \examples{
 \dontrun{
