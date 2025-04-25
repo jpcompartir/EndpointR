@@ -41,17 +41,10 @@ hf_embed_text <- function(text,
                          timeout = 10,
                          validate = FALSE) {
 
-  # build request with the specified parameters
-  req <- hf_build_request(
-    input = text,
-    endpoint_url = endpoint_url,
-    key_name = key_name,
-    max_retries = max_retries,
-    timeout = timeout,
-    validate = validate
-  )
+  req <- hf_build_request(input = text, endpoint_url = endpoint_url,
+                          key_name = key_name, max_retries = max_retries, timeout = timeout, validate = validate)
 
-  # perform request and provide user-friendly error messages
+  # provide user-friendly error messages
   tryCatch({
     embeddings <- hf_perform_request(req, ..., tidy = TRUE)
     return(embeddings)
@@ -70,13 +63,14 @@ hf_embed_text <- function(text,
 #'
 #' @description
 #' High-level function to generate embeddings for multiple text strings.
-#' This function handles batching and parallel processing of embedding requests.
+#' This function handles batching and parallel processing of embedding requests, and attempts to handle errors gracefully.
 #'
 #' @param texts Vector or list of character strings to get embeddings for
 #' @param endpoint_url The URL of the Hugging Face Inference API endpoint
 #' @param key_name Name of the environment variable containing the API key
 #' @param ... ellipsis sent to `hf_perform_request` TODO (reserved ATM)
 #' @param batch_size Number of texts to process in one batch
+#' @param include_texts Whether to return the original texts in the return tibble
 #' @param concurrent_requests Number of requests to send simultaneously
 #' @param max_retries Maximum number of retry attempts for failed requests
 #' @param timeout Request timeout in seconds
@@ -252,6 +246,10 @@ tidy_embedding_response <- function(response) {
   return(tib)
 }
 
+tidy_batched_embedding <- function(batch_responses) {
+
+}
+
 # tidy_chunked_embedding_df docs ----
 #' Process chunked data frames into embeddings
 #'
@@ -339,6 +337,7 @@ tidy_chunked_embedding_df <- function(df, include_errors = FALSE) {
   return(result_df)
 }
 
+
 # hf_embed_df docs ----
 #' Generate embeddings for texts in a data frame
 #'
@@ -346,7 +345,7 @@ tidy_chunked_embedding_df <- function(df, include_errors = FALSE) {
 #' High-level function to generate embeddings for texts in a data frame.
 #' This function handles the entire process from request creation to
 #' response processing, with options for batching & parallel execution.
-#' Setting the number of retries,
+#' Setting the number of retries
 #'
 #' @param df A data frame containing texts to embed
 #' @param text_var Name of the column containing text to embed
@@ -355,11 +354,10 @@ tidy_chunked_embedding_df <- function(df, include_errors = FALSE) {
 #' @param key_name Name of the environment variable containing the API key
 #' @param batch_size Number of texts to process in one batch (NULL for no batching)
 #' @param concurrent_requests Number of requests to send at once. Some APIs do not allow for multiple requests.
-#' @param max_retries Maximum number of retry attempts for failed requests
+#' @param max_retries Maximum number of retry attempts for failed requests.
 #' @param timeout Request timeout in seconds
 #' @param progress Whether to display a progress bar
 #' @param validate Whether to validate the endpoint before creating requests
-#' @param include_errors Whether to include rows with errors in the result
 #'
 #' @return A data frame with the original data plus embedding columns
 #' @export

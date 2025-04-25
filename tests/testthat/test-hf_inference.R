@@ -32,11 +32,8 @@ test_that("hf_build_request_batch handles batches",{
   mockery::stub(hf_build_request_batch, "get_api_key", "TEST_API_KEY")
   texts <- list("batch text1", "batch text2")
 
-
-
-
   test_batch_req <- expect_no_error(hf_build_request_batch(inputs = texts, endpoint_url = endpoint_url, key_name = "TEST_API_KEY"))
 
-
+  expect_length(test_batch_req$body$data$inputs, 2)
 
 })

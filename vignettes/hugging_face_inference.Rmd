@@ -1,8 +1,17 @@
 ---
 title: "Using Hugging Face Inference Endpoints"
 output: 
-  rmarkdown::html_vignette:
+  html_document:
     toc: true
+    toc_float: true
+    toc_depth: 3
+    theme: flatly
+    number_sections: true
+    fig_caption: true
+    df_print: paged
+    highlight: tango
+    code_folding: show
+    anchor_sections: true
 vignette: >
   %\VignetteIndexEntry{Using Hugging Face Inference Endpoints}
   %\VignetteEngine{knitr::rmarkdown}
@@ -27,7 +36,7 @@ library(purrr)
 
 # Who is this vignette for?
 
-This vignette is for users needing to embed text using pre-configured company endpoints via the {EndpointR} package, assuming you have received your API key and the endpoint URL/details.
+This vignette is for users needing to embed or classify data using pre-configured, dedicated Hugging Face Endpoints, assuming you have received your API key and the endpoint URL/details.
 
 Experienced users will most likely prefer to head directly to `httr2`.
 
@@ -120,6 +129,8 @@ And so on, for as many texts as we have. But this would very quickly get old. In
 
 ### Embedding a Batch of Texts
 
+TODO: just cover a single batch
+
 Rather than send 10 requests and get 10 responses, we could batch our texts together into 1 request, send it to the endpoint, and let it handle the batch together. If done correctly, this will tend to lead to large efficiency gains.
 
 > **DISCLAIMER**: Claude was used to generate these sentences, instructed to write 10 sentences about embeddings, APIs, being British, and to add humour where it saw fit. The humour is 'mixed' at best.
@@ -158,6 +169,8 @@ Batching is generally a good idea, and we'll see later that holdimg everything e
 
 ### Embedding a Data Frame of Texts
 
+TODO: let's only cover a data frame, no batched df/concurrency, leave that for scaling request
+
 As data professionals, we are more likely to work with data frames than any other data structure. We will usually have the texts we want to embed, their unique identifiers, and a selection of other columns to work with. EndpointR has a function - `hf_embed_df()` - built just for this use case.
 
 For now, let's create some IDs and build a data frame from the sentences we defined earlier:
@@ -184,8 +197,9 @@ And then we have some optional arguments - these are optional because there is a
 -   `batch_size` lets EndpointR know whether to send requests individually or in batches.
 -   `concurrent_requests` lets EndpointR know whether to send multiple requests or not.
 -   `progress` lets EndpointR know whether to provide a progress bar, this is only really we're worth it if we're embedding a lot of data. For now we'll set it to `FALSE`
--   `include_errors` should the rows where the API request failed by kept in the data, or not? We'll set this to `TRUE` so that we get a data frame with the same number of rows as the one we put in.
 -   `max_retries` tells EndpointR how many times it should try to repeat the request before moving on to the next item.
+
+> **NOTE**: We'll look at some additional arguments, such as batch_size and concurrent_requests later in [scaling performance](scaling-requests---improving-performance)
 
 ```{r}
 (
@@ -195,9 +209,7 @@ And then we have some optional arguments - these are optional because there is a
   id_var = id,
   key_name = "HF_TEST_API_KEY",
   endpoint_url = endpoint_url,
-  progress = FALSE,
-  concurrent_requests =2,
-  batch_size = 2,
+  progress = FALSE,,
   max_retries = 5)
 )
 ```
@@ -223,9 +235,9 @@ result_df |> select(V1:V384)
 
 If I had 768 embedding dimensions, I would input `V1:V768`, and similarly for 1024 dimensions, `V1:V1024`, you get the idea.
 
-### Adding Batching and Concurrency
+## Scaling Requests - Improving Performance
 
-## Scaling Performance
+TODO: fix after refactoring
 
 So far we've looked at how to send a single piece of text, and how to iterate through a data frame full of texts, sending one request at a time. Whilst these are key workflows, once you're more comfortable with sending requests to APIs and receiving responses, you'll probably need to send a bunch of requests quickly, or in a more memory-efficient manner.
 
@@ -250,7 +262,6 @@ hf_embed_df(
   endpoint_url = endpoint_url,
   key_name = "HF_TEST_API_KEY",
   id_var= id,
-  include_errors = TRUE,
   concurrent_requests = 5,
   progress = TRUE
 )
@@ -274,82 +285,13 @@ Recording the results: we can see a \~40% reduction in processing time when goin
 
 \*Exact times will fluctuate, so take these as approximates.
 
-### Batch Requests
-
-Sending concurrent requests is one way to be more efficient - mainly through increasing throughput. Another way is to send more data inside each request, thus reducing total number of requests, and time spent sending requests to the endpoint.
-
-To be concrete, this means sending multiple rows of data inside each request. If we have 1,000 rows of data, and we create batches of size 50, we'll have $\frac{1000}{50}= 20$ total requests to send, rather than the 1,000 requests we have without batching. If our endpoint is powered by GPU(s) or other hardware accelerators, it will take care of processing the data using parallel computation, increasing speed up.
-
-> **Warning**: experiment with batch sizes to find the sweetspot - usually starting around 8-16, and capping out at \~64. You'll know when you've gone too high because you'll start seeing the retry bar, and/or your responses will contain errors.
-
-TODO: come back to this when batching is fully fleshed out.
-
-Going back to our list of sentences which we aved in the list - `embedding_sentences` above, we can create a single request with all 10 sentences batched in using `hf_build_request_batch()`
-
-```{r}
-batch_request <- hf_build_request_batch(
-  embedding_sentences, endpoint_url, key_name = "HF_TEST_API_KEY")
-```
-
-Now if you inspect the body of the request, and look at data -\> inputs, you'll see the list of 10 sentences.
-
-```{r}
-batch_request$body$data
-```
-
-You can use `hf_perform_request()`to send the request. To the endpoint it will look like a single request, and it will return a single response. Each individual item in our requests `body$data$inputs` will be embedded separately.
-
-```{r}
-batch_result <- hf_perform_request(batch_request)
-```
-
-```{r}
-result_df <- hf_embed_df(
-  df = texts_df,
-  text_var = text,
-  id_var = id, 
-  key_name = "HF_TEST_API_KEY",
-  endpoint_url = endpoint_url,
-  batch_size = 20,       # process 20 texts at a time
-  progress = TRUE        # show progress bar
-)
-```
-
-## Testing Batching
-
-grab a random id, re-embed it, chekc they're identical. this should go in tests somewhwre.
-
-```{r}
-batched_embeddings <- hf_embed_batch(sentences_1000, endpoint_url, "HF_TEST_API_KEY", concurrent_requests = 5)
-
-test_index <- batched_embeddings |>  slice(157)
-test_embed <- test_index |>  select(contains("V"))
-test_repro_embed <- hf_embed_text(test_index$text, endpoint_url = endpoint_url, "HF_TEST_API_KEY")
-
-all(test_embed[, 1:384] |> unlist()-test_repro_embed[, 1:384] |>  unlist() == 0) 
-```
-
-### Chunking Data Frames
-
-When we have a lot of data - 100,000s or 1,000,000s of rows - we may want (or need!) to break the task down into manageable chunks.
-
-### Writing to Files
-
-Embeddings are returned to us as data frames of floating point numbers, where each column is an embedding dimension. The number of dimensions will usually fall in the range of \$\approx\$300-3000 (and some LLMs have internal represenations in the 10,000s of dimensions range!). That's a lot of data, and our computers only have so much RAM available. If we try to embed 100,000s - 1,000,000 rows at a time, there's a heightened chance of our R session crashing, meaning we lose the results. This wastes time, API credits, energy, and water.
-
-It would be better to chunk our data up, create batches of requests, and write each batched response to a file. The file will persist if our R session crashes.
-
-> At this stage it would normally be advisable to build up your own request directly with httr2 - you'll have full control over batching, concurrent requests, exponential back-off, time-outs and retries, error handling.
-
-However, because it seems quite likely people will run into trouble, and there's a lot at stake if we're sending 100,000s-1,000,000s of requests, we've created a high-level function for chunking a data frame, batching requests, sending concurrent batches, and appending the batch to a file.
-
 # Low-level API
 
 The low-level API offers more control over the embedding process. This is useful for custom workflows, debugging, or when you need fine-grained control over requests.
 
 ## Request Preparation
 
-Prepare requests without executing them, useful for inspection or custom processing:
+TODO: fix follwing all the re-factoring Prepare requests without executing them, useful for inspection or custom processing:
 
 ```{r}
 is_endpoint_active <- validate_hf_endpoint(endpoint_url, "HF_TEST_API_KEY")
@@ -387,36 +329,64 @@ We should now end up with our tidied data frame where each column is an embeddin
 
 Work directly with the component functions for custom batch workflows.
 
-First we create a data frame of requests - this takes a data frame as an input, and returns a data frame but with some additional columns added.
+### Batch Requests
+
+Sending concurrent requests is one way to be more efficient - mainly through increasing throughput. Another way is to send more data inside each request, thus reducing total number of requests, and time spent sending requests to the endpoint.
+
+To be concrete, this means sending multiple rows of data inside each request. If we have 1,000 rows of data, and we create batches of size 50, we'll have $\frac{1000}{50}= 20$ total requests to send, rather than the 1,000 requests we have without batching. If our endpoint is powered by GPU(s) or other hardware accelerators, it will take care of processing the data using parallel computation, increasing speed up.
+
+> **Warning**: experiment with batch sizes to find the sweetspot - usually starting around 8-16, and capping out at \~64. You'll know when you've gone too high because you'll start seeing the retry bar, and/or your responses will contain errors.
+
+TODO: come back to this when batching is fully fleshed out.
+
+Going back to our list of sentences which we aved in the list - `embedding_sentences` above, we can create a single request with all 10 sentences batched in using `hf_build_request_batch()`
 
 ```{r}
-requests_df <- hf_build_request_df(
-  df = texts_df,
-  text_var = text,
-  id_var = id,
-  endpoint_url = endpoint_url,
-  key_name = "HF_TEST_API_KEY"
-)
-
-str(requests_df$.request[[1]]) # check the structure of the first request
-requests_df$.request[[1]]$body # check the data that's been added to the request
+batch_request <- hf_build_request_batch(
+  embedding_sentences, endpoint_url, key_name = "HF_TEST_API_KEY")
 ```
 
-Then we batch our data frames, returning a list of `nrow(df)/batch_size` where each element in the list is its own data frame with `nrow(df) == batch_size`.
-
-Still very much a WIP / TODO as to how this should work, too manual atm, probably.
+Now if you inspect the body of the request, and look at data -\> inputs, you'll see the list of 10 sentences.
 
 ```{r}
-batch_dfs <- requests_df |>  batch_dataframe(5)
-length(batch_dfs)
+batch_request$body$data
 ```
+
+You can use `hf_perform_request()`to send the request. To the endpoint it will look like a single request, and it will return a single response. Each individual item in our requests `body$data$inputs` will be embedded separately.
 
 ```{r}
-responses_batch_dfs <- purrr::map(batch_dfs, ~ hf_perform_sequential(.x), .progress = TRUE)
-
-purrr::map(responses_batch_dfs, ~ process_batch_responses(.x)) |> 
-  bind_rows()
+batch_result <- hf_perform_request(batch_request)
 ```
+
+### Testing Batching
+
+TODO Fix following re-factoring
+
+grab a random id, re-embed it, chekc they're identical. this should go in tests somewhwre.
+
+```{r}
+batched_embeddings <- hf_embed_batch(sentences_1000, endpoint_url, "HF_TEST_API_KEY", concurrent_requests = 5)
+
+test_index <- batched_embeddings |>  slice(157)
+test_embed <- test_index |>  select(contains("V"))
+test_repro_embed <- hf_embed_text(test_index$text, endpoint_url = endpoint_url, "HF_TEST_API_KEY")
+
+all(test_embed[, 1:384] |> unlist()-test_repro_embed[, 1:384] |>  unlist() == 0) 
+```
+
+### Chunking Data Frames
+
+When we have a lot of data - 100,000s or 1,000,000s of rows - we may want (or need!) to break the task down into manageable chunks.
+
+### Writing to Files
+
+Embeddings are returned to us as data frames of floating point numbers, where each column is an embedding dimension. The number of dimensions will usually fall in the range of \$\approx\$300-3000 (and some LLMs have internal represenations in the 10,000s of dimensions range!). That's a lot of data, and our computers only have so much RAM available. If we try to embed 100,000s - 1,000,000 rows at a time, there's a heightened chance of our R session crashing, meaning we lose the results. This wastes time, API credits, energy, and water.
+
+It would be better to chunk our data up, create batches of requests, and write each batched response to a file. The file will persist if our R session crashes.
+
+> At this stage it would normally be advisable to build up your own request directly with httr2 - you'll have full control over batching, concurrent requests, exponential back-off, time-outs and retries, error handling.
+
+However, because it seems quite likely people will run into trouble, and there's a lot at stake if we're sending 100,000s-1,000,000s of requests, we've created a high-level function for chunking a data frame, batching requests, sending concurrent batches, and appending the batch to a file.
 
 ## Error Handling
 
