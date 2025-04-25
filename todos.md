@@ -1,8 +1,16 @@
 # EndpointR Hugging Face Embeddings Implementation Checklist
 
+## Core Features
+
+-   [x] Embed a text
+-   [x] Embed a batch of texts
+-   [x] Embed a data frame of texts
+-   [x]
+
 ## Core Functions
 
--   [x] `hf_embed_request_single()` - Prepare a single text embedding request
+-   [x] `base_request()` - Base POST request other functions will use, headers, api key, method
+-   [x] `hf_build_request()` - Prepare a single text embedding request
 -   [ ] `hf_embed_request_df()` - Prepare requests for texts in a data frame
 -   [ ] `hf_embed_request_batch()` - Prepare batched requests for multiple texts
 -   [ ] `hf_embed_perform_single()` - Execute a single request and process response
@@ -46,3 +54,7 @@ Given we're sending to the same API, it should respect req_throttle and req_retr
 Batching multiple texts within a request is handled quite straightforwardly with: `req_body_json(list(inputs = sentences[31:60]))`
 
 It's just we have to do more work the other end with the response handling - particularly if we're using safely and parallel etc. Is it worth it?
+
+## Writing to files
+
+We can do it simply with the `path =` argument in `httr2::req_perform()`, but the response

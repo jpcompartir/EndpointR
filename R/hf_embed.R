@@ -41,17 +41,10 @@ hf_embed_text <- function(text,
                          timeout = 10,
                          validate = FALSE) {
 
-  # build request with the specified parameters
-  req <- hf_build_request(
-    input = text,
-    endpoint_url = endpoint_url,
-    key_name = key_name,
-    max_retries = max_retries,
-    timeout = timeout,
-    validate = validate
-  )
+  req <- hf_build_request(input = text, endpoint_url = endpoint_url,
+                          key_name = key_name, max_retries = max_retries, timeout = timeout, validate = validate)
 
-  # perform request and provide user-friendly error messages
+  # provide user-friendly error messages
   tryCatch({
     embeddings <- hf_perform_request(req, ..., tidy = TRUE)
     return(embeddings)
@@ -70,13 +63,14 @@ hf_embed_text <- function(text,
 #'
 #' @description
 #' High-level function to generate embeddings for multiple text strings.
-#' This function handles batching and parallel processing of embedding requests.
+#' This function handles batching and parallel processing of embedding requests, and attempts to handle errors gracefully.
 #'
 #' @param texts Vector or list of character strings to get embeddings for
 #' @param endpoint_url The URL of the Hugging Face Inference API endpoint
 #' @param key_name Name of the environment variable containing the API key
 #' @param ... ellipsis sent to `hf_perform_request` TODO (reserved ATM)
 #' @param batch_size Number of texts to process in one batch
+#' @param include_texts Whether to return the original texts in the return tibble
 #' @param concurrent_requests Number of requests to send simultaneously
 #' @param max_retries Maximum number of retry attempts for failed requests
 #' @param timeout Request timeout in seconds
@@ -103,56 +97,103 @@ hf_embed_text <- function(text,
 #' }
 # hf_embed_batch docs ----
 hf_embed_batch <- function(texts, endpoint_url, key_name, ..., batch_size = 8,
-                           concurrent_requests = 1, max_retries = 5, timeout = 10, validate = FALSE){
+                           include_texts = TRUE, concurrent_requests = 1, max_retries = 5, timeout = 10, validate = FALSE){
+
+  if (length(texts) == 0) {
+    cli::cli_warning("Input 'texts' is empty. Returning an empty tibble.")
+    return(tibble::tibble())
+  }
+
   stopifnot(
     "Texts must be a list or vector" = is.vector(texts),
-    "batch_size must be a numeric input" = is.numeric(batch_size)
+    "batch_size must be a positive integer" = is.numeric(batch_size) && batch_size > 0 && batch_size == as.integer(batch_size),
+    "concurrent_requests must be a positive integer" = is.numeric(concurrent_requests) && concurrent_requests > 0 && concurrent_requests == as.integer(concurrent_requests),
+    "max_retries must be a positive integer" = is.numeric(max_retries) && max_retries >= 0 && max_retries == as.integer(max_retries),
+    "timeout must be a positive integer" = is.numeric(timeout) && timeout > 0,
+    "endpoint_url must be a non-empty string" = is.character(endpoint_url) && nchar(endpoint_url) > 0,
+    "key_name must be a non-empty string" = is.character(key_name) && nchar(key_name) > 0
   )
 
 
-  # batch if we need to, don't if we don't (conditional 1 starts)
-  if(length(texts) > batch_size){
+  batch_indices <- split(seq_along(texts), ceiling(seq_along(texts) / batch_size)) # returns list of:
+  # pos 1:batch_size get ceiling'd value of 1
+  # pos batch_size:2(batch_size) get ceiling'd value of 2, and so-on
 
-    batch_indices <- split(seq_along(texts), ceiling(seq_along(texts) / batch_size)) # returns list of:
-    # pos 1:batch_size get ceiling'd value of 1
-    # pos batch_size:2(batch_size) get ceiling'd value of 2, and so-on
+  batch_texts <- purrr::map(batch_indices, ~texts[.x])
+  batch_reqs <- purrr::map(batch_texts, ~hf_build_request_batch(.x, endpoint_url, key_name,
+                                                                max_retries = max_retries,
+                                                                timeout = timeout,
+                                                                validate = FALSE))
 
-    batch_texts <- purrr::map(batch_indices, ~texts[.x])
+  if (concurrent_requests > 1 && length(batch_reqs) > 1) { # batches + concurrent requests
+    batch_resps <- httr2::req_perform_parallel(batch_reqs,
+                                               on_error = "continue",
+                                               progress = TRUE,
+                                               max_active = concurrent_requests)
 
-    batch_reqs <- purrr::map(batch_texts, ~hf_build_request_batch(.x, endpoint_url, key_name,
-                                                                  max_retries = max_retries,
-                                                                  timeout = timeout,
-                                                                  validate = validate))
+    # keep batches and their ids together, and then handle errors gracefully
+    result_list <- purrr::map2(batch_resps, batch_indices, function(resp, indices) {
+      if (inherits(resp, "httr2_response")) {
+        tryCatch({ # catch errors if we can't tidy
+          result <- tidy_embedding_response(resp)
+          result$original_index <- indices # for tracking/preserving order
+          result$.error <- FALSE # success flag, for consistent output in downstream funcs
+          result$.error_message <- NA_character_ #for consistent output in downstream functions
+          return(result)
+        }, error = function(e) {
+          cli::cli_warn("Error tidying response for batch: {conditionMessage(e)}")
+          return(tibble::tibble(
+            # empty tibble with indices will help to preserve order in worst case (errors)
+            embedding = rep(list(NA), length(indices)),
+            original_index = indices,
+            .error = TRUE, # for cosnsistent output in downstream functions
+            .error_message = conditionMessage(e) # for cosnsistent output in downstream functions
+          ))
+        })
+      } else {
+        cli::cli_warn("Request failed for batch: {conditionMessage(resp)}")
+        return(tibble::tibble(
+          embedding = rep(list(NA), length(indices)),
+          original_index = indices
+        ))
+      }
+    })
 
-
-    if (concurrent_requests > 1) {  # (conditional 2 starts)
-      # concurrent_requests at a time
-      batch_resps <- httr2::req_perform_parallel(batch_reqs,
-                                                 on_error = "continue",
-                                                 progress = TRUE,
-                                                 max_active = concurrent_requests)
-
-      result_list <- purrr::map(batch_resps, ~tidy_embedding_response(.x))
-
-    } else { # (conditional 2 ends)
-      #  one request at a time
-      result_list <- purrr::map(batch_reqs, ~hf_perform_request(.x, tidy = FALSE) |>
-                                  tidy_embedding_response())
+  } else { # sequential processing
+    safe_perform_and_tidy <- function(req, indices) {
+      tryCatch({ # catch errors if we can't tidy
+        resp <- hf_perform_request(req, tidy = FALSE)
+        result <- tidy_embedding_response(resp)
+        result$original_index <- indices # for tracking/preserving order
+        result$.error <- FALSE # success flag, for consistent output in downstream funcs
+        result$.error_message <- NA_character_ #for consistent output in downstream functions
+        return(result)
+      }, error = function(e) {
+        cli::cli_warn("Error processing batch sequentially: {conditionMessage(e)}")
+        return(tibble::tibble(
+          embedding = rep(list(NA), length(indices)),
+          original_index = indices,
+          .error = TRUE, # for cosnsistent output in downstream functions
+          .error_message = conditionMessage(e) # for cosnsistent output in downstream functions
+        ))
+      })
     }
 
-    result <- purrr::list_rbind(result_list) # purrr-friendly bind_rows()
-
-  } else { # (conditional 1 ends)
-    # we didn't need to batch, so just prepare and send one request
-    batch_req <- hf_build_request_batch(texts, endpoint_url, key_name,
-                                        max_retries = max_retries,
-                                        timeout = timeout,
-                                        validate = validate)
-
-    resp <- hf_perform_request(batch_req, tidy = FALSE)
-    result <- tidy_embedding_response(resp)
+    result_list <- purrr::map2(batch_reqs, batch_indices, safe_perform_and_tidy, .progress = TRUE)
   }
 
+
+  result <- purrr::list_rbind(result_list)
+  result <- dplyr::arrange(result, original_index)
+
+  if (include_texts) {
+    result$text <- texts[result$original_index]
+    result <- result |>  dplyr::relocate(text, .before = 1)
+  }
+
+  result$original_index <- NULL # drop index now we're returning
+
+  result <- dplyr::relocate(result, c(`.error`, `.error_message`), .before = V1)
   return(result)
 }
 
@@ -203,6 +244,10 @@ tidy_embedding_response <- function(response) {
     tibble::as_tibble()
 
   return(tib)
+}
+
+tidy_batched_embedding <- function(batch_responses) {
+
 }
 
 # tidy_chunked_embedding_df docs ----
@@ -292,6 +337,7 @@ tidy_chunked_embedding_df <- function(df, include_errors = FALSE) {
   return(result_df)
 }
 
+
 # hf_embed_df docs ----
 #' Generate embeddings for texts in a data frame
 #'
@@ -299,7 +345,7 @@ tidy_chunked_embedding_df <- function(df, include_errors = FALSE) {
 #' High-level function to generate embeddings for texts in a data frame.
 #' This function handles the entire process from request creation to
 #' response processing, with options for batching & parallel execution.
-#' Setting the number of retries,
+#' Setting the number of retries
 #'
 #' @param df A data frame containing texts to embed
 #' @param text_var Name of the column containing text to embed
@@ -308,11 +354,10 @@ tidy_chunked_embedding_df <- function(df, include_errors = FALSE) {
 #' @param key_name Name of the environment variable containing the API key
 #' @param batch_size Number of texts to process in one batch (NULL for no batching)
 #' @param concurrent_requests Number of requests to send at once. Some APIs do not allow for multiple requests.
-#' @param max_retries Maximum number of retry attempts for failed requests
+#' @param max_retries Maximum number of retry attempts for failed requests.
 #' @param timeout Request timeout in seconds
 #' @param progress Whether to display a progress bar
 #' @param validate Whether to validate the endpoint before creating requests
-#' @param include_errors Whether to include rows with errors in the result
 #'
 #' @return A data frame with the original data plus embedding columns
 #' @export
@@ -357,24 +402,23 @@ tidy_chunked_embedding_df <- function(df, include_errors = FALSE) {
 #' }
 # hf_embed_df docs ----
 hf_embed_df <- function(df,
-                       text_var,
-                       endpoint_url,
-                       key_name,
-                       id_var,
-                       batch_size = NULL,
-                       concurrent_requests = 1,
-                       max_retries = 3,
-                       timeout = 10,
-                       progress = TRUE,
-                       validate = FALSE,
-                       include_errors = TRUE) {
-
+                        text_var,
+                        endpoint_url,
+                        key_name,
+                        id_var,
+                        batch_size = 8,
+                        concurrent_requests = 1,
+                        max_retries = 5,
+                        timeout = 15,
+                        progress = TRUE,
+                        validate = FALSE) {
 
   text_sym <- rlang::ensym(text_var)
   id_sym <- rlang::ensym(id_var)
 
   stopifnot(
     "df must be a data frame" = is.data.frame(df),
+    # "df must be a data frame with > 0 rows", nrow(df) > 0,
     "endpoint_url must be provided" = !is.null(endpoint_url) && nchar(endpoint_url) > 0,
     "concurrent_requests must be an integer" = is.numeric(concurrent_requests)
   )
@@ -387,81 +431,8 @@ hf_embed_df <- function(df,
     cli::cli_abort("Column {.code {rlang::as_string(id_sym)}} not found in data frame")
   }
 
-  if (!is.null(batch_size)) {
-    stopifnot(
-      "batch_size must be a positive integer" = is.numeric(batch_size) && batch_size > 0
-    )
-  }
-
-  api_key <- get_api_key(key_name)
-
-  if (validate) {
-    validate_hf_endpoint(endpoint_url, key_name)
-  }
-
-  # if batch_size is NULL then we don't batch
-  use_batching <- !is.null(batch_size) && nrow(df) > batch_size
-
-  if (use_batching) {
-    batch_dfs <- chunk_dataframe(df, batch_size)
-
-    # create our own progress bar for batch processing
-    if (progress) {
-      cli::cli_progress_bar("Processing batches", total = length(batch_dfs))
-    }
-
-    # iterate through batches, update progress bar each completed iteration
-    result_list <- list()
-    for (i in seq_along(batch_dfs)) {
-      batch_df <- batch_dfs[[i]]
-
-      req_df <- hf_build_request_df(
-        df = batch_df,
-        text_var = !!text_sym,
-        endpoint_url = endpoint_url,
-        key_name = key_name,
-        id_var = !!id_sym,
-        max_retries = max_retries,
-        timeout = timeout,
-        validate = FALSE  # already validated if needed
-      )
-
-      #
-      if (concurrent_requests > 1) {
-        resp_df <- hf_perform_parallel_df(
-          df = req_df,
-          max_active = concurrent_requests,
-          progress = FALSE  # using batch progress bar
-        )
-      } else {
-        resp_df <- hf_perform_sequential_df(
-          df = req_df,
-          progress = FALSE  # using batch progress bar
-        )
-      }
-
-      # process completed requests:
-      emb_df <- tidy_chunked_embedding_df(
-        df = resp_df,
-        include_errors = include_errors
-      )
-
-      result_list[[i]] <- emb_df
-
-      if (progress) {
-        cli::cli_progress_update()
-      }
-    }
-
-    if (progress) {
-      cli::cli_progress_done()
-    }
-
-    # combine for returning
-    result_df <- dplyr::bind_rows(result_list)
-
-  } else {
-    # no batching - prepare all requests at once (is this a bad idea to allow?)
+  #  don't batch if batch_size is 1, 0 or not set
+  if (is.null(batch_size) || batch_size <= 1) { # don't batch
     req_df <- hf_build_request_df(
       df = df,
       text_var = !!text_sym,
@@ -470,17 +441,16 @@ hf_embed_df <- function(df,
       id_var = !!id_sym,
       max_retries = max_retries,
       timeout = timeout,
-      validate = FALSE
+      validate = validate
     )
 
-    # either parallel or sequential, depending on user input.
-    if (concurrent_requests > 1) {
+    if (concurrent_requests > 1) { # parallel trigger
       resp_df <- hf_perform_parallel_df(
         df = req_df,
         max_active = concurrent_requests,
         progress = progress
       )
-    } else {
+    } else { # no parallel trigger -> sequential
       resp_df <- hf_perform_sequential_df(
         df = req_df,
         progress = progress
@@ -488,9 +458,34 @@ hf_embed_df <- function(df,
     }
 
     result_df <- tidy_chunked_embedding_df(
-      df = resp_df,
-      include_errors = include_errors
+      df = resp_df
     )
+  } else {
+    # to benefit from batching via hf_embed_batc, we need to turn our texts into a vector
+    texts <- df |> dplyr::pull(!!text_sym)
+
+    # hf_embed_batch also takes care of the tidying outputs, and it guarantees that results are put back in the order they were sent.
+    embeddings_tbl <- hf_embed_batch(
+      texts = texts,
+      endpoint_url = endpoint_url,
+      key_name = key_name,
+      batch_size = batch_size,
+      include_texts = FALSE,  # no need to include texts as we'll join with original df
+      concurrent_requests = concurrent_requests,
+      max_retries = max_retries,
+      timeout = timeout,
+      validate = validate
+    )
+
+    df_with_row_id <- df |> dplyr::mutate(.row_id = dplyr::row_number())
+
+    embeddings_tbl <- embeddings_tbl |>
+      dplyr::mutate(.row_id = dplyr::row_number())
+
+    result_df <- df_with_row_id |>
+      dplyr::left_join(embeddings_tbl, by = ".row_id") |>
+      dplyr::select(-.row_id) # drop the batching func's id
+
   }
 
   return(result_df)
