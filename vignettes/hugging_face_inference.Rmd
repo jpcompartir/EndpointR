@@ -1,6 +1,8 @@
 ---
 title: "Using Hugging Face Inference Endpoints"
-output: rmarkdown::html_vignette
+output: 
+  rmarkdown::html_vignette:
+    toc: true
 vignette: >
   %\VignetteIndexEntry{Using Hugging Face Inference Endpoints}
   %\VignetteEngine{knitr::rmarkdown}
@@ -26,6 +28,8 @@ library(purrr)
 # Who is this vignette for?
 
 This vignette is for users needing to embed text using pre-configured company endpoints via the {EndpointR} package, assuming you have received your API key and the endpoint URL/details.
+
+Experienced users will most likely prefer to head directly to `httr2`.
 
 # What is Hugging Face?
 
@@ -92,15 +96,17 @@ The output is tidied into a tibble with 1 row and 384 columns, because the endpo
 embeddings
 ```
 
-### Testing a response
+### Testing Responses
 
 If you are testing an API request with `hf_embed_text()`, you can pass arguments into `httr2::req_perform()`. For example, you can pass in a value for 'verbosity' to get more information on the request.
 
-> How much information to print? This is a wrapper around req_verbose() that uses an integer to control verbosity: 0: no output 1: show headers 2: show headers and bodies 3: show headers, bodies, and curl status messages.
+How much information to print?
 
-You can also pass in a value for 'path', which will save the response to a file.
+From {httr}'s docs: \> This is a wrapper around req_verbose() that uses an integer to control verbosity: - 0: no output - 1: show headers - 2: show headers and bodies - 3: show headers, bodies, and curl status messages
 
-## Embedding a Data Frame of Texts
+You can also pass in a value for 'path', which will save the response to a file, we'll look more at this later.
+
+## Embedding Many Texts
 
 When working with multiple texts, it would be possible to create a `hf_embed_text` function call for each text, and save each result to its own variable:
 
@@ -110,14 +116,15 @@ text_2_embeddings <- hf_embed_text(text = "This is a sample text nunber 2 to emb
 
 ```
 
-And so on, for as many texts as we have. But this would very quickly get old. Instead we want to process multiple texts in one function call. As data professionals, we are often working with data frames, and given this is where our texts and their IDs will be stored, it makes sense to roll our data up into a data frame, and embed directly from this data frame, i.e. we want to put a data frame into the function and get a data frame back out. Whilst this is convenient, we run into some difficulties when working with large data frames. We'll look at how to work around these difficulties below when we talk about batching and sending multiple concurrent requests.
+And so on, for as many texts as we have. But this would very quickly get old. Instead we want to process multiple texts in one function call.
 
-For now, let's create a data fame and embed some texts[^3].
+### Embedding a Batch of Texts
 
-[^3]: Claude was used to generate these sentences, instructed to write 10 sentences about embeddings, APIs, being British, and to add humour where it saw fit. The results are 'mixed' at best.
+Rather than send 10 requests and get 10 responses, we could batch our texts together into 1 request, send it to the endpoint, and let it handle the batch together. If done correctly, this will tend to lead to large efficiency gains.
+
+> **DISCLAIMER**: Claude was used to generate these sentences, instructed to write 10 sentences about embeddings, APIs, being British, and to add humour where it saw fit. The humour is 'mixed' at best.
 
 ```{r}
-embedding_ids <- 1:10
 embedding_sentences <- c(
   "Text embedding models compress your rambling prose into compact vectors, much like how British commuters squeeze themselves into tube carriages during rush hour.",
   "Setting up an inference endpoint without proper documentation is akin to attempting to navigate London using a map of Birmingham.",
@@ -130,6 +137,33 @@ embedding_sentences <- c(
   "Fine-tuning embedding models on domain-specific corpora is rather like training a British child to apologise—it requires repetition, patience, and considerable examples.",
   "When your inference endpoint crashes under load, it maintains that quintessentially British trait of breaking down precisely when most inconvenient."
 )
+```
+
+the `hf_embed_batch()` function handles a list of texts, and turns them into batches, sized according to what we enter into `batch_size =`. The default value is 8, we'll change it to 10 and send all of our texts in one batch.
+
+```{r}
+hf_embed_batch(
+  embedding_sentences,
+  endpoint_url,
+  "HF_TEST_API_KEY",
+  batch_size = 10
+)
+```
+
+We get a data frame where the first column is our list texts, and the rest of the columns are the embedding dimensions.
+
+Batching is generally a good idea, and we'll see later that holdimg everything else equal, it does lead to a speed up over non-batched. However, if you try to set the batch_size too high, you are more likely to hit rate limits, or have your request rejected due to the payload being too large.
+
+> **TIP**: Experiment to find the correct batch size for your data and the endpoint. Start small and work upwards in small incremeents.
+
+### Embedding a Data Frame of Texts
+
+As data professionals, we are more likely to work with data frames than any other data structure. We will usually have the texts we want to embed, their unique identifiers, and a selection of other columns to work with. EndpointR has a function - `hf_embed_df()` - built just for this use case.
+
+For now, let's create some IDs and build a data frame from the sentences we defined earlier:
+
+```{r}
+embedding_ids <- 1:10
 
 embedding_df <-
   tibble(
@@ -138,17 +172,16 @@ embedding_df <-
   )
 ```
 
-Now we can the use the `hf_embed_df` to embed each of the 10 rows in our data frame. Due to the lower number of sentences, this will happen almost instantaneously, so long as the endpoint is already running. If the endpoint has shut down - if it's been a while between your requests, give it \~30 seconds and it will start back up.
-
-When embedding our data frame, we must provide an input to:
+The function requires an input to:
 
 -   `text_var =` this should be the column in your data frame with the text data you need to embed.
 -   `id_var =` this should be the column in your data frame which identifies each piece of text - this makes sure we can link our embeddings to the correct text.
 -   `key_name` we've seen this before
 -   `endpoint_url` we've seen this before
 
-There are some other optional arguments:
+And then we have some optional arguments - these are optional because there is a default value for when we don't set them. The key optional arguments for `hf_embed_df()` are:
 
+-   `batch_size` lets EndpointR know whether to send requests individually or in batches.
 -   `concurrent_requests` lets EndpointR know whether to send multiple requests or not.
 -   `progress` lets EndpointR know whether to provide a progress bar, this is only really we're worth it if we're embedding a lot of data. For now we'll set it to `FALSE`
 -   `include_errors` should the rows where the API request failed by kept in the data, or not? We'll set this to `TRUE` so that we get a data frame with the same number of rows as the one we put in.
@@ -163,7 +196,8 @@ There are some other optional arguments:
   key_name = "HF_TEST_API_KEY",
   endpoint_url = endpoint_url,
   progress = FALSE,
-  include_errors = TRUE,
+  concurrent_requests =2,
+  batch_size = 2,
   max_retries = 5)
 )
 ```
@@ -188,6 +222,8 @@ result_df |> select(V1:V384)
 ```
 
 If I had 768 embedding dimensions, I would input `V1:V768`, and similarly for 1024 dimensions, `V1:V1024`, you get the idea.
+
+### Adding Batching and Concurrency
 
 ## Scaling Performance
 
@@ -279,9 +315,23 @@ result_df <- hf_embed_df(
 )
 ```
 
+## Testing Batching
+
+grab a random id, re-embed it, chekc they're identical. this should go in tests somewhwre.
+
+```{r}
+batched_embeddings <- hf_embed_batch(sentences_1000, endpoint_url, "HF_TEST_API_KEY", concurrent_requests = 5)
+
+test_index <- batched_embeddings |>  slice(157)
+test_embed <- test_index |>  select(contains("V"))
+test_repro_embed <- hf_embed_text(test_index$text, endpoint_url = endpoint_url, "HF_TEST_API_KEY")
+
+all(test_embed[, 1:384] |> unlist()-test_repro_embed[, 1:384] |>  unlist() == 0) 
+```
+
 ### Chunking Data Frames
 
-When we have a lot of data - 100,000s or 1,000,000s of rows - we may struggle for memory if we try to create the requests all at once
+When we have a lot of data - 100,000s or 1,000,000s of rows - we may want (or need!) to break the task down into manageable chunks.
 
 ### Writing to Files
 
@@ -308,8 +358,8 @@ req <- hf_embed_request_single(
   text = "Text for custom request",
   endpoint_url = endpoint_url,
   max_retries = 5,       # retry failed requests
-  timeout = 30,          # longer timeout for large texts
-  validate = FALSE,       # skip validation if already done
+  timeout = 30,          
+  validate = FALSE,     # skip validation if endpoint is up (we just checked so it will be)
   key_name = "HF_TEST_API_KEY"
 )
 
