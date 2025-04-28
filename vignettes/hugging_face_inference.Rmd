@@ -38,15 +38,15 @@ library(purrr)
 
 This vignette is for users needing to embed or classify data using pre-configured, dedicated Hugging Face Endpoints, assuming you have received your API key and the endpoint URL/details.
 
-Experienced users will most likely prefer to head directly to `httr2`.
+Experienced users looking for fine-grained control over their API requests will be better served by heading directly to the {[httr2](https://httr2.r-lib.org/index.html)} package.
 
 # What is Hugging Face?
 
-For the past few years [Hugging Face](https://huggingface.co/) has been the de-facto location for open-source AI. It is a place to save and share datasets & Machine Learning models alike. Importantly, we can train our own models and then upload them to the Hugging Face Hub, so that other people can access them.
+For the past few years [Hugging Face](https://huggingface.co/) has been the de-facto location for open-source AI. It is a place to save and share datasets & Machine Learning models alike. Importantly, we can train our own models and then upload them to the Hugging Face Hub for others to use.
 
 # What are Inference Endpoints?
 
-Any model that is saved on Hugging Face can be connected to a Hugging Face Inference Endpoint allowing us to get predictions from that model using Hugging Face's [^1] hardware. Given that modern-day Machine Learning models tend to require a large amount of compute, and not everybody has powerful laptops to use the models locally, this is a democratising force and a useful tool to have at our disposal.
+Any model that is saved on the Hugging Face Hub can be connected to a Hugging Face Inference Endpoint allowing us to get predictions from that model using Hugging Face's [^1] hardware. Given that modern-day Machine Learning models tend to require a large amount of compute, and not everybody has powerful laptops to use the models locally, this is a democratising force and a useful tool to have at our disposal.
 
 [^1]: or another inference provider's
 
@@ -63,9 +63,11 @@ This vignette focuses on using Hugging Face endpoints for text embeddings.
 
 # API Key Management
 
-Assuming the endpoint has already been set up, you'll need to retrieve your API key from Hugging Face (or the team responsible for providing API keys) and store it securely in an environment variable.
+First read the [EndpointR API Keys](vignettes/api_keys.Rmd) vignette.
 
-`set_api_key` will ask you to input the value for your API key using {askpass}, this reduces [^2] the likelihood of your API key ending up in your code somewhere. EndpointR functions will then use a similar function to securely read the key, without printing it to your console.
+Assuming the endpoint has been set up, you'll need to retrieve your API key from Hugging Face (or from the team/department responsible for providing API keys) and store it securely in an environment variable.
+
+`set_api_key` will ask you to input the value for your API key using {askpass}, this reduces [^2] the likelihood of your API key ending up in your code somewhere.
 
 [^2]: but never reduces to zero, so always be vigilant!
 
@@ -73,20 +75,22 @@ Assuming the endpoint has already been set up, you'll need to retrieve your API 
 set_api_key("HF_TEST_API_KEY")
 ```
 
+EndpointR functions that need API keys will have a `key_name` argument, you put the same name as you entered into `set_api_key` and EndpointR will retrieve it, without printing the contents to the console.
+
 # High-level API
 
 The high-level API provides convenient functions for common embedding tasks without exposing the underlying request structure. Functions at this level will implement retries, error handling, and concurrent requests through configurable options.
 
 ## Embedding a Single Text
 
-> For this example, I have previously set up a package-level key for encrypting sensitive information, `ENDPOINTR_KEY`, this can be used with {httr2}'s `secret_encrypt` and `secret_decrypt` function to encrypt any information. For example, you can use these functions to encrypt your API key itself.
+> For this example, I have previously set up a package-level key for encrypting sensitive information, `ENDPOINTR_KEY`, this can be used with {httr2}'s `secret_encrypt` and `secret_decrypt` function to encrypt any information. For example, you can use these functions to encrypt your API keys themselves.
 
 1.  Get your endpoint's URL
 2.  Make sure the key_name points to the correct API key for your endpoint
 3.  Get a single piece of text you want to embed
 4.  Call `hf_embed_text()`
 
-If this is the first time we're hitting the endpoint, it will not be running. The endpoint initialises when we send a request with a valid API key. Behind the scenes the model's weights are loaded onto a server. This process tends to take \~20 seconds, so our first requests will always be delayed. `max_retries = 5` tells EndpointR to retry 5 times, with an increasing time increment between requests; this gives the endpoint enough time to initialise.
+If the endpoint is not already active, it will take some time to initialise - the model's weights will be loaded onto a server. This process tends to take $\approx$ 20-30 seconds. Setting `max_retries = 5` will usually give the endpoint enough time to initialise, receive our request and return its response.
 
 ```{r}
 endpoint_url <- httr2::secret_decrypt("kcZCsc92Ty7PuAk7_FdCcdOU_dlDpvWdDyfpwCWg-wW80eJxJPdQ68nz4V_0922SzSwM5_dYfpTOqsZ-GodUpLN4PQbwE73wlZkBCWIaIXc15g", "ENDPOINTR_KEY")
@@ -99,7 +103,7 @@ embeddings <- hf_embed_text(
 )
 ```
 
-The output is tidied into a tibble with 1 row and 384 columns, because the endpoint is using the 'all-minilm-l6-v2' model under the hood:
+The output is tidied into a tibble with 1 row and 384 columns. Each column is an embedding dimension, and the 'all-minilm-l6-v2' model used by this endpoint has 384 dimensions.
 
 ```{r}
 embeddings
@@ -107,13 +111,13 @@ embeddings
 
 ### Testing Responses
 
-If you are testing an API request with `hf_embed_text()`, you can pass arguments into `httr2::req_perform()`. For example, you can pass in a value for 'verbosity' to get more information on the request.
+If you are testing an API request with `hf_embed_text()`, you can pass additional arguments into `httr2::req_perform()`. For example, you can pass in a value for 'verbosity' to get more information on the request.
 
 How much information to print?
 
 From {httr}'s docs: \> This is a wrapper around req_verbose() that uses an integer to control verbosity: - 0: no output - 1: show headers - 2: show headers and bodies - 3: show headers, bodies, and curl status messages
 
-You can also pass in a value for 'path', which will save the response to a file, we'll look more at this later.
+You can also pass in a value for 'path', which will save the response to a file, we'll look more at how to manage this later.
 
 ## Embedding Many Texts
 
@@ -125,7 +129,7 @@ text_2_embeddings <- hf_embed_text(text = "This is a sample text nunber 2 to emb
 
 ```
 
-And so on, for as many texts as we have. But this would very quickly get old. Instead we want to process multiple texts in one function call.
+And so on, for as many texts as we have. But this would very quickly get old. Instead, it would be nice if we could embed multiple texts at the same time.
 
 ### Embedding a Batch of Texts
 
