@@ -34,6 +34,8 @@ library(dplyr)
 library(tibble)
 library(httr2)
 library(purrr)
+library(tidyr)
+library(ggplot2)
 ```
 
 ## Who is this vignette for?
@@ -300,7 +302,30 @@ hf_embed_df(
 
 For maximum speed up, we can also send batches of multiple concurrent requests. If our endpoint is able to handle them, 10 concurrent requests of `batch_size = 10` will be marginally faster than 10 concurrent requests of `batch_size = 5`.
 
-TODO: write code for batch_size and concurrent_requests experiment - record time - crossing/expand_grid for param combinations - plot
+In a separate session we ran some benchmarking to understand the relationship between batch_size and concurrent_requests.
+
+```{r}
+batch_concurrent_benchmark <- read.csv("dev_docs/batch_concurrent_benchmark.csv") |>
+  tibble()
+
+batch_concurrent_benchmark |> 
+  mutate(batch_size = factor(batch_size), concurrent_requests= factor(concurrent_requests)) |>
+  ggplot(aes(x= batch_size, y = throughput, group = concurrent_requests)) +
+  geom_point(aes(colour = concurrent_requests)) +
+  geom_line(aes(colour = concurrent_requests)) +
+  labs(y = "Throughput", x = "Batch Size", title = "Increasing `batch_size` and `concurrent_requests` increases throughput") +
+  scale_colour_viridis_d() +
+  theme_minimal() +
+  theme(legend.position = "bottom") 
+```
+
+Although we suspect there is *some* interaction effect, the relationship is mostly linear within our constraints, i.e. increasing batch size increases throughput, as does increasing concurrent requests. Concurrent requests has a more pronounced effect than batch size.
+
+```{r}
+model <- lm(throughput ~ batch_size + concurrent_requests, data = batch_concurrent_benchmark)
+
+broom::tidy(model)
+```
 
 # Advanced Usage
 
