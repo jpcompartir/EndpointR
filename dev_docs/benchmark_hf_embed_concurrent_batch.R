@@ -4,17 +4,18 @@ library(dplyr)
 library(purrr)
 benchmark_params <- crossing(
   batch_size = c(1, 4, 8, 16, 32),
-  concurrent_requests = c(5, 10, 15, 20)
+  concurrent_requests = c(1, 5, 10, 15, 20)
 )
 
 trust <- readr::read_csv("~/data/trust/trust_slice_spam_classification.csv") |>
   select(text) |>
   mutate(id = row_number()) |>
-  filter(!is.na(text), text != "")
+  filter(!is.na(text), text != "") # stop NAs and empty vals crashing anything
 
 chunk_size <- 2000
 total_chunks <- 20
 
+# this chunking logic is actually rubbish.
 trust_chunks <- trust |>
   mutate(chunk_id = ceiling(id / chunk_size)) |>
   group_split(chunk_id) |>

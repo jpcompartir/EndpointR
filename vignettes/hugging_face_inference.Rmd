@@ -129,7 +129,7 @@ text_2_embeddings <- hf_embed_text(text = "This is a sample text nunber 2 to emb
 
 And so on, for as many texts as we have. But this would get very boring, very quickly. Instead, it would be nice if we could embed multiple texts at the same time.
 
-## Embedding a List of Texts
+## Embedding a List of Texts {#embedding-a-list-of-texts}
 
 Rather than send 10 requests and get 10 responses, we could batch our texts together so that each request has multiple texts. In the following example we'll send a list of 10 texts in 2 separate requests.
 
@@ -285,7 +285,9 @@ Recording the results: we can see a \~40% reduction in processing time when goin
 
 ## Batch Requests
 
-If our endpoint does not allow for multiple concurrent requests, or it's being overloaded by other users, we can still gain some efficiency by sending batches of requests.
+If our endpoint does not allow for multiple concurrent requests, or it's being overloaded by other users, we can still gain some efficiency by sending batches of the data frame in each request. Under the hood this looks quite similar to the [section](#embedding-a-list-of-texts) on embedding a list of texts in a batch.
+
+> **TIP**: experiment with batch sizes to find the sweetspot - usually starting around 8-16, and capping out at \~64. You'll know when you've gone too high because you'll start seeing the retry bar, and/or your responses will contain errors.
 
 ```{r}
 hf_embed_df(
@@ -334,6 +336,20 @@ batch_concurrent_benchmark |>
   theme(legend.position = "bottom") 
 ```
 
+```{r}
+batch_concurrent_benchmark |> 
+    mutate(batch_size = factor(batch_size), 
+           concurrent_requests = factor(concurrent_requests)) |>  
+    ggplot(aes(x = batch_size, y = concurrent_requests, fill = throughput)) + 
+    geom_tile() +
+    geom_text(aes(label = round(throughput, 1)), colour = "white") +
+    scale_fill_viridis_c(name = "Throughput") +
+    theme_minimal() +
+    labs(x = "Batch Size", y = "Concurrent Requests",
+         title = "Throughput by Batch Size and Concurrent Requests") +
+    theme(legend.position = "none")
+```
+
 Which parameter is more important for speed, `batch_size =` or `concurrent_requests =`? By eye it looks like concurrent_requests has the bigger effect, but it's clear that both parameters have a positive effect, and within the boundaries of our parameters, there is an approximately linear relationship between them and throughput.
 
 Putting together a quick linear model confirms that everything else equal, increasing `concurrent_requests` increases throughput more than `batch_size`
@@ -349,11 +365,11 @@ broom::tidy(model) |>
 
 # Advanced Usage
 
-The low-level API offers more control over the embedding process. This is useful for custom workflows, debugging, or when you need fine-grained control over requests.
+The previous sections have displayed a high-level API for single texts, lists of texts, and data frames. Sometimes you will need to do something the `hf_embed_text`, `hf_embed_batch` and `hf_embed_df` functions do not allow, and their 'helpful defaults' get in the way. I would generally recommend you go direct to {httr2}, but if you're intent on using EndpointR then this section documents some slightly lower-level functionality.
 
 ## Request Preparation
 
-TODO: fix following all the re-factoring Prepare requests without executing them, useful for inspection or custom processing:
+TODO: fix following all the re-factoring Prepare requests without executing theme, useful for inspection or custom processing:
 
 ```{r}
 is_endpoint_active <- validate_hf_endpoint(endpoint_url, "HF_TEST_API_KEY")
@@ -396,8 +412,6 @@ Work directly with the component functions for custom batch workflows.
 Sending concurrent requests is one way to be more efficient - mainly through increasing throughput. Another way is to send more data inside each request, thus reducing total number of requests, and time spent sending requests to the endpoint.
 
 To be concrete, this means sending multiple rows of data inside each request. If we have 1,000 rows of data, and we create batches of size 50, we'll have $\frac{1000}{50}= 20$ total requests to send, rather than the 1,000 requests we have without batching. If our endpoint is powered by GPU(s) or other hardware accelerators, it will take care of processing the data using parallel computation, increasing speed up.
-
-> **Warning**: experiment with batch sizes to find the sweetspot - usually starting around 8-16, and capping out at \~64. You'll know when you've gone too high because you'll start seeing the retry bar, and/or your responses will contain errors.
 
 TODO: come back to this when batching is fully fleshed out.
 
@@ -511,4 +525,65 @@ results_list <- lapply(num_requests_vec, function(n) {
 })
 
 (summary_df <- do.call(rbind, results_list))
+```
+
+## Benchmarking Batch and Concurrent Requests
+
+You won't be able to re-run this exactly as-is, as the data frame is not provided with the package. You could bring your own data if you wanted to do this.
+
+```{r}
+benchmark_params <- crossing(
+  batch_size = c(1, 4, 8, 16, 32),
+  concurrent_requests = c(1, 5, 10, 15, 20)
+)
+
+trust <- readr::read_csv("~/data/trust/trust_slice_spam_classification.csv") |> 
+  select(text) |>
+  mutate(id = row_number()) |>
+  filter(!is.na(text), text != "") # stop NAs and empty vals crashing anything
+
+chunk_size <- 2000
+total_chunks <- 20
+
+# this chunking logic is actually rubbish.
+trust_chunks <- trust |>
+  mutate(chunk_id = ceiling(id / chunk_size)) |>
+  group_split(chunk_id) |>
+  head(total_chunks)
+
+benchmark_params <- crossing(
+  batch_size = c(1, 4, 8, 16, 32),
+  concurrent_requests = c(1, 5, 10, 20)
+) |>
+  mutate(chunk_index = row_number() %% total_chunks + 1)
+
+benchmark_results <- benchmark_params |>
+  mutate(result = pmap(list(batch_size, concurrent_requests, chunk_index), function(bs, cr, ci) {
+    current_chunk <- trust_chunks[[ci]]
+
+    start_time <- Sys.time()
+
+    res <- try(hf_embed_df(
+      df = current_chunk,
+      text_var = text,
+      id_var = id,
+      endpoint_url = endpoint_url,
+      key_name = "HF_TEST_API_KEY",
+      batch_size = bs,
+      concurrent_requests = cr,
+      progress = TRUE
+    ), silent = TRUE)
+
+    elapsed_time <- as.numeric(Sys.time() - start_time, units = "secs")
+    success <- !inherits(res, "try-error")
+    rows_processed <- if(success) nrow(current_chunk) else 0
+
+    list(
+      elapsed_time = elapsed_time,
+      success = success,
+      rows_processed = rows_processed,
+      throughput = if(success) rows_processed / elapsed_time else 0
+    )
+  })) |>
+  nest_wider(result)
 ```
