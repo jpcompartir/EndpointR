@@ -37,3 +37,52 @@ test_that("hf_build_request_batch handles batches",{
   expect_length(test_batch_req$body$data$inputs, 2)
 
 })
+
+
+test_that("hf_build_request_df's arguments are functioning", {
+  texts <- paste0("text", 1:10)
+  ids <- seq(1:length(texts))
+  test_df <- data.frame(id = ids, text = texts)
+  endpoint_url <- "gibberish.com"
+  key_name <- "TEST_API_KEY"
+
+  mockery::stub(hf_build_request, "get_api_key", "TEST_API_KEY")
+
+  hf_build_request_df(
+    df = test_df,
+    text_var = text,
+    id_var = id,
+    endpoint_url = endpoint_url,
+    key_name = key_name
+  )
+
+})
+
+
+test_that("hf_build_request_df's arguments are functioning", {
+  texts <- paste0("text", 1:10)
+  ids <- seq(1:length(texts))
+  test_df <- data.frame(id = ids, text = texts)
+  endpoint_url <- "http://gibberish.com"
+  key_name <- "TEST_API_KEY"
+
+  withr::with_envvar(
+    c("TEST_API_KEY" = "gibberish"),
+    {
+      result <- hf_build_request_df(
+        df = test_df,
+        text_var = text,
+        id_var = id,
+        endpoint_url = endpoint_url,
+        key_name = key_name,
+        max_retries = 10,
+        timeout = 18
+      )
+      expect_true(".request" %in% names(result))
+    }
+  )
+
+  single_request <- result$.request[[1]]
+  expect_s3_class(single_request, "httr2_request")
+  expect_equal(single_request$options$timeout_ms, 18000)
+})
