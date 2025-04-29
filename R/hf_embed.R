@@ -105,6 +105,8 @@ hf_embed_text <- function(text,
 hf_embed_batch <- function(texts, endpoint_url, key_name, ..., batch_size = 8,
                            include_texts = TRUE, concurrent_requests = 1, max_retries = 5, timeout = 10, validate = FALSE){
 
+
+  # input validation ----
   if (length(texts) == 0) {
     cli::cli_warning("Input 'texts' is empty. Returning an empty tibble.")
     return(tibble::tibble())
@@ -120,17 +122,17 @@ hf_embed_batch <- function(texts, endpoint_url, key_name, ..., batch_size = 8,
     "key_name must be a non-empty string" = is.character(key_name) && nchar(key_name) > 0
   )
 
+  # preparing batches ----
+  batch_data <- batch_vector(texts, batch_size) # returns $batch_indices, $batch_inputs
 
-  batch_indices <- split(seq_along(texts), ceiling(seq_along(texts) / batch_size)) # returns list of:
-  # pos 1:batch_size get ceiling'd value of 1
-  # pos batch_size:2(batch_size) get ceiling'd value of 2, and so-on
+  batch_reqs <- purrr::map(batch_data$batch_inputs, ~hf_build_request_batch(.x,
+                                                            endpoint_url,
+                                                            key_name,
+                                                            max_retries = max_retries,
+                                                            timeout = timeout,
+                                                            validate = FALSE))
 
-  batch_texts <- purrr::map(batch_indices, ~texts[.x])
-  batch_reqs <- purrr::map(batch_texts, ~hf_build_request_batch(.x, endpoint_url, key_name,
-                                                                max_retries = max_retries,
-                                                                timeout = timeout,
-                                                                validate = FALSE))
-
+  # performing requests ----
   if (concurrent_requests > 1 && length(batch_reqs) > 1) { # batches + concurrent requests
     batch_resps <- httr2::req_perform_parallel(batch_reqs,
                                                on_error = "continue",
@@ -168,7 +170,7 @@ hf_embed_batch <- function(texts, endpoint_url, key_name, ..., batch_size = 8,
   } else { # sequential processing
     safe_perform_and_tidy <- function(req, indices) {
       tryCatch({ # catch errors if we can't tidy
-        resp <- hf_perform_request(req, tidy = FALSE)
+        resp <- hf_perform_request(req)
         result <- tidy_embedding_response(resp)
         result$original_index <- indices # for tracking/preserving order
         result$.error <- FALSE # success flag, for consistent output in downstream funcs
@@ -185,10 +187,11 @@ hf_embed_batch <- function(texts, endpoint_url, key_name, ..., batch_size = 8,
       })
     }
 
-    result_list <- purrr::map2(batch_reqs, batch_indices, safe_perform_and_tidy, .progress = TRUE)
+    result_list <- purrr::map2(batch_reqs, batch_data$batch_indices, safe_perform_and_tidy, .progress = TRUE)
   }
 
 
+  # formatting results ----
   result <- purrr::list_rbind(result_list)
   result <- dplyr::arrange(result, original_index)
 

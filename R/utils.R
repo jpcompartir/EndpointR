@@ -219,3 +219,18 @@ chunk_dataframe <- function(df, chunk_size) {
   df_chunks <- split(df, ceiling(seq_len(nrow(df)) / chunk_size))
   return(df_chunks)
 }
+
+
+batch_vector <- function(vector, batch_size) {
+  stopifnot("`batch_vector` requires a vector as input" = is.vector(vector),
+            "`batch_vector requires a non-empty vector as input" = length(vector) >0)
+
+  batch_indices <-  split(seq_along(vector), ceiling(seq_along(vector) / batch_size))
+  batch_inputs <- purrr::map(batch_indices, ~vector[.x])
+
+
+  return(
+    list(batch_indices = batch_indices,
+         batch_inputs = batch_inputs)
+  )
+}
