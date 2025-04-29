@@ -37,6 +37,7 @@ hf_embed_text <- function(text,
                          endpoint_url,
                          key_name,
                          ...,
+                         tidy = TRUE,
                          max_retries = 3,
                          timeout = 10,
                          validate = FALSE) {
@@ -46,8 +47,7 @@ hf_embed_text <- function(text,
 
   # provide user-friendly error messages
   tryCatch({
-    embeddings <- hf_perform_request(req, ..., tidy = TRUE)
-    return(embeddings)
+    response <- hf_perform_request(req, ...)
   }, error = function(e) {
     cli::cli_abort(c(
       "Failed to generate embeddings",
@@ -55,6 +55,12 @@ hf_embed_text <- function(text,
       "x" = "Error: {conditionMessage(e)}"
     ))
   })
+
+  if (tidy) {
+    response <- tidy_embedding_response(response)
+  }
+
+  return(response)
 }
 
 
@@ -146,8 +152,8 @@ hf_embed_batch <- function(texts, endpoint_url, key_name, ..., batch_size = 8,
             # empty tibble with indices will help to preserve order in worst case (errors)
             embedding = rep(list(NA), length(indices)),
             original_index = indices,
-            .error = TRUE, # for cosnsistent output in downstream functions
-            .error_message = conditionMessage(e) # for cosnsistent output in downstream functions
+            .error = TRUE, # for consistent output in downstream functions
+            .error_message = conditionMessage(e) # for consistent output in downstream functions
           ))
         })
       } else {
@@ -173,8 +179,8 @@ hf_embed_batch <- function(texts, endpoint_url, key_name, ..., batch_size = 8,
         return(tibble::tibble(
           embedding = rep(list(NA), length(indices)),
           original_index = indices,
-          .error = TRUE, # for cosnsistent output in downstream functions
-          .error_message = conditionMessage(e) # for cosnsistent output in downstream functions
+          .error = TRUE, # for consistent output in downstream functions
+          .error_message = conditionMessage(e) # for consistent output in downstream functions
         ))
       })
     }

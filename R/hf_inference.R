@@ -237,14 +237,12 @@
   #' Execute a single embedding request and process the response
   #'
   #' @description
-  #' Performs a prepared embedding request and returns the embedding
-  #' vector in a tidy format.
+  #' Performs a prepared request and returns the response
   #'
   #' @param request An httr2 request object created by hf_build_request
   #' @param ... ellipsis is sent to `httr2::req_perform`, e.g. for `path` and `verbosity`arguments.
-  #' @param tidy Whether to convert the response to a tidy tibble
   #'
-  #' @return A tibble with embedding vectors if tidy=TRUE, otherwise the raw httr2 response
+  #' @return A httr2 response object
   #' @export
   #'
   #' @examples
@@ -256,22 +254,16 @@
   #'   )
   #'   embeddings <- hf_perform_request(req)
   #'
-  #'   # Get raw response instead of processed embeddings
-  #'   response <- hf_perform_request(req, tidy = FALSE)
   #' }
   # hf_perform_request_docs ----
-  hf_perform_request <- function(request, ..., tidy = TRUE) {
+  hf_perform_request <- function(request, ...) {
     stopifnot(
       "request must be an httr2 request object" = inherits(request, "httr2_request")
     )
 
     resp <- httr2::req_perform(request, ...)
 
-    if (tidy) {
-      return(tidy_embedding_response(resp))
-    } else {
-      return(resp)
-    }
+    return(resp)
   }
 
   # hf_perform_sequential_df docs ----
