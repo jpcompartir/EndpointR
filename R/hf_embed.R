@@ -102,8 +102,16 @@ hf_embed_text <- function(text,
 #'   )
 #' }
 # hf_embed_batch docs ----
-hf_embed_batch <- function(texts, endpoint_url, key_name, ..., batch_size = 8,
-                           include_texts = TRUE, concurrent_requests = 1, max_retries = 5, timeout = 10, validate = FALSE){
+hf_embed_batch <- function(texts, endpoint_url,
+                           key_name,
+                           ...,
+                           batch_size = 8,
+                           include_texts = TRUE,
+                           concurrent_requests = 1,
+                           max_retries = 5,
+                           timeout = 10,
+                           validate = FALSE,
+                           relocate_col = 2){
 
 
   # input validation ----
@@ -151,7 +159,7 @@ hf_embed_batch <- function(texts, endpoint_url, key_name, ..., batch_size = 8,
 
   result$original_index <- NULL # drop index now we're returning
 
-  result <- dplyr::relocate(result, c(`.error`, `.error_message`), .before = V1)
+  result <- dplyr::relocate(result, c(`.error`, `.error_message`), .before = relocate_col)
   return(result)
 }
 
@@ -202,10 +210,6 @@ tidy_embedding_response <- function(response) {
     tibble::as_tibble()
 
   return(tib)
-}
-
-tidy_batched_embedding <- function(batch_responses) {
-
 }
 
 # tidy_chunked_embedding_df docs ----
@@ -432,7 +436,8 @@ hf_embed_df <- function(df,
       concurrent_requests = concurrent_requests,
       max_retries = max_retries,
       timeout = timeout,
-      validate = validate
+      validate = validate,
+      relocate_col = 1
     )
 
     df_with_row_id <- df |> dplyr::mutate(.row_id = dplyr::row_number())
@@ -448,3 +453,4 @@ hf_embed_df <- function(df,
 
   return(result_df)
 }
+
