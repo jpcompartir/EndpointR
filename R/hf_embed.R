@@ -132,64 +132,13 @@ hf_embed_batch <- function(texts, endpoint_url, key_name, ..., batch_size = 8,
                                                             timeout = timeout,
                                                             validate = FALSE))
 
-  # performing requests ----
-  if (concurrent_requests > 1 && length(batch_reqs) > 1) { # batches + concurrent requests
-    batch_resps <- httr2::req_perform_parallel(batch_reqs,
-                                               on_error = "continue",
-                                               progress = TRUE,
-                                               max_active = concurrent_requests)
-
-    # keep batches and their ids together, and then handle errors gracefully
-    result_list <- purrr::map2(batch_resps, batch_indices, function(resp, indices) {
-      if (inherits(resp, "httr2_response")) {
-        tryCatch({ # catch errors if we can't tidy
-          result <- tidy_embedding_response(resp)
-          result$original_index <- indices # for tracking/preserving order
-          result$.error <- FALSE # success flag, for consistent output in downstream funcs
-          result$.error_message <- NA_character_ #for consistent output in downstream functions
-          return(result)
-        }, error = function(e) {
-          cli::cli_warn("Error tidying response for batch: {conditionMessage(e)}")
-          return(tibble::tibble(
-            # empty tibble with indices will help to preserve order in worst case (errors)
-            embedding = rep(list(NA), length(indices)),
-            original_index = indices,
-            .error = TRUE, # for consistent output in downstream functions
-            .error_message = conditionMessage(e) # for consistent output in downstream functions
-          ))
-        })
-      } else {
-        cli::cli_warn("Request failed for batch: {conditionMessage(resp)}")
-        return(tibble::tibble(
-          embedding = rep(list(NA), length(indices)),
-          original_index = indices
-        ))
-      }
-    })
-
-  } else { # sequential processing
-    safe_perform_and_tidy <- function(req, indices) {
-      tryCatch({ # catch errors if we can't tidy
-        resp <- hf_perform_request(req)
-        result <- tidy_embedding_response(resp)
-        result$original_index <- indices # for tracking/preserving order
-        result$.error <- FALSE # success flag, for consistent output in downstream funcs
-        result$.error_message <- NA_character_ #for consistent output in downstream functions
-        return(result)
-      }, error = function(e) {
-        cli::cli_warn("Error processing batch sequentially: {conditionMessage(e)}")
-        return(tibble::tibble(
-          embedding = rep(list(NA), length(indices)),
-          original_index = indices,
-          .error = TRUE, # for consistent output in downstream functions
-          .error_message = conditionMessage(e) # for consistent output in downstream functions
-        ))
-      })
-    }
-
-    result_list <- purrr::map2(batch_reqs, batch_data$batch_indices, safe_perform_and_tidy, .progress = TRUE)
-  }
-
+  result_list <- perform_requests_with_strategy(
+    requests = batch_reqs,
+    indices = batch_data$batch_indices,
+    tidy_func = tidy_embedding_response,
+    concurrent_requests = concurrent_requests,
+    progress = TRUE # TODO do we want a parameter here?
+  )
 
   # formatting results ----
   result <- purrr::list_rbind(result_list)
