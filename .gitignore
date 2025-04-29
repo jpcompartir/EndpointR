@@ -35,5 +35,4 @@ po/*~
 rsconnect/
 .Rproj.user
 inst/doc
-dev_docs/
 EndpointR.Rproj

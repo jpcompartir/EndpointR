@@ -1,0 +1,374 @@
+---
+title: "initial_release"
+format: 
+  html:
+    embed-resources: true
+    code-tools: true
+    code-block-bg: true
+    code-block-border-left: true
+    toc: true
+---
+
+```{r}
+library(httr2)
+library(webfakes)
+library(tibble)
+library(dplyr)
+library(tibble)
+library(readr)
+```
+
+```{r}
+trust <- read_csv("~/data/trust/trust_slice.csv") #|> 
+  # slice(1:1000)
+```
+
+# Use Cases
+
+Primary use cases are:
+
+-   embedding a dataset - via HF Inference Endpoint, or OpenAI
+-   classifying over a dataset with a pre-defined task
+-   classifying over a dataset on a task which is not pre-defined, using structured outputs
+
+For API consistency, the user should be able to set max_retries, max_requests
+
+# Todos
+
+-   \[ \]
+
+# OpenAI
+
+# httr2 notes
+
+req\_\* functions, like `req_perform_parallel`, `req_body_json`, `req_retry`, `req_throttle` to take care of some key processes for efficiently hitting APIs and handling requests.
+
+Experimental req_perform_promise()
+
+resp\_\* functions, like `resp_`
+
+## Parallel Requests
+
+With example_url() we can hit a web-api to test throttling, parallel requests etc. pretty noicely
+
+Copy the URL http://127.0.0.1:58524/#tag/HTTP-methods/paths/\~1put/put and you can explore the web app (local host) it creates
+
+```{r}
+# req_dry_run(req)
+req <- 
+  request(example_url()) |> 
+  req_throttle(capacity = 5)
+  
+reqs <- rep(
+  list(
+    request(example_url()) |> 
+      req_throttle(capacity = 5, fill_time_s = 3)
+    ), 50)
+
+req_perform_parallel(reqs, 
+                     progress = TRUE, 
+                     max_active = 10)
+```
+
+## Batching
+
+We need to figure out how is best to do the batching of requests - how we make sure all of the results are returned in order. How we track the progress of the Inference Endpoint, to understand whether it can handle the load or not.
+
+Whether we can do this nicely without locking the R session, or if that adds too much complexity... could see that being a big issue in CI/CD
+
+```{r}
+library(webfakes)
+app <- new_app()
+app$get("/test", function(req, res) {
+  Sys.sleep(0.1)
+  res$send("OK")
+})
+server <- new_app_process(app)
+
+reqs <- rep(
+  list(
+    request(server$url("/test")) |> 
+      req_throttle(capacity = 5, fill_time_s = 10)
+    ), 50)
+
+req_perform_parallel(reqs, 
+                     progress = TRUE, 
+                     max_active = 5)
+```
+
+# HF inference endpoint
+
+-   We can't easily optimise the memory usage within a server - or at least not a CPU-based server. Though it did seem to scale up when we use req_perform_parallel.
+
+```{r, endpoint_data}
+api_key <- Sys.getenv("HF_TEST_API_KEY")
+hf_test_api_url <- "https://o1stb590fw4ortu4.us-east-1.aws.endpoints.huggingface.cloud"
+sentences <- sentences # data for some basic checking
+```
+
+## Building a request
+
+```{r}
+req <- request(hf_test_api_url)
+req <- req |>
+  req_user_agent(string = "EndpointR") |>
+  req_method("POST") |>
+  req_headers("Content-Type" = "application/json") |>
+  req_auth_bearer_token(token = api_key) |>
+  req_progress() |>
+  req_body_json(list(inputs = sentences[31:60])) |>
+  req_progress() |> 
+  req_retry(
+    max_tries = 10,
+    retry_on_failure = TRUE)
+
+# perform req -> tidy response
+resp <- req |>
+  httr2::req_perform(verbosity = 1)
+
+resp_json <- resp |>
+  resp_body_json()
+
+tidy_nested_embedding_list(resp_json)
+```
+
+## Converting to a function
+
+User needs to: 1. select the text column 2. input the endpoint url 3. input the API key
+
+```{r, functions}
+build_hf_embed_request <- function(text, endpoint_url, api_key) {
+  req <- httr2::request(base_url = hf_test_api_url)
+  
+  req <- req |> 
+    req_user_agent(string = "EndpointR") |>
+    req_method("POST") |>
+    req_headers("Content-Type" = "application/json") |>
+    req_auth_bearer_token(token = api_key) |> 
+    req_body_json( list(inputs = {{text}})) |>
+    # req_progress() |> 
+    req_retry(max_tries = 10,
+              retry_on_failure = TRUE)
+  
+  return(req)
+}
+
+# basic func for getting the list tidied.
+tidy_nested_embedding_list <- function(nested_list) {
+  tib <- sapply(nested_list, unlist) |>  # first conv to matrix, but this is long format
+    t() |> # transpose to wide form
+    as.data.frame.matrix() |>  # conv to df, has grim column names
+    tibble::as_tibble()
+
+  return(tib)
+}
+```
+
+## Sentences Test
+
+```{r}
+id <-paste0("uid_", 1:length(sentences))
+request_df <- tibble(
+  id = id,
+  text = sentences) |>
+  mutate(request =
+           map(text, 
+               ~ build_hf_embed_request(
+                 .x,
+                 hf_test_api_url,
+                 api_key = api_key)
+           )
+  )
+
+
+request_df |>  
+  pluck('request', 1) |>  
+  req_dry_run() # check everything looks fine before sending off all requests.
+
+response_df <- request_df |> 
+  mutate(response = map(request, ~ req_perform(.x)))
+
+response_df |>  
+  pluck('response', 1) |>  
+  resp_body_json() |>  
+  tidy_nested_embedding_list()
+```
+
+## Testing with progress in sequential requests
+
+predictably, doesn't work as each request is too fast - latency tends to be \< 0.1s. Also, with a larger DF there is quite a lot of start up time to create each request
+
+```{r}
+safe_perform <- safely(req_perform)
+start <- Sys.time()
+trust_id <- paste0("uid_", 1:nrow(trust))
+
+trust_request_df <- tibble(
+  id = trust_id,
+  text = trust$text
+) |>
+  filter(text != "", !is.na(text)) |> 
+  slice(1:5000)
+
+map_start <- Sys.time()
+trust_request_df <- trust_request_df |>  
+  # slice(1:100) |> 
+  mutate(request = map(text, ~build_hf_embed_request(.x, hf_test_api_url, api_key = api_key)))
+map_end <- Sys.time() - map_start
+map_end
+
+
+resp_progress  <- trust_request_df |> 
+  # slice(1:100) |> 
+  mutate(response = map(request, 
+                        ~ safe_perform(.x, verbosity = 0)),
+         .progress = TRUE)
+
+end <- Sys.time() - start
+print(end)
+```
+
+Building the requests like this takes \~30 seconds via map, and \~29 seconds via adding a `Vectorize()` to build_hf_embed_request, so there's no real need to vectorise independently (mutate is vectorised).
+
+```{r}
+vec_build_req <- Vectorize(build_hf_embed_request, SIMPLIFY = FALSE)
+vec_start <- Sys.time()
+batch_requests <- vec_build_req(trust_docs, hf_test_api_url, api_key = api_key)
+vec_end <- Sys.time() - vec_start
+vec_end
+```
+
+```{r}
+jsonlite::toJSON
+```
+
+# Developing the batch workflow
+
+Whether we eventually hand over a list of inputs, or a chunked data frame of inputs,we want the requests to be packaged together, using something like `req_body_json( list(inputs = {{text}})`. This should be able to build on hf_build_request, but have some additional checks for the input being a list.
+
+If we're trying to batch inference a list of chunked data frames, we need to get ids and texts, and then re-package them up from the response. httr2 guarantees we get our results back sorted in the order we requested them, within batches and across batches - we just need to take care of getting the list of inputs together.
+
+```{r}
+hf_build_request(input = embedding_sentences, endpoint_url = endpoint_url)
+```
+
+```{r}
+embedding_sentences <- c(
+  "Text embedding models compress your rambling prose into compact vectors, much like how British commuters squeeze themselves into tube carriages during rush hour.",
+  "Setting up an inference endpoint without proper documentation is akin to attempting to navigate London using a map of Birmingham.",
+  "When your embedding model starts hallucinating, it's rather like watching Parliament during Question Time—entertaining but utterly unpredictable.",
+  "Optimising your inference endpoint is essential unless you fancy your users growing old whilst waiting for a response, perhaps even ageing enough to collect their pension.",
+  "The distance between word embeddings reveals semantic relationships, though sadly not the distance between what your client requested and what they actually wanted.",
+  "Creating multilingual embeddings is a bit like attempting to order tea properly across Europe—technically possible but fraught with cultural misunderstandings.",
+  "Batch processing through inference endpoints saves computing resources, much like how the British save conversation topics by discussing the weather exclusively.",
+  "Token limits on embedding APIs are the digital equivalent of a queue at a British post office—inevitably, you'll reach the front just as they close for lunch.",
+  "Fine-tuning embedding models on domain-specific corpora is rather like training a British child to apologise—it requires repetition, patience, and considerable examples.",
+  "When your inference endpoint crashes under load, it maintains that quintessentially British trait of breaking down precisely when most inconvenient."
+)
+```
+
+```{r}
+rep_embedding_sentences <- rep(embedding_sentences, 10)
+rep_ids <- 1: length(rep_embedding_sentences)
+
+rep_embed_df <- tibble(
+  id = rep_ids,
+  sentence = rep_embedding_sentences
+)
+rep_chunks <- chunk_dataframe(rep_embed_df, 8)
+
+batch_rep_reqs <- map(rep_chunks, ~ hf_build_request_batch(inputs =.x$sentence,endpoint_url = endpoint_url, key_name = "HF_TEST_API_KEY"))
+
+map(batch_rep_reqs, hf_perform_request, path = "test.jsonl", .progress = TRUE) # doesn't quite work out of the box...
+
+tmp_test_df <- jsonlite::stream_in(file("test.jsonl"))  #readLines(con, n = pagesize, encoding = "UTF-8") : incomplete final line found on 'test.jsonl'
+lines <- readLines(con = file("test.jsonl"))
+
+
+map(batch_rep_reqs, hf_perform_request, path = "test.txt", .progress = TRUE) # doesn't quite work out of the box...
+lines <- readLines(con = file("test.txt")) # same issue
+
+```
+
+## Refactoring hf_embed_df
+
+```{r}
+embedding_sentences <- c(
+  "Text embedding models compress your rambling prose into compact vectors, much like how British commuters squeeze themselves into tube carriages during rush hour.",
+  "Setting up an inference endpoint without proper documentation is akin to attempting to navigate London using a map of Birmingham.",
+  "When your embedding model starts hallucinating, it's rather like watching Parliament during Question Time—entertaining but utterly unpredictable.",
+  "Optimising your inference endpoint is essential unless you fancy your users growing old whilst waiting for a response, perhaps even ageing enough to collect their pension.",
+  "The distance between word embeddings reveals semantic relationships, though sadly not the distance between what your client requested and what they actually wanted.",
+  "Creating multilingual embeddings is a bit like attempting to order tea properly across Europe—technically possible but fraught with cultural misunderstandings.",
+  "Batch processing through inference endpoints saves computing resources, much like how the British save conversation topics by discussing the weather exclusively.",
+  "Token limits on embedding APIs are the digital equivalent of a queue at a British post office—inevitably, you'll reach the front just as they close for lunch.",
+  "Fine-tuning embedding models on domain-specific corpora is rather like training a British child to apologise—it requires repetition, patience, and considerable examples.",
+  "When your inference endpoint crashes under load, it maintains that quintessentially British trait of breaking down precisely when most inconvenient."
+)
+```
+
+```{r}
+id_1000 <- 1:1000
+sentences_1000 <- rep(embedding_df$sentence, 100)
+embedding_df_1000 <- tibble(id = id_1000, sentence = sentences_1000)
+```
+
+On batching new is much better!
+
+```{r}
+new_start <- Sys.time()
+
+ new_result <- hf_embed_df_new(
+  df = embedding_df_1000,
+  text_var = sentence,
+  id_var = id,
+  key_name = "HF_TEST_API_KEY",
+  endpoint_url = endpoint_url,
+  batch_size = 20, 
+  concurrent_requests = 5,
+  progress = TRUE,
+  include_errors = TRUE,
+  max_retries = 5)
+ 
+new_end <- Sys.time() - new_start
+glue::glue("Processing time for new func version: {new_end}") 
+```
+
+```{r}
+new_start <- Sys.time()
+
+ new_result <- hf_embed_df_new(
+  df = embedding_df_1000 |>  slice(1:100),
+  text_var = sentence,
+  id_var = id,
+  key_name = "HF_TEST_API_KEY",
+  endpoint_url = endpoint_url,
+  batch_size = 1, 
+  concurrent_requests = 10,
+  progress = TRUE,
+  include_errors = TRUE,
+  max_retries = 5)
+ 
+new_end <- Sys.time() - new_start
+glue::glue("Processing time for new func version unbatched: {new_end}") 
+```
+
+Unbatched
+
+```{r}
+original_start <- Sys.time()
+
+ original_result <- hf_embed_df(
+  df = embedding_df_1000 |>  slice(1:100),
+  text_var = sentence,
+  id_var = id,
+  key_name = "HF_TEST_API_KEY",
+  endpoint_url = endpoint_url,
+  batch_size = 1, concurrent_requests = 10,
+  progress = TRUE,
+  include_errors = TRUE,
+  max_retries = 5)
+ 
+original_end <- Sys.time() - original_start
+glue::glue("Processing time for original version Unbatched: {original_end}") 
+```

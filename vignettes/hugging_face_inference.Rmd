@@ -22,13 +22,15 @@ vignette: >
 knitr::opts_chunk$set(
   collapse = TRUE,
   comment = "#>",
-  eval = FALSE
+  eval = FALSE,
+  message = FALSE,
+  warning = FALSE
 )
 ```
 
 # Introduction
 
-```{r setup}
+```{r setup, eval = TRUE}
 library(EndpointR)
 library(dplyr)
 library(tibble)
@@ -302,12 +304,25 @@ hf_embed_df(
 
 For maximum speed up, we can also send batches of multiple concurrent requests. If our endpoint is able to handle them, 10 concurrent requests of `batch_size = 10` will be marginally faster than 10 concurrent requests of `batch_size = 5`.
 
-In a separate session we ran some benchmarking to understand the relationship between batch_size and concurrent_requests.
+### Benchmarking Batching & Concurrent Requests
 
-```{r}
-batch_concurrent_benchmark <- read.csv("dev_docs/batch_concurrent_benchmark.csv") |>
+In a separate session we did some benchmarking to understand the relationship between batch size, concurrent requests, and throughput, where throughput is the number of rows processed per second. We looked at combinations of:
+
+-   **batch_size = c(1, 4, 8, 16, 32)**
+-   **concurrent_requests = c(1, 5, 10, 15, 20)**
+
+```{r, eval = TRUE}
+batch_concurrent_benchmark <- read.csv("../dev_docs/batch_concurrent_benchmark.csv") |>
   tibble()
 
+knitr::kable(batch_concurrent_benchmark |> mutate_if(is.numeric, ~ round(.x, 2)))
+```
+
+The results effectively speak for themselves. To embed $\approx$ 2,000 documents sending them 1 text and 1 request at a time, we get a throughput of $approx$ 2.16 texts per second, and it takes over 15 minutes! At the other end, 20 concurrent requests of batch size 8, and 20 concurrent requests of batch size 32 have a throughout of 195, which is close to 200x quicker. And we get our results back in 10 seconds!
+
+> **NOTE**: If we needed to, we could re-run the benchmarking code multiple times but the general trend is very clear.
+
+```{r, eval = TRUE}
 batch_concurrent_benchmark |> 
   mutate(batch_size = factor(batch_size), concurrent_requests= factor(concurrent_requests)) |>
   ggplot(aes(x= batch_size, y = throughput, group = concurrent_requests)) +
@@ -319,13 +334,18 @@ batch_concurrent_benchmark |>
   theme(legend.position = "bottom") 
 ```
 
-Although we suspect there is *some* interaction effect, the relationship is mostly linear within our constraints, i.e. increasing batch size increases throughput, as does increasing concurrent requests. Concurrent requests has a more pronounced effect than batch size.
+Which parameter is more important for speed, `batch_size =` or `concurrent_requests =`? By eye it looks like concurrent_requests has the bigger effect, but it's clear that both parameters have a positive effect, and within the boundaries of our parameters, there is an approximately linear relationship between them and throughput.
 
-```{r}
+Putting together a quick linear model confirms that everything else equal, increasing `concurrent_requests` increases throughput more than `batch_size`
+
+```{r, eval = TRUE}
 model <- lm(throughput ~ batch_size + concurrent_requests, data = batch_concurrent_benchmark)
 
-broom::tidy(model)
+broom::tidy(model) |>  
+  mutate(across(c(estimate, std.error, statistic), ~round(.x, 2)))
 ```
+
+> **QUESTION**: What might happen if we keep increasing `batch_size` and `concurrent_requests`? Will the relationship hold or not?
 
 # Advanced Usage
 
