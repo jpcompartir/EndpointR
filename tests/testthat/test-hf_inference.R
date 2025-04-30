@@ -1,4 +1,6 @@
-test_that("build_request has the correct default request body", {
+# building requests----
+
+test_that("base_request has the correct default request body", {
   endpoint_url <- "gibberish.com"
   api_key <- "gibberish"
 
@@ -10,9 +12,9 @@ test_that("build_request has the correct default request body", {
 })
 
 test_that("hf_build_request does not try to handle batches", {
-  # what's the best way to handle this, shouold I spin up a tmp .Renviron file and put the a key in, or just use HF_TEST_API_KEY? I don't kike the latter as it won't be obvious to anyone else who develops and it will be extra work in CI/CD
   endpoint_url <- "https://gibberish.com"
 
+  # preferable to mockery::stub
   withr::with_envvar(
     c("TEST_API_KEY" = "gibberish"),
     {
@@ -30,7 +32,7 @@ test_that("hf_build_request does not try to handle batches", {
 
 })
 
-test_that("hf_build_request_batch handles batches",{
+test_that("hf_build_request_batch handles batches of texts=",{
   endpoint_url <- "https://gibberish.com"
   texts <- list("batch text1", "batch text2")
   key_name <- "TEST_API_KEY"
@@ -49,7 +51,6 @@ test_that("hf_build_request_batch handles batches",{
   expect_length(test_batch_req$body$data$inputs, 2)
 })
 
-
 test_that("hf_build_request_df's arguments are functioning", {
   texts <- paste0("text", 1:10)
   ids <- seq(1:length(texts))
@@ -57,7 +58,7 @@ test_that("hf_build_request_df's arguments are functioning", {
   endpoint_url <- "https://gibberish.com"
   key_name <- "TEST_API_KEY"
 
-  withr::with_envvar( # preferable to mockery::stub
+  withr::with_envvar(
     c("TEST_API_KEY" = "gibberish"),
     {
       result <-

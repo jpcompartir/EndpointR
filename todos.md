@@ -1,11 +1,27 @@
 # EndpointR Hugging Face Embeddings Implementation Checklist
 
+## Re-factor & Decouple
+
+Decouple hf_inference.R from hf_embed.R
+
+-   [x] remove tidy option from request (leave to hf_embed.R)
+-   [ ] update batching with changes to hf_perform_request
+    -   [ ] separate concerns & make re-usable
+        -   break batching logic into a utility function
+        -   [x] batch_vector
+        -   [x] tidy_batches (takes a function as an input?)
+
 ## Core Features
 
 -   [x] Embed a text
 -   [x] Embed a batch of texts
 -   [x] Embed a data frame of texts
--   [x]
+
+### Testing
+
+-   [ ] Error handling & Reporting
+    -   [ ] All errors
+    -   [ ] Some errors
 
 ## Core Functions
 
