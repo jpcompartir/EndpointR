@@ -14,7 +14,8 @@ hf_embed_batch(
   concurrent_requests = 1,
   max_retries = 5,
   timeout = 10,
-  validate = FALSE
+  validate = FALSE,
+  relocate_col = 2
 )
 }
 \arguments{
