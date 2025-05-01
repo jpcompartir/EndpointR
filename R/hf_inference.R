@@ -266,131 +266,6 @@
     return(resp)
   }
 
-  # hf_perform_sequential_df docs ----
-  #' Safely execute multiple embedding requests located in a data frame sequentially
-  #'
-  #' @description
-  #' Performs multiple prepared embedding requests sequentially and returns the responses.
-  #' This function will often be considerably slower than sending requests in parallel.
-  #' It is left to the user to decide whether they wish to proceed sequentially or in parallel.
-  #' For example, `hf_embed_df` has arguments which determine the strategy.
-  #'
-  #' @details
-  #' 'Safely' means that we are using purrr::safely to return information about errors
-  #' when they occur, and to continue on to the next request.
-  #'
-  #'
-  #' @param df A data frame with request objects in a column named '.request'
-  #' @param progress Whether to display a progress bar
-  #'
-  #' @return The input data frame with response objects added in '.response' column
-  #' @export
-  #'
-  #' @examples
-  #' \dontrun{
-  #'   # Prepare requests
-  #'   df <- data.frame(
-  #'     id = 1:3,
-  #'     text = c("First example", "Second example", "Third example")
-  #'   )
-  #'
-  #'   requests_df <- hf_build_request_df(
-  #'     df = df,
-  #'     text_var = text,
-  #'     endpoint_url = "https://my-endpoint.huggingface.cloud"
-  #'   )
-  #'
-  #'   # Execute requests sequentially
-  #'   responses_df <- hf_perform_sequential_df(
-  #'     df = requests_df,
-  #'     progress = TRUE
-  #'   )
-  #' }
-  # hf_perform_sequential_df docs ----
-  hf_perform_sequential_df <- function(df, progress = TRUE) {
-
-    stopifnot(
-      "df must be a data frame" = is.data.frame(df),
-      ".request column must exist in df" = ".request" %in% names(df) # this structure may change, TODO confirm
-    )
-
-    result_df <- df |>
-      dplyr::mutate(.response = purrr::map(
-        .request,
-        ~ safely_perform_request(.x),
-        .progress = progress
-      ))
-
-    return(result_df)
-  }
-
-
-  # hf_perform_parallel_df docs ----
-  #' Execute multiple embedding requests in parallel
-  #'
-  #' @description
-  #' Performs multiple prepared embedding requests in parallel and returns the responses.
-  #'
-  #' @param df A data frame with request objects in a column named '.request'
-  #' @param max_active Maximum number of concurrent requests
-  #' @param progress Whether to display a progress bar
-  #'
-  #' @return The input data frame with response objects added in '.response' column
-  #' @export
-  #'
-  #' @examples
-  #' \dontrun{
-  #'   # Prepare requests
-  #'   df <- data.frame(
-  #'     id = 1:3,
-  #'     text = c("First example", "Second example", "Third example")
-  #'   )
-  #'
-  #'   requests_df <- hf_build_request_df(
-  #'     df = df,
-  #'     text_var = text,
-  #'     endpoint_url = "https://my-endpoint.huggingface.cloud"
-  #'   )
-  #'
-  #'   # Execute requests in parallel
-  #'   responses_df <- hf_perform_parallel_df(
-  #'     df = requests_df,
-  #'     max_active = 5,
-  #'     progress = TRUE
-  #'   )
-  #' }
-  # hf_perform_parallel_df docs ----
-  hf_perform_parallel_df <- function(df, max_active = 10, progress = TRUE) {
-    # the hf_perform functions should probably just become hf_perform
-    # they don't really care if the task is embeddings or classification ( or other) TODO
-    # the correct tidy/processing function needs to be applied depending on the task.
-    stopifnot(
-      "df must be a data frame" = is.data.frame(df),
-      ".request column must exist in df" = ".request" %in% names(df),
-      "max_active must be a positive integer" = is.numeric(max_active) && max_active > 0
-    )
-
-    responses <- httr2::req_perform_parallel(
-      reqs = df$.request,
-      max_active = max_active,
-      progress = progress
-    )
-
-    imitate_safely_structure <- purrr::map(responses, function(resp) {
-      if (inherits(resp, "error")) {
-        list(result = NULL, error = resp)
-      } else {
-        list(result = resp, error = NULL)
-      }
-    })
-
-    result_df <- df |> dplyr::mutate(.response = imitate_safely_structure)
-
-    return(result_df)
-  }
-
-
-
   #  WIP - deal with ugly chunk in embed_batch_df ----
 perform_requests_with_strategy <- function(requests,
                                            indices,
@@ -438,7 +313,6 @@ perform_requests_with_strategy <- function(requests,
 
       return(purrr::map2(responses, indices, process_response))
     }
-
 
     else { # use sequential.
       return(purrr::map2(
