@@ -1,5 +1,3 @@
-
-
 # tidy_embedding_response_docs ----
 #' Process embedding API response into a tidy format
 #'
@@ -25,22 +23,18 @@
 #' }
 # tidy_embedding_response_docs ----
 tidy_embedding_response <- function(response) {
-  # Handle both httr2 response objects and parsed JSON
   if (inherits(response, "httr2_response")) {
     resp_json <- httr2::resp_body_json(response)
   } else {
     resp_json <- response
   }
 
-  # Handle different response formats from Hugging Face
   if (is.list(resp_json) && !is.null(names(resp_json))) {
-    # Some endpoints return {"embedding": [...]} format
     if ("embedding" %in% names(resp_json)) {
       resp_json <- list(resp_json$embedding)
     }
   }
 
-  # Process the nested list into a tibble
   tib <- sapply(resp_json, unlist) |>
     t() |> # transpose to wide form
     as.data.frame.matrix() |>
@@ -150,7 +144,7 @@ hf_embed_text <- function(text,
 #'     texts = c("First example", "Second example", "Third example"),
 #'     endpoint_url = "https://my-endpoint.huggingface.cloud",
 #'     batch_size = 10,
-#'     concurrent_requests = 2
+#'     concurrent_requests = 5
 #'   )
 #' }
 # hf_embed_batch docs ----
@@ -159,7 +153,7 @@ hf_embed_batch <- function(texts, endpoint_url,
                            ...,
                            batch_size = 8,
                            include_texts = TRUE,
-                           concurrent_requests = 1,
+                           concurrent_requests = 5,
                            max_retries = 5,
                            timeout = 10,
                            validate = FALSE,
@@ -308,6 +302,9 @@ hf_embed_df <- function(df,
     cli::cli_abort("Column {.code {rlang::as_string(id_sym)}} not found in data frame")
   }
 
+
+  original_num_rows <- nrow(df)
+
   # refactoring  to always use hf_embed_batch - if batch_size if one then it gets handled anyway, avoids branching and additional complexity.
   texts <- df |> dplyr::pull(!!text_sym)
   indices <- df |> dplyr::pull(!!id_sym)
@@ -335,6 +332,18 @@ hf_embed_df <- function(df,
   result_df <- df_with_row_id |>
     dplyr::left_join(embeddings_tbl, by = ".row_id") |>
     dplyr::select(-.row_id)
+
+
+  # final sanity check and alert user if there's a mismatch
+  final_num_rows <- nrow(result_df)
+
+  if(final_num_rows != original_num_rows){
+    cli::cli_warn("Rows in original data frame and returned data frame do not match:")
+    cli::cli_bullets(text = c(
+      "Rows in original data frame: {original_num_rows}",
+      "Rows in returned data frame: {final_num_rows}"
+    ))
+  }
 
   return(result_df)
 }

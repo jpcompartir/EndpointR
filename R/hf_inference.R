@@ -40,6 +40,7 @@
   hf_build_request <- function(input,
                                endpoint_url,
                                key_name,
+                               parameters = list(),
                                max_retries = 5,
                                timeout = 10,
                                validate = FALSE) {
@@ -60,7 +61,7 @@
 
     req <- base_request(endpoint_url, api_key)
     req <- req |>
-      httr2::req_body_json(list(inputs = input)) |>
+      httr2::req_body_json(list(inputs = input, parameters = parameters)) |>
       httr2::req_timeout(timeout) |>
       httr2::req_retry(max_tries = max_retries,
                        backoff = ~ 2 ^ .x, # exponential backoff strategy
