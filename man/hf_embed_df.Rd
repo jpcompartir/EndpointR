@@ -7,9 +7,9 @@
 hf_embed_df(
   df,
   text_var,
+  id_var,
   endpoint_url,
   key_name,
-  id_var,
   batch_size = 8,
   concurrent_requests = 1,
   max_retries = 5,
@@ -23,11 +23,11 @@ hf_embed_df(
 
 \item{text_var}{Name of the column containing text to embed}
 
+\item{id_var}{Name of the column to use as ID}
+
 \item{endpoint_url}{The URL of the Hugging Face Inference API endpoint}
 
 \item{key_name}{Name of the environment variable containing the API key}
-
-\item{id_var}{Name of the column to use as ID}
 
 \item{batch_size}{Number of texts to process in one batch (NULL for no batching)}
 

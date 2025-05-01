@@ -16,10 +16,10 @@ test_that("validate_hf_endpoint errors if given invalid URL", {
 
 })
 
-# following on from comment in 'valiate_hf_endpoint' test, tidy functions are checking for httr2 response, so we need to mimic a httr2 response that returns embeddings. Did this in the start of package development with webfakes.
+# following on from comment in 'valiate_hf_endpoint' test, tidy functions are checking for httr2 response, so we need to mimic a httr2 response that returns embeddings. Did this in the start of package development with webfakes, but httr2 actually has objects for this - `response`, `response_json` and some mocking objects, so we can keep it quite simple.
 
 test_that("tidy_embedding_response tidies single requests and batches", {
-  single_resp <- response_json(
+  single_resp <- httr2::response_json(
     status_code = 200,
     headers = list("content-type" = "application/json"),
     body = list(c(0.01, 0.02, 0.03, 0.04, 0.05))
@@ -29,7 +29,7 @@ test_that("tidy_embedding_response tidies single requests and batches", {
   expect_equal(nrow(tidied_resp), 1)
   expect_equal(ncol(tidied_resp), 5)
 
-  batch_resp <- response_json(
+  batch_resp <- httr2::response_json(
     status_code = 200,
     headers = list("content-type" = "application/json"),
     body = list(
@@ -42,5 +42,4 @@ test_that("tidy_embedding_response tidies single requests and batches", {
   tidied_batch_resp <- expect_no_error(tidy_embedding_response(batch_resp))
   expect_equal(nrow(tidied_batch_resp), 3)
   expect_equal(ncol(tidied_batch_resp), 5)
-
 })
