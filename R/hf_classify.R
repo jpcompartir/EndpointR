@@ -25,6 +25,92 @@ tidy_classification_response <- function(response){
   return(tidy_response)
 }
 
+
+# need a separate func for batch classifications, as we planned with embeddings.
+tidy_batch_classification <- function(response) {
+  if (inherits(response, "httr2_response")) {
+    resp_json <- httr2::resp_body_json(response)
+  } else {
+    resp_json <- response
+  }
+
+  # process each classification result in the batch
+  results <- purrr::map(resp_json, function(item) {
+    # extract all label/score pairs
+    df <- purrr::map_dfr(item, ~data.frame(
+      label = .x$label,
+      score = .x$score
+    ))
+
+    # pivot to wide format
+    tidyr::pivot_wider(df, names_from = label, values_from = score)
+  })
+
+  results <- purrr::list_rbind(results)
+
+  return(results)
+}
+
+# hf_classify_docs ----
+#' Classify text using a Hugging Face Inference API endpoint
+#'
+#' @description
+#' Sends text to a Hugging Face classification endpoint and returns the
+#' classification scores. By default, returns a tidied data frame with
+#' one row and columns for each classification label.
+#'
+#' @details
+#' This function handles the entire process of creating a request to a
+#' Hugging Face Inference API endpoint for text classification, sending
+#' the request, and processing the response.
+#'
+#' The function will automatically retry failed requests according to the
+#' `max_retries` parameter. If `tidy=TRUE` (the default), it transforms
+#' the nested JSON response into a tidy data frame with one row and columns
+#' for each classification label.
+#'
+#' If tidying fails, the function returns the raw response with an
+#' informative message.
+#'
+#' @param text Character string to classify
+#' @param endpoint_url The URL of the Hugging Face Inference API endpoint
+#' @param key_name Name of the environment variable containing the API key
+#' @param ... Additional arguments passed to `hf_perform_request` and
+#'   ultimately to `httr2::req_perform`
+#' @param parameters List of parameters to pass to the API endpoint,
+#'   defaults to `list(return_all_scores = TRUE)`
+#' @param tidy Logical; if TRUE (default), returns a tidied data frame
+#' @param max_retries Maximum number of retry attempts for failed requests
+#' @param timeout Request timeout in seconds
+#' @param validate Logical; whether to validate the endpoint before creating
+#'   the request
+#'
+#' @return A tidied data frame with classification scores (if `tidy=TRUE`)
+#'   or the raw API response
+#' @export
+#'
+#' @examples
+#' \dontrun{
+#'   # Basic classification with default parameters
+#'   result <- hf_classify_text(
+#'     text = "This product is excellent!",
+#'     endpoint_url = "https://api-inference.huggingface.co/models/distilbert-base-uncased-finetuned-sst-2-english"
+#'   )
+#'
+#'   # Classification with custom parameters for a spam detection model
+#'   spam_result <- hf_classify_text(
+#'     text = "URGENT: You've won a free holiday! Call now to claim.",
+#'     endpoint_url = "https://api-inference.huggingface.co/models/mrm8488/bert-tiny-finetuned-sms-spam-detection",
+#'     parameters = list(return_all_scores = TRUE, wait_for_model = TRUE)
+#'   )
+#'
+#'   # Get raw response without tidying
+#'   raw_result <- hf_classify_text(
+#'     text = "I love this movie",
+#'     endpoint_url = "https://api-inference.huggingface.co/models/distilbert-base-uncased-finetuned-sst-2-english",
+#'     tidy = FALSE
+#'   )
+#' }
 # hf_classify_docs ----
 hf_classify_text <- function(text,
                              endpoint_url,
