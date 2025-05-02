@@ -177,4 +177,86 @@ tidied
 
 ### Batch function
 
+```{r}
+batch_dummies <-  rep(dummy_texts, 4)
+
+batch_classifications <- hf_classify_batch(
+  batch_dummies,
+  batch_size = 1,
+  endpoint_url = spam_endpoint_url,
+  key_name = "HF_TEST_API_KEY", 
+  timeout = 50
+)
+
+
+hf_classify_batch(
+  batch_dummies,
+  batch_size = 2,
+  endpoint_url = spam_endpoint_url,
+  key_name = "HF_TEST_API_KEY", 
+  parameters = list(return_all_scores = FALSE),
+  timeout = 50
+)
+```
+
+```{r}
+hf_classify_batch(
+  batch_dummies,
+  batch_size = 1,
+  parameters = list(return_all_scores = TRUE),
+  concurrent_requests = 2,
+  endpoint_url = spam_endpoint_url,
+  key_name = "HF_TEST_API_KEY", 
+  timeout = 50,
+  relocate_col = 2
+)
+```
+
+```{r}
+hf_classify_batch(
+  batch_dummies[1:4],
+  batch_size = 4,
+  parameters = list(return_all_scores = TRUE),
+  concurrent_requests = 2,
+  endpoint_url = spam_endpoint_url,
+  key_name = "HF_TEST_API_KEY", 
+  timeout = 50,
+  relocate_col = 2
+)
+```
+
+```{r}
+hf_classify_batch(
+  batch_dummies[1:4],
+  batch_size = 4,
+  parameters = list(return_all_scores = TRUE),
+  concurrent_requests = 2,
+  endpoint_url = spam_endpoint_url,
+  key_name = "HF_TEST_API_KEY", 
+  timeout = 50,
+  include_texts = FALSE,
+  relocate_col = 1
+)
+```
+
+need to fix this, when we don't return all scores, our flattening of the lists is messing up the tidying. So maybe `return_all_scores` should be its own argument. And we pass that to the tidy funcs?
+
+```{r}
+tmp_batch_1_score <- hf_classify_batch(
+  batch_dummies[1:4],
+  batch_size = 2,
+  parameters = list(return_all_scores = FALSE),
+  concurrent_requests = 2,
+  endpoint_url = spam_endpoint_url,
+  key_name = "HF_TEST_API_KEY", 
+  timeout = 50,
+  include_texts = FALSE,
+  relocate_col = 1
+)
+```
+
+```{r}
+
+```
+
 ## Sentiment Classifier

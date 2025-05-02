@@ -36,7 +36,7 @@ Decouple hf_inference.R from hf_embed.R
 -   [x] `tidy_embedding_response()` - Process API responses into tidy format
 -   [x] `safely_perform_request()` - Error handling wrapper for requests
 -   [x] `validate_hf_endpoint()` - Validate endpoint before sending requests
--   [ ] `batch_vector`
+-   [x] `batch_vector`
 
 ## Implementation Order
 
@@ -74,10 +74,15 @@ We can do it simply with the `path =` argument in `httr2::req_perform()`, but th
 
 # Hugging Face Classification checklist
 
--   [ ] `hf_classify_text()`
--   [ ] `hf_classify_batch()`
+-   [x] `hf_classify_text()`
+-   \[WIP\] `hf_classify_batch()`
 -   [ ] `hf_classify_df()`
--   [ ] `tidy_classification_response()`
+-   [x] `tidy_classification_response()` - deal with label/score
+-   [x] `tidy_batch_classification_response()`
 -   [ ] S7 models for Peaks & Pits, Sentiment?
+
+First prio: Fix tidying functions for the case where `return_all_scores = FALSE`
+
+As in this: \> single_one_score \|\> + resp_body_json() \|\> + flatten() \|\> + as.data.frame() label score 1 not_spam 0.9985068
 
 Need to add parameters to the request here, really. And also need to add to batch...
