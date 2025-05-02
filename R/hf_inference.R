@@ -1,15 +1,3 @@
-  base_request <- function(endpoint_url, api_key){
-    # let other functions handle the input checks for now.
-
-   req <-  httr2::request(endpoint_url) |>
-      httr2::req_user_agent("EndpointR") |>
-      httr2::req_method("POST") |>
-      httr2::req_headers("Content-Type" = "application/json") |>
-      httr2::req_auth_bearer_token(token = api_key)
-
-   return(req)
-  }
-
   # hf_build_request docs ----
   #' Prepare a single text embedding request
   #'
@@ -52,6 +40,7 @@
   hf_build_request <- function(input,
                                endpoint_url,
                                key_name,
+                               parameters = list(),
                                max_retries = 5,
                                timeout = 10,
                                validate = FALSE) {
@@ -72,7 +61,7 @@
 
     req <- base_request(endpoint_url, api_key)
     req <- req |>
-      httr2::req_body_json(list(inputs = input)) |>
+      httr2::req_body_json(list(inputs = input, parameters = parameters)) |>
       httr2::req_timeout(timeout) |>
       httr2::req_retry(max_tries = max_retries,
                        backoff = ~ 2 ^ .x, # exponential backoff strategy
@@ -95,6 +84,7 @@
   #' more efficient processing of multiple inputs in a single API call.
   #'
   #' @param inputs Vector or list of character strings to process in a batch
+  #' @param parameters Parameters to send with inputs
   #' @param endpoint_url The URL of the Hugging Face Inference API endpoint
   #' @param key_name Name of the environment variable containing the API key
   #' @param max_retries Maximum number of retry attempts for failed requests
@@ -123,7 +113,7 @@
   #'   )
   #' }
   # hf_build_request_docs ----
-  hf_build_request_batch <- function(inputs, endpoint_url, key_name, max_retries = 5, timeout = 10, validate = FALSE) {
+  hf_build_request_batch <- function(inputs, parameters = list(), endpoint_url, key_name, max_retries = 5, timeout = 10, validate = FALSE) {
 
     stopifnot("`inputs` must be a list of inputs" = inherits(inputs, "list")|is.vector(inputs),
               "endpoint_url must be provided" = !is.null(endpoint_url) && nchar(endpoint_url) > 0,
@@ -139,7 +129,7 @@
 
     # for embeddings, should be able to tidy this with tidy_embedding_response()
     req <- req |>
-      httr2::req_body_json(list(inputs = inputs)) |>
+      httr2::req_body_json(list(inputs = inputs, parameters = parameters)) |>
       httr2::req_timeout(timeout) |>
       httr2::req_retry(max_tries = max_retries, backoff = ~2 ^ .x, retry_on_failure = TRUE)
 
@@ -160,6 +150,7 @@
   #' @param id_var Name of the column to use as ID (optional)
   #' @param endpoint_url The URL of the Hugging Face Inference API endpoint
   #' @param key_name Name of the environment variable containing the API key
+  #' @param parameters Parameters to send with inputs
   #' @param max_retries Maximum number of retry attempts for failed requests
   #' @param timeout Request timeout in seconds
   #' @param validate Whether to validate the endpoint before creating requests
@@ -188,6 +179,7 @@
                                   id_var,
                                   endpoint_url,
                                   key_name,
+                                  parameters = list(),
                                   max_retries = 3,
                                   timeout = 10,
                                   validate = FALSE) {
@@ -223,6 +215,7 @@
             input = .x,
             endpoint_url = endpoint_url,
             key_name = key_name,
+            parameters = parameters,
             max_retries = max_retries,
             timeout = timeout,
             validate = FALSE  # already validated if needed
@@ -237,14 +230,12 @@
   #' Execute a single embedding request and process the response
   #'
   #' @description
-  #' Performs a prepared embedding request and returns the embedding
-  #' vector in a tidy format.
+  #' Performs a prepared request and returns the response
   #'
   #' @param request An httr2 request object created by hf_build_request
   #' @param ... ellipsis is sent to `httr2::req_perform`, e.g. for `path` and `verbosity`arguments.
-  #' @param tidy Whether to convert the response to a tidy tibble
   #'
-  #' @return A tibble with embedding vectors if tidy=TRUE, otherwise the raw httr2 response
+  #' @return A httr2 response object
   #' @export
   #'
   #' @examples
@@ -256,143 +247,15 @@
   #'   )
   #'   embeddings <- hf_perform_request(req)
   #'
-  #'   # Get raw response instead of processed embeddings
-  #'   response <- hf_perform_request(req, tidy = FALSE)
   #' }
   # hf_perform_request_docs ----
-  hf_perform_request <- function(request, ..., tidy = TRUE) {
+  hf_perform_request <- function(request, ...) {
     stopifnot(
       "request must be an httr2 request object" = inherits(request, "httr2_request")
     )
 
     resp <- httr2::req_perform(request, ...)
 
-    if (tidy) {
-      return(tidy_embedding_response(resp))
-    } else {
-      return(resp)
-    }
+    return(resp)
   }
 
-  # hf_perform_sequential_df docs ----
-  #' Safely execute multiple embedding requests located in a data frame sequentially
-  #'
-  #' @description
-  #' Performs multiple prepared embedding requests sequentially and returns the responses.
-  #' This function will often be considerably slower than sending requests in parallel.
-  #' It is left to the user to decide whether they wish to proceed sequentially or in parallel.
-  #' For example, `hf_embed_df` has arguments which determine the strategy.
-  #'
-  #' @details
-  #' 'Safely' means that we are using purrr::safely to return information about errors
-  #' when they occur, and to continue on to the next request.
-  #'
-  #'
-  #' @param df A data frame with request objects in a column named '.request'
-  #' @param progress Whether to display a progress bar
-  #'
-  #' @return The input data frame with response objects added in '.response' column
-  #' @export
-  #'
-  #' @examples
-  #' \dontrun{
-  #'   # Prepare requests
-  #'   df <- data.frame(
-  #'     id = 1:3,
-  #'     text = c("First example", "Second example", "Third example")
-  #'   )
-  #'
-  #'   requests_df <- hf_build_request_df(
-  #'     df = df,
-  #'     text_var = text,
-  #'     endpoint_url = "https://my-endpoint.huggingface.cloud"
-  #'   )
-  #'
-  #'   # Execute requests sequentially
-  #'   responses_df <- hf_perform_sequential_df(
-  #'     df = requests_df,
-  #'     progress = TRUE
-  #'   )
-  #' }
-  # hf_perform_sequential_df docs ----
-  hf_perform_sequential_df <- function(df, progress = TRUE) {
-
-    stopifnot(
-      "df must be a data frame" = is.data.frame(df),
-      ".request column must exist in df" = ".request" %in% names(df) # this structure may change, TODO confirm
-    )
-
-    result_df <- df |>
-      dplyr::mutate(.response = purrr::map(
-        .request,
-        ~ safely_perform_request(.x),
-        .progress = progress
-      ))
-
-    return(result_df)
-  }
-
-
-  # hf_perform_parallel_df docs ----
-  #' Execute multiple embedding requests in parallel
-  #'
-  #' @description
-  #' Performs multiple prepared embedding requests in parallel and returns the responses.
-  #'
-  #' @param df A data frame with request objects in a column named '.request'
-  #' @param max_active Maximum number of concurrent requests
-  #' @param progress Whether to display a progress bar
-  #'
-  #' @return The input data frame with response objects added in '.response' column
-  #' @export
-  #'
-  #' @examples
-  #' \dontrun{
-  #'   # Prepare requests
-  #'   df <- data.frame(
-  #'     id = 1:3,
-  #'     text = c("First example", "Second example", "Third example")
-  #'   )
-  #'
-  #'   requests_df <- hf_build_request_df(
-  #'     df = df,
-  #'     text_var = text,
-  #'     endpoint_url = "https://my-endpoint.huggingface.cloud"
-  #'   )
-  #'
-  #'   # Execute requests in parallel
-  #'   responses_df <- hf_perform_parallel_df(
-  #'     df = requests_df,
-  #'     max_active = 5,
-  #'     progress = TRUE
-  #'   )
-  #' }
-  # hf_perform_parallel_df docs ----
-  hf_perform_parallel_df <- function(df, max_active = 10, progress = TRUE) {
-    # the hf_perform functions should probably just become hf_perform
-    # they don't really care if the task is embeddings or classification ( or other) TODO
-    # the correct tidy/processing function needs to be applied depending on the task.
-    stopifnot(
-      "df must be a data frame" = is.data.frame(df),
-      ".request column must exist in df" = ".request" %in% names(df),
-      "max_active must be a positive integer" = is.numeric(max_active) && max_active > 0
-    )
-
-    responses <- httr2::req_perform_parallel(
-      reqs = df$.request,
-      max_active = max_active,
-      progress = progress
-    )
-
-    imitate_safely_structure <- purrr::map(responses, function(resp) {
-      if (inherits(resp, "error")) {
-        list(result = NULL, error = resp)
-      } else {
-        list(result = resp, error = NULL)
-      }
-    })
-
-    result_df <- df |> dplyr::mutate(.response = imitate_safely_structure)
-
-    return(result_df)
-  }

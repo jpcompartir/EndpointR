@@ -4,21 +4,18 @@
 \alias{hf_perform_request}
 \title{Execute a single embedding request and process the response}
 \usage{
-hf_perform_request(request, ..., tidy = TRUE)
+hf_perform_request(request, ...)
 }
 \arguments{
 \item{request}{An httr2 request object created by hf_build_request}
 
 \item{...}{ellipsis is sent to \code{httr2::req_perform}, e.g. for \code{path} and \code{verbosity}arguments.}
-
-\item{tidy}{Whether to convert the response to a tidy tibble}
 }
 \value{
-A tibble with embedding vectors if tidy=TRUE, otherwise the raw httr2 response
+A httr2 response object
 }
 \description{
-Performs a prepared embedding request and returns the embedding
-vector in a tidy format.
+Performs a prepared request and returns the response
 }
 \examples{
 \dontrun{
@@ -29,7 +26,5 @@ vector in a tidy format.
   )
   embeddings <- hf_perform_request(req)
 
-  # Get raw response instead of processed embeddings
-  response <- hf_perform_request(req, tidy = FALSE)
 }
 }

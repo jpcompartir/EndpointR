@@ -296,8 +296,8 @@ hf_embed_df(
   endpoint_url = endpoint_url,
   key_name = "HF_TEST_API_KEY",
   id_var= id,
-  concurrent_requests = 1,
-  batch_size = 16,
+  concurrent_requests = 5,
+  batch_size = 20,
   progress = TRUE
 )
 ```
@@ -314,7 +314,7 @@ In a separate session we did some benchmarking to understand the relationship be
 -   **concurrent_requests = c(1, 5, 10, 15, 20)**
 
 ```{r, eval = TRUE}
-batch_concurrent_benchmark <- read.csv("../dev_docs/batch_concurrent_benchmark.csv") |>
+batch_concurrent_benchmark <- read.csv(here::here("dev_docs/batch_concurrent_benchmark.csv")) |>
   tibble()
 
 knitr::kable(batch_concurrent_benchmark |> mutate_if(is.numeric, ~ round(.x, 2)))
@@ -336,7 +336,7 @@ batch_concurrent_benchmark |>
   theme(legend.position = "bottom") 
 ```
 
-```{r}
+```{r, eval = TRUE}
 batch_concurrent_benchmark |> 
     mutate(batch_size = factor(batch_size), 
            concurrent_requests = factor(concurrent_requests)) |>  
@@ -365,134 +365,13 @@ broom::tidy(model) |>
 
 # Advanced Usage
 
-The previous sections have displayed a high-level API for single texts, lists of texts, and data frames. Sometimes you will need to do something the `hf_embed_text`, `hf_embed_batch` and `hf_embed_df` functions do not allow, and their 'helpful defaults' get in the way. I would generally recommend you go direct to {httr2}, but if you're intent on using EndpointR then this section documents some slightly lower-level functionality.
-
-## Request Preparation
-
-TODO: fix following all the re-factoring Prepare requests without executing theme, useful for inspection or custom processing:
-
-```{r}
-is_endpoint_active <- validate_hf_endpoint(endpoint_url, "HF_TEST_API_KEY")
-
-req <- hf_embed_request_single(
-  text = "Text for custom request",
-  endpoint_url = endpoint_url,
-  max_retries = 5,       # retry failed requests
-  timeout = 30,          
-  validate = FALSE,     # skip validation if endpoint is up (we just checked so it will be)
-  key_name = "HF_TEST_API_KEY"
-)
-
-req # check it before you run it
-```
-
-## Manual Request Execution
-
-If you've checked the request and everything looks ok, go ahead and execute it. We'll set tidy = FALSE first so that we can see what the raw request comes back like, then we'll tidy it up:
-
-```{r}
-response_raw <- hf_perform_single(req, tidy = FALSE)
-
-resp_status <- httr2::resp_status(response_raw)
-resp_headers <- httr2::resp_headers(response_raw)
-```
-
-We should now end up with our tidied data frame where each column is an embedding dimension.
-
-```{r}
-(embeddings <- tidy_embedding_response(response_raw))
-```
-
-## Batch Processing with Data Frames
-
-Work directly with the component functions for custom batch workflows.
-
-### Batch Requests
-
-Sending concurrent requests is one way to be more efficient - mainly through increasing throughput. Another way is to send more data inside each request, thus reducing total number of requests, and time spent sending requests to the endpoint.
-
-To be concrete, this means sending multiple rows of data inside each request. If we have 1,000 rows of data, and we create batches of size 50, we'll have $\frac{1000}{50}= 20$ total requests to send, rather than the 1,000 requests we have without batching. If our endpoint is powered by GPU(s) or other hardware accelerators, it will take care of processing the data using parallel computation, increasing speed up.
-
-TODO: come back to this when batching is fully fleshed out.
-
-Going back to our list of sentences which we aved in the list - `embedding_sentences` above, we can create a single request with all 10 sentences batched in using `hf_build_request_batch()`
-
-```{r}
-batch_request <- hf_build_request_batch(
-  embedding_sentences, endpoint_url, key_name = "HF_TEST_API_KEY")
-```
-
-Now if you inspect the body of the request, and look at data -\> inputs, you'll see the list of 10 sentences.
-
-```{r}
-batch_request$body$data
-```
-
-You can use `hf_perform_request()`to send the request. To the endpoint it will look like a single request, and it will return a single response. Each individual item in our requests `body$data$inputs` will be embedded separately.
-
-```{r}
-batch_result <- hf_perform_request(batch_request)
-```
-
-### Testing Batching
-
-TODO Fix following re-factoring
-
-grab a random id, re-embed it, chekc they're identical. this should go in tests somewhwre.
-
-```{r}
-batched_embeddings <- hf_embed_batch(sentences_1000, endpoint_url, "HF_TEST_API_KEY", concurrent_requests = 5)
-
-test_index <- batched_embeddings |>  slice(157)
-test_embed <- test_index |>  select(contains("V"))
-test_repro_embed <- hf_embed_text(test_index$text, endpoint_url = endpoint_url, "HF_TEST_API_KEY")
-
-all(test_embed[, 1:384] |> unlist()-test_repro_embed[, 1:384] |>  unlist() == 0) 
-```
-
-### Chunking Data Frames
-
-When we have a lot of data - 100,000s or 1,000,000s of rows - we may want (or need!) to break the task down into manageable chunks.
-
-### Writing to Files
-
-Embeddings are returned to us as data frames of floating point numbers, where each column is an embedding dimension. The number of dimensions will usually fall in the range of \$\approx\$300-3000 (and some LLMs have internal represenations in the 10,000s of dimensions range!). That's a lot of data, and our computers only have so much RAM available. If we try to embed 100,000s - 1,000,000 rows at a time, there's a heightened chance of our R session crashing, meaning we lose the results. This wastes time, API credits, energy, and water.
-
-It would be better to chunk our data up, create batches of requests, and write each batched response to a file. The file will persist if our R session crashes.
-
-> At this stage it would normally be advisable to build up your own request directly with httr2 - you'll have full control over batching, concurrent requests, exponential back-off, time-outs and retries, error handling.
-
-However, because it seems quite likely people will run into trouble, and there's a lot at stake if we're sending 100,000s-1,000,000s of requests, we've created a high-level function for chunking a data frame, batching requests, sending concurrent batches, and appending the batch to a file.
-
-## Error Handling
-
-The low-level API allows more detailed error inspection and recovery. We just wrap `req_perform` in `purrr::safely`. This changes the return object slightly, we now have a list with `$result` and `$error`
-
-```{r}
-result <- safely_perform_request(req)
-
-if (!is.null(result$error)) {
-  print(result$error)
-} else {
-  embeddings <- tidy_embedding_response(result$result)
-}
-```
-
-## Testing Responses
-
-If you are testing an API request with `hf_embed_text()`, you can pass additional arguments into `httr2::req_perform()`. For example, you can pass in a value for 'verbosity' to get more information on the request.
-
-How much information to print?
-
-From {httr}'s docs: \> This is a wrapper around req_verbose() that uses an integer to control verbosity: - 0: no output - 1: show headers - 2: show headers and bodies - 3: show headers, bodies, and curl status messages
-
-You can also pass in a value for 'path', which will save the response to a file, we'll look more at how to manage this later.
+The previous sections have explored a high-level API for single texts, lists of texts, and data frames. Sometimes you will need to do something the `hf_embed_text`, `hf_embed_batch` and `hf_embed_df` functions do not allow, and their 'helpful defaults' get in the way. I would generally recommend you go direct to {httr2}, but if you're intent on using EndpointR then material may be forthcoming on some of the lower-level functions, if you can't wait then head into the repo and explore the functions themselves!
 
 # Appendix
 
 ## Benchmarking Concurrent Requests
 
-```{r}
+```{r, benchmark_concurrent}
 run_benchmark <- function(num_concurrent, data, endpoint, key) {
   start_time <- Sys.time()
   res_df <- try(hf_embed_df(
@@ -531,12 +410,7 @@ results_list <- lapply(num_requests_vec, function(n) {
 
 You won't be able to re-run this exactly as-is, as the data frame is not provided with the package. You could bring your own data if you wanted to do this.
 
-```{r}
-benchmark_params <- crossing(
-  batch_size = c(1, 4, 8, 16, 32),
-  concurrent_requests = c(1, 5, 10, 15, 20)
-)
-
+```{r,benchmark_concurrent_batching}
 trust <- readr::read_csv("~/data/trust/trust_slice_spam_classification.csv") |> 
   select(text) |>
   mutate(id = row_number()) |>

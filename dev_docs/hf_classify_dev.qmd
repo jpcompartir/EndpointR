@@ -1,0 +1,149 @@
+---
+title: "HF Classification Dev Docs"
+output: 
+  html_document:
+    toc: true
+    toc_float: true
+    toc_depth: 3
+    theme: flatly
+    number_sections: true
+    fig_caption: true
+    df_print: paged
+    highlight: tango
+    code_folding: show
+    anchor_sections: true
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>",
+  eval = FALSE,
+  message = FALSE,
+  warning = FALSE
+)
+```
+
+Dev docs for hf_classify.R
+
+```{r}
+library(EndpointR)
+library(purrr)
+library(dplyr)
+```
+
+The absolute basic, with tidying is just:
+
+```{r}
+endpoint_url <- httr2::secret_decrypt("-PF-csmn1te218YetRKJ8sduEH4SMge41LPhnW9KagwNdIXvfNzNmp8i7IYkI_wMptIoN6pXBntY3s-AiktXCXjC0acFdQQupZ-CzqdtdwBY1g", "ENDPOINTR_KEY")
+
+dummy_text <- "hola, eres un maladaptado, besos."
+dummy_text <- "La personaje esta rotisima wey!!!"
+
+req <- hf_build_request(dummy_text, endpoint_url = endpoint_url, key_name = "HF_TEST_API_KEY", parameters = list(return_all_scores = TRUE))
+
+resp <- hf_perform_request(req)
+
+resp_json <- resp |> 
+  resp_body_json() 
+
+flatten(resp_json) |>
+  map( ~ data.frame(label = .x$label, score = .x$score)) |>
+  list_rbind() |> 
+  pivot_wider(names_from = label, values_from = score)
+```
+
+```{r}
+req_one_score <- hf_build_request(dummy_text, endpoint_url = endpoint_url, key_name = "HF_TEST_API_KEY", parameters = list(return_all_scores = FALSE))
+
+resp_one_score <- hf_perform_request(req_one_score)
+
+resp_json_one_score <- resp_one_score |> 
+  resp_body_json() 
+
+flatten(resp_json_one_score) |>
+  map( ~ data.frame(label = .x$label, score = .x$score)) |>
+  list_rbind() |> 
+  pivot_wider(names_from = label, values_from = score)
+```
+
+For a list, we could also really just use `hf_embed_batch` and it will take care of the batching and tidying...
+
+```{r}
+dummy_texts <- c(
+  "hola, eres un maladaptado, besos.",
+  "La personaje esta rotisima wey!!!"
+)
+
+classification_batch <- hf_embed_batch(
+  texts = dummy_texts,
+  endpoint_url,
+  "HF_TEST_API_KEY"
+)
+```
+
+Batches are a tiny bit trickier.
+
+```{r}
+texts <- trust$text[1:5000] # read in from other script
+
+classification_batch <- hf_embed_batch(
+  texts = texts[1:20],
+  endpoint_url,
+  "HF_TEST_API_KEY",
+  concurrent_requests = 5,
+  batch_size = 2
+)
+
+classification_batch_all_scores <- hf_embed_batch(
+  texts = texts[1:20],
+  parameters = list(return_all_scores = TRUE),
+  endpoint_url,
+  "HF_TEST_API_KEY",
+  concurrent_requests = 2,
+  batch_size = 5
+)
+```
+
+```{r}
+spam_endpoint_url <- httr2::secret_decrypt("teUr1jHS_wbmTJoHERc4kPfOSygVb0O0OAIocyWbxPzhiaDEwjccEBndGCB8ln5jvmbs1D3SQ8HlGuI7_JxAAvqWgOwF4JzLk3o22BRwOkeCSw", "ENDPOINTR_KEY")
+
+classification_batch <- hf_embed_batch(
+  texts = texts[1:20],
+  spam_endpoint_url,
+  "HF_TEST_API_KEY",
+  concurrent_requests = 5,
+  batch_size = 2,
+  timeout = 20
+)
+
+ classification_batch |>
+   filter(label == "spam") |>  pull(text)
+```
+
+```{r}
+batches <- batch_vector(texts[1:20], 10)
+batch_requests_classification <- purrr::map(
+  batches$batch_inputs, ~ hf_build_request_batch(
+    .x, 
+    spam_endpoint_url,
+    "HF_TEST_API_KEY",
+    parameters = list(return_all_scores = TRUE),
+    timeout = 50
+  ))
+
+resps_batch_all_score <- httr2::req_perform_parallel(batch_requests_classification, max_active = 2, progress = TRUE)
+
+resps_batch_all_score[[1]] |> 
+  resp_body_json() |>
+  flatten() |> 
+  map(~ data.frame(label = .x$label, score = .x$score)) |> 
+  list_rbind() |> 
+  pivot_wider(names_from = label, values_from = score)
+
+resps_batch_all_score[[1]] |> 
+  resp_body_json() |> 
+  purrr::flatten() |>
+  purrr::map(\(x) data.frame(label = x$label, score = x$score)) |>
+  dplyr::bind_rows()
+```

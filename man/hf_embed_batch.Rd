@@ -11,10 +11,11 @@ hf_embed_batch(
   ...,
   batch_size = 8,
   include_texts = TRUE,
-  concurrent_requests = 1,
+  concurrent_requests = 5,
   max_retries = 5,
   timeout = 10,
-  validate = FALSE
+  validate = FALSE,
+  relocate_col = 2
 )
 }
 \arguments{
@@ -58,7 +59,7 @@ This function handles batching and parallel processing of embedding requests, an
     texts = c("First example", "Second example", "Third example"),
     endpoint_url = "https://my-endpoint.huggingface.cloud",
     batch_size = 10,
-    concurrent_requests = 2
+    concurrent_requests = 5
   )
 }
 }
