@@ -1,5 +1,4 @@
-# Core functions that will be re-used with different providers.
-
+# core functions that will be re-used with different providers.
 base_request <- function(endpoint_url, api_key){
   # let other functions handle the input checks for now.
 
@@ -10,6 +9,20 @@ base_request <- function(endpoint_url, api_key){
     httr2::req_auth_bearer_token(token = api_key)
 
   return(req)
+}
+
+
+#' Safely perform an embedding request with error handling
+#'
+#' @description
+#' Wrapper around httr2::req_perform that handles errors gracefully.
+#'
+#' @param request An httr2 request object
+#'
+#' @return A list with components $result and $error
+#' @export
+safely_perform_request <- function(request) {
+  purrr::safely(httr2::req_perform)(request)
 }
 
 #  WIP - deal with ugly chunk in embed_batch_df ----
@@ -49,7 +62,7 @@ perform_requests_with_strategy <- function(requests,
     )
   }
 
-  if (concurrent_requests > 1 && length(requests) > 1) {
+  if (concurrent_requests > 1 && length(requests) > 1) { # use parallel.
     responses <- httr2::req_perform_parallel(
       requests,
       on_error = "continue",

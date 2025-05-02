@@ -36,3 +36,6 @@ rsconnect/
 .Rproj.user
 inst/doc
 EndpointR.Rproj
+
+*.html
+*_dev_files*

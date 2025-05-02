@@ -296,8 +296,8 @@ hf_embed_df(
   endpoint_url = endpoint_url,
   key_name = "HF_TEST_API_KEY",
   id_var= id,
-  concurrent_requests = 1,
-  batch_size = 16,
+  concurrent_requests = 5,
+  batch_size = 20,
   progress = TRUE
 )
 ```
@@ -314,7 +314,7 @@ In a separate session we did some benchmarking to understand the relationship be
 -   **concurrent_requests = c(1, 5, 10, 15, 20)**
 
 ```{r, eval = TRUE}
-batch_concurrent_benchmark <- read.csv("../dev_docs/batch_concurrent_benchmark.csv") |>
+batch_concurrent_benchmark <- read.csv(here::here("dev_docs/batch_concurrent_benchmark.csv")) |>
   tibble()
 
 knitr::kable(batch_concurrent_benchmark |> mutate_if(is.numeric, ~ round(.x, 2)))
@@ -371,7 +371,7 @@ The previous sections have explored a high-level API for single texts, lists of 
 
 ## Benchmarking Concurrent Requests
 
-```{r}
+```{r, benchmark_concurrent}
 run_benchmark <- function(num_concurrent, data, endpoint, key) {
   start_time <- Sys.time()
   res_df <- try(hf_embed_df(
@@ -410,12 +410,7 @@ results_list <- lapply(num_requests_vec, function(n) {
 
 You won't be able to re-run this exactly as-is, as the data frame is not provided with the package. You could bring your own data if you wanted to do this.
 
-```{r}
-benchmark_params <- crossing(
-  batch_size = c(1, 4, 8, 16, 32),
-  concurrent_requests = c(1, 5, 10, 15, 20)
-)
-
+```{r,benchmark_concurrent_batching}
 trust <- readr::read_csv("~/data/trust/trust_slice_spam_classification.csv") |> 
   select(text) |>
   mutate(id = row_number()) |>

@@ -102,7 +102,7 @@ hf_embed_text <- function(text,
     ))
   })
 
-  if (tidy) {
+  if(tidy){
     response <- tidy_embedding_response(response)
   }
 
@@ -151,6 +151,7 @@ hf_embed_text <- function(text,
 hf_embed_batch <- function(texts, endpoint_url,
                            key_name,
                            ...,
+                           parameters = list(),
                            batch_size = 8,
                            include_texts = TRUE,
                            concurrent_requests = 5,
@@ -182,6 +183,7 @@ hf_embed_batch <- function(texts, endpoint_url,
   batch_reqs <- purrr::map(batch_data$batch_inputs, ~hf_build_request_batch(.x,
                                                             endpoint_url,
                                                             key_name,
+                                                            parameters = parameters,
                                                             max_retries = max_retries,
                                                             timeout = timeout,
                                                             validate = FALSE))

@@ -84,6 +84,7 @@
   #' more efficient processing of multiple inputs in a single API call.
   #'
   #' @param inputs Vector or list of character strings to process in a batch
+  #' @param parameters Parameters to send with inputs
   #' @param endpoint_url The URL of the Hugging Face Inference API endpoint
   #' @param key_name Name of the environment variable containing the API key
   #' @param max_retries Maximum number of retry attempts for failed requests
@@ -112,7 +113,7 @@
   #'   )
   #' }
   # hf_build_request_docs ----
-  hf_build_request_batch <- function(inputs, endpoint_url, key_name, max_retries = 5, timeout = 10, validate = FALSE) {
+  hf_build_request_batch <- function(inputs, parameters = list(), endpoint_url, key_name, max_retries = 5, timeout = 10, validate = FALSE) {
 
     stopifnot("`inputs` must be a list of inputs" = inherits(inputs, "list")|is.vector(inputs),
               "endpoint_url must be provided" = !is.null(endpoint_url) && nchar(endpoint_url) > 0,
@@ -128,7 +129,7 @@
 
     # for embeddings, should be able to tidy this with tidy_embedding_response()
     req <- req |>
-      httr2::req_body_json(list(inputs = inputs)) |>
+      httr2::req_body_json(list(inputs = inputs, parameters = parameters)) |>
       httr2::req_timeout(timeout) |>
       httr2::req_retry(max_tries = max_retries, backoff = ~2 ^ .x, retry_on_failure = TRUE)
 
@@ -149,6 +150,7 @@
   #' @param id_var Name of the column to use as ID (optional)
   #' @param endpoint_url The URL of the Hugging Face Inference API endpoint
   #' @param key_name Name of the environment variable containing the API key
+  #' @param parameters Parameters to send with inputs
   #' @param max_retries Maximum number of retry attempts for failed requests
   #' @param timeout Request timeout in seconds
   #' @param validate Whether to validate the endpoint before creating requests
@@ -177,6 +179,7 @@
                                   id_var,
                                   endpoint_url,
                                   key_name,
+                                  parameters = list(),
                                   max_retries = 3,
                                   timeout = 10,
                                   validate = FALSE) {
@@ -212,6 +215,7 @@
             input = .x,
             endpoint_url = endpoint_url,
             key_name = key_name,
+            parameters = parameters,
             max_retries = max_retries,
             timeout = timeout,
             validate = FALSE  # already validated if needed

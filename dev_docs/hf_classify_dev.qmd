@@ -53,6 +53,20 @@ flatten(resp_json) |>
   pivot_wider(names_from = label, values_from = score)
 ```
 
+```{r}
+req_one_score <- hf_build_request(dummy_text, endpoint_url = endpoint_url, key_name = "HF_TEST_API_KEY", parameters = list(return_all_scores = FALSE))
+
+resp_one_score <- hf_perform_request(req_one_score)
+
+resp_json_one_score <- resp_one_score |> 
+  resp_body_json() 
+
+flatten(resp_json_one_score) |>
+  map( ~ data.frame(label = .x$label, score = .x$score)) |>
+  list_rbind() |> 
+  pivot_wider(names_from = label, values_from = score)
+```
+
 For a list, we could also really just use `hf_embed_batch` and it will take care of the batching and tidying...
 
 ```{r}
@@ -68,20 +82,68 @@ classification_batch <- hf_embed_batch(
 )
 ```
 
-The issue would be speed
+Batches are a tiny bit trickier.
 
 ```{r}
 texts <- trust$text[1:5000] # read in from other script
 
 classification_batch <- hf_embed_batch(
-  texts = texts,
+  texts = texts[1:20],
   endpoint_url,
   "HF_TEST_API_KEY",
   concurrent_requests = 5,
   batch_size = 2
 )
+
+classification_batch_all_scores <- hf_embed_batch(
+  texts = texts[1:20],
+  parameters = list(return_all_scores = TRUE),
+  endpoint_url,
+  "HF_TEST_API_KEY",
+  concurrent_requests = 2,
+  batch_size = 5
+)
 ```
 
 ```{r}
 spam_endpoint_url <- httr2::secret_decrypt("teUr1jHS_wbmTJoHERc4kPfOSygVb0O0OAIocyWbxPzhiaDEwjccEBndGCB8ln5jvmbs1D3SQ8HlGuI7_JxAAvqWgOwF4JzLk3o22BRwOkeCSw", "ENDPOINTR_KEY")
+
+classification_batch <- hf_embed_batch(
+  texts = texts[1:20],
+  spam_endpoint_url,
+  "HF_TEST_API_KEY",
+  concurrent_requests = 5,
+  batch_size = 2,
+  timeout = 20
+)
+
+ classification_batch |>
+   filter(label == "spam") |>  pull(text)
+```
+
+```{r}
+batches <- batch_vector(texts[1:20], 10)
+batch_requests_classification <- purrr::map(
+  batches$batch_inputs, ~ hf_build_request_batch(
+    .x, 
+    spam_endpoint_url,
+    "HF_TEST_API_KEY",
+    parameters = list(return_all_scores = TRUE),
+    timeout = 50
+  ))
+
+resps_batch_all_score <- httr2::req_perform_parallel(batch_requests_classification, max_active = 2, progress = TRUE)
+
+resps_batch_all_score[[1]] |> 
+  resp_body_json() |>
+  flatten() |> 
+  map(~ data.frame(label = .x$label, score = .x$score)) |> 
+  list_rbind() |> 
+  pivot_wider(names_from = label, values_from = score)
+
+resps_batch_all_score[[1]] |> 
+  resp_body_json() |> 
+  purrr::flatten() |>
+  purrr::map(\(x) data.frame(label = x$label, score = x$score)) |>
+  dplyr::bind_rows()
 ```

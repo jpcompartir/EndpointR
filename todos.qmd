@@ -1,15 +1,15 @@
 # EndpointR Hugging Face Embeddings Implementation Checklist
 
-## Re-factor & Decouple
+## Re-factor & Decouple inference and embed files
 
 Decouple hf_inference.R from hf_embed.R
 
 -   [x] remove tidy option from request (leave to hf_embed.R)
--   [ ] update batching with changes to hf_perform_request
-    -   [ ] separate concerns & make re-usable
+-   [x] update batching with changes to hf_perform_request
+    -   [x] separate concerns & make re-usable
         -   break batching logic into a utility function
         -   [x] batch_vector
-        -   [x] tidy_batches (takes a function as an input?)
+        -   [x] tidy_batches (wasn't necessary)
 
 ## Core Features
 
@@ -27,19 +27,16 @@ Decouple hf_inference.R from hf_embed.R
 
 -   [x] `base_request()` - Base POST request other functions will use, headers, api key, method
 -   [x] `hf_build_request()` - Prepare a single text embedding request
--   [ ] `hf_embed_request_df()` - Prepare requests for texts in a data frame
--   [ ] `hf_embed_request_batch()` - Prepare batched requests for multiple texts
--   [ ] `hf_embed_perform_single()` - Execute a single request and process response
--   [ ] `hf_embed_perform_prallel()` - Execute multiple requests in parallel
+-   [x] `hf_embed_batch()` - Prepare batched requests for multiple texts
 -   [x] `hf_embed_text()` - High-level function for embedding single texts
 -   [x] `hf_embed_df()` - High-level function for embedding texts in a data frame
 
 ## Utility Functions
 
 -   [x] `tidy_embedding_response()` - Process API responses into tidy format
--   [ ] `embedding_cache_key()` - Generate cache keys for requests
 -   [x] `safely_perform_request()` - Error handling wrapper for requests
 -   [x] `validate_hf_endpoint()` - Validate endpoint before sending requests
+-   [ ] `batch_vector`
 
 ## Implementation Order
 
@@ -81,6 +78,6 @@ We can do it simply with the `path =` argument in `httr2::req_perform()`, but th
 -   [ ] `hf_classify_batch()`
 -   [ ] `hf_classify_df()`
 -   [ ] `tidy_classification_response()`
--   [ ] S7 models for Peaks & Pits, Sentiment
+-   [ ] S7 models for Peaks & Pits, Sentiment?
 
-Need to add parameters to the request here, really.
+Need to add parameters to the request here, really. And also need to add to batch...
