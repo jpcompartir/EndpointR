@@ -27,7 +27,7 @@ tidy_classification_response <- function(response){
 
 
 # need a separate func for batch classifications, as we planned with embeddings.
-tidy_batch_classification <- function(response) {
+tidy_batch_classification_response <- function(response) {
   if (inherits(response, "httr2_response")) {
     resp_json <- httr2::resp_body_json(response)
   } else {
@@ -128,7 +128,7 @@ hf_classify_text <- function(text,
   )
   api_key <- get_api_key(key_name)
 
-  req <-  req <- hf_build_request(input = text,
+  req <- hf_build_request(input = text,
                                   parameters = parameters,
                                   endpoint_url = endpoint_url,
                                   key_name = key_name,
@@ -163,3 +163,74 @@ hf_classify_text <- function(text,
 
 }
 
+hf_classify_batch <- function(texts,
+                              endpoint_url,
+                              key_name,
+                              ...,
+                              parameters = list(return_all_scores = TRUE),
+                              batch_size = 8,
+                              include_texts = TRUE,
+                              concurrent_requests = 5,
+                              max_retries = 5,
+                              timeout = 20,
+                              validate = FALSE,
+                              relocate_col = 2
+                              ){
+
+
+  # input validation ----
+  if (length(texts) == 0) {
+    cli::cli_warning("Input 'texts' is empty. Returning an empty tibble.")
+    return(tibble::tibble())
+  }
+
+  stopifnot(
+    "Texts must be a list or vector" = is.vector(texts),
+    "batch_size must be a positive integer" = is.numeric(batch_size) && batch_size > 0 && batch_size == as.integer(batch_size),
+    "concurrent_requests must be a positive integer" = is.numeric(concurrent_requests) && concurrent_requests > 0 && concurrent_requests == as.integer(concurrent_requests),
+    "max_retries must be a positive integer" = is.numeric(max_retries) && max_retries >= 0 && max_retries == as.integer(max_retries),
+    "timeout must be a positive integer" = is.numeric(timeout) && timeout > 0,
+    "endpoint_url must be a non-empty string" = is.character(endpoint_url) && nchar(endpoint_url) > 0,
+    "key_name must be a non-empty string" = is.character(key_name) && nchar(key_name) > 0
+  )
+
+  # preparing batches ----
+  batch_data <- batch_vector(texts, batch_size) # returns $batch_indices, $batch_inputs
+
+  batch_reqs <- purrr::map(batch_data$batch_inputs,
+                           ~hf_build_request_batch(.x,
+                                                   endpoint_url,
+                                                   key_name,
+                                                   parameters = parameters,
+                                                   max_retries = max_retries,
+                                                   timeout = timeout,
+                                                   validate = FALSE))
+
+  result_list <- perform_requests_with_strategy(
+    requests = batch_reqs,
+    indices = batch_data$batch_indices,
+    tidy_func = tidy_batch_classification_response,
+    concurrent_requests = concurrent_requests,
+    progress = TRUE # todo: possibly parameter?
+  )
+
+  result <- purrr::list_rbind(result_list)
+
+  result <- dplyr::arrange(result, original_index)
+
+  if (include_texts) {
+    result$text <- texts[result$original_index]
+    result <- result |>  dplyr::relocate(text, .before = 1)
+  }
+
+  result$original_index <- NULL # drop index now we're returning
+
+  result <- dplyr::relocate(result, c(`.error`, `.error_message`), .before = relocate_col)
+  return(result)
+}
+
+
+
+hf_classify_df <- function() {
+
+}

@@ -44,7 +44,7 @@ req <- hf_build_request(dummy_text, endpoint_url = endpoint_url, key_name = "HF_
 
 resp <- hf_perform_request(req)
 
-resp_json <- resp |> 
+  resp_json <- resp |> 
   resp_body_json() 
 
 flatten(resp_json) |>
@@ -147,3 +147,34 @@ resps_batch_all_score[[1]] |>
   purrr::map(\(x) data.frame(label = x$label, score = x$score)) |>
   dplyr::bind_rows()
 ```
+
+# Function Testing
+
+## Spam Classifier
+
+```{r, untidied_classify}
+untidied <- hf_classify_text(
+  dummy_text,
+  endpoint_url = spam_endpoint_url,
+  key_name = "HF_TEST_API_KEY", 
+  tidy = FALSE
+)
+
+untidied |>  
+  resp_body_json() |> 
+  tidy_classification_response()
+```
+
+```{r, tidied_classify}
+tidied <- hf_classify_text(
+  dummy_text,
+  endpoint_url = spam_endpoint_url,
+  key_name = "HF_TEST_API_KEY", 
+  tidy = TRUE
+)
+tidied
+```
+
+### Batch function
+
+## Sentiment Classifier
