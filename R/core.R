@@ -55,7 +55,7 @@ perform_requests_with_strategy <- function(requests,
   create_error_tibble <- function(indices, error_message) {
     # for consistent outputs
     tibble::tibble(
-      embedding = rep(list(NA), length(indices)),
+      response = rep(list(NA), length(indices)),
       original_index = indices,
       .error = TRUE,
       .error_message = error_message

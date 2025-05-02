@@ -44,7 +44,7 @@ req <- hf_build_request(dummy_text, endpoint_url = endpoint_url, key_name = "HF_
 
 resp <- hf_perform_request(req)
 
-resp_json <- resp |> 
+  resp_json <- resp |> 
   resp_body_json() 
 
 flatten(resp_json) |>
@@ -147,3 +147,116 @@ resps_batch_all_score[[1]] |>
   purrr::map(\(x) data.frame(label = x$label, score = x$score)) |>
   dplyr::bind_rows()
 ```
+
+# Function Testing
+
+## Spam Classifier
+
+```{r, untidied_classify}
+untidied <- hf_classify_text(
+  dummy_text,
+  endpoint_url = spam_endpoint_url,
+  key_name = "HF_TEST_API_KEY", 
+  tidy = FALSE
+)
+
+untidied |>  
+  resp_body_json() |> 
+  tidy_classification_response()
+```
+
+```{r, tidied_classify}
+tidied <- hf_classify_text(
+  dummy_text,
+  endpoint_url = spam_endpoint_url,
+  key_name = "HF_TEST_API_KEY", 
+  tidy = TRUE
+)
+tidied
+```
+
+### Batch function
+
+```{r}
+batch_dummies <-  rep(dummy_texts, 4)
+
+batch_classifications <- hf_classify_batch(
+  batch_dummies,
+  batch_size = 1,
+  endpoint_url = spam_endpoint_url,
+  key_name = "HF_TEST_API_KEY", 
+  timeout = 50
+)
+
+
+hf_classify_batch(
+  batch_dummies,
+  batch_size = 2,
+  endpoint_url = spam_endpoint_url,
+  key_name = "HF_TEST_API_KEY", 
+  parameters = list(return_all_scores = FALSE),
+  timeout = 50
+)
+```
+
+```{r}
+hf_classify_batch(
+  batch_dummies,
+  batch_size = 1,
+  parameters = list(return_all_scores = TRUE),
+  concurrent_requests = 2,
+  endpoint_url = spam_endpoint_url,
+  key_name = "HF_TEST_API_KEY", 
+  timeout = 50,
+  relocate_col = 2
+)
+```
+
+```{r}
+hf_classify_batch(
+  batch_dummies[1:4],
+  batch_size = 4,
+  parameters = list(return_all_scores = TRUE),
+  concurrent_requests = 2,
+  endpoint_url = spam_endpoint_url,
+  key_name = "HF_TEST_API_KEY", 
+  timeout = 50,
+  relocate_col = 2
+)
+```
+
+```{r}
+hf_classify_batch(
+  batch_dummies[1:4],
+  batch_size = 4,
+  parameters = list(return_all_scores = TRUE),
+  concurrent_requests = 2,
+  endpoint_url = spam_endpoint_url,
+  key_name = "HF_TEST_API_KEY", 
+  timeout = 50,
+  include_texts = FALSE,
+  relocate_col = 1
+)
+```
+
+need to fix this, when we don't return all scores, our flattening of the lists is messing up the tidying. So maybe `return_all_scores` should be its own argument. And we pass that to the tidy funcs?
+
+```{r}
+tmp_batch_1_score <- hf_classify_batch(
+  batch_dummies[1:4],
+  batch_size = 2,
+  parameters = list(return_all_scores = FALSE),
+  concurrent_requests = 2,
+  endpoint_url = spam_endpoint_url,
+  key_name = "HF_TEST_API_KEY", 
+  timeout = 50,
+  include_texts = FALSE,
+  relocate_col = 1
+)
+```
+
+```{r}
+
+```
+
+## Sentiment Classifier
