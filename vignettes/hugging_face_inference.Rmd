@@ -85,7 +85,7 @@ set_api_key("HF_TEST_API_KEY")
 
 EndpointR functions that need API keys will have a `key_name` argument, you put the same name as you entered into `set_api_key` and EndpointR will retrieve it, without printing the contents to the console.
 
-# Quick Start Guide
+# Quick Start - Embeddings
 
 EndpointR provides convenient functions for common embedding tasks without exposing the underlying request structure. EndpointR will handle retries, errors, concurrent requests, and batching of requests through configurable options.
 
@@ -228,7 +228,7 @@ result_df |> select(V1:V384)
 
 If I had 768 embedding dimensions, I would input `V1:V768`, and similarly for 1024 dimensions, `V1:V1024`, you get the idea.
 
-# Improving Performance
+## Improving Performance
 
 > This section will focus mainly on the `hf_embed_df()` function and the options we have for improving throughput of requests.
 
@@ -363,13 +363,19 @@ broom::tidy(model) |>
 
 > **QUESTION**: What might happen if we keep increasing `batch_size` and `concurrent_requests`? Will the relationship hold or not?
 
-# Advanced Usage
+## Advanced Usage
 
 The previous sections have explored a high-level API for single texts, lists of texts, and data frames. Sometimes you will need to do something the `hf_embed_text`, `hf_embed_batch` and `hf_embed_df` functions do not allow, and their 'helpful defaults' get in the way. I would generally recommend you go direct to {httr2}, but if you're intent on using EndpointR then material may be forthcoming on some of the lower-level functions, if you can't wait then head into the repo and explore the functions themselves!
 
+# Quick Start - Classification
+
+> **TIP**: this section of the vignette will assume familiarity with the section on embeddings, i.e. it's expected that you know what a Hugging Face Inference Endpoint is.
+
 # Appendix
 
-## Benchmarking Concurrent Requests
+## Appendix - Embeddings
+
+### Benchmarking Concurrent Requests
 
 ```{r, benchmark_concurrent}
 run_benchmark <- function(num_concurrent, data, endpoint, key) {
@@ -406,7 +412,7 @@ results_list <- lapply(num_requests_vec, function(n) {
 (summary_df <- do.call(rbind, results_list))
 ```
 
-## Benchmarking Batch and Concurrent Requests
+### Benchmarking Batch and Concurrent Requests
 
 You won't be able to re-run this exactly as-is, as the data frame is not provided with the package. You could bring your own data if you wanted to do this.
 
@@ -461,3 +467,5 @@ benchmark_results <- benchmark_params |>
   })) |>
   nest_wider(result)
 ```
+
+## Appendix - Classification

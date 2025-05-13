@@ -53,7 +53,7 @@ perform_requests_with_strategy <- function(requests,
   }
 
   create_error_tibble <- function(indices, error_message) {
-    # for consistent outputs
+    # for consistent outputs with safely function(s)
     tibble::tibble(
       response = rep(list(NA), length(indices)),
       original_index = indices,
