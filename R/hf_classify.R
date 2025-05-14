@@ -168,6 +168,10 @@ hf_classify_text <- function(text,
   )
   api_key <- get_api_key(key_name)
 
+
+
+  list(parameters, return_all_scores = TRUE)
+
   req <- hf_build_request(input = text,
                                   parameters = parameters,
                                   endpoint_url = endpoint_url,
@@ -203,26 +207,32 @@ hf_classify_text <- function(text,
 
 }
 
+
 hf_classify_batch <- function(texts,
                               endpoint_url,
                               key_name,
                               ...,
+                              tidy_func = tidy_batch_classification_response,
                               parameters = list(return_all_scores = TRUE),
                               batch_size = 8,
-                              include_texts = TRUE,
                               concurrent_requests = 5,
                               max_retries = 5,
                               timeout = 20,
-                              validate = FALSE,
+                              include_texts = TRUE,
                               relocate_col = 2
                               ){
 
+  # mirrors hf_embed_batch
 
   # input validation ----
   if (length(texts) == 0) {
-    cli::cli_warning("Input 'texts' is empty. Returning an empty tibble.")
-    return(tibble::tibble())
+    cli::cli_abort("Input 'texts' is empty or . Returning an empty tibble.")
   }
+
+  if (length(texts) == 1) {
+    cli::cli_abort("Function expects a batch of inputs, use `hf_classify_text` for single texts.")
+  }
+
 
   stopifnot(
     "Texts must be a list or vector" = is.vector(texts),

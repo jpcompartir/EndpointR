@@ -9,6 +9,7 @@ hf_embed_text(
   endpoint_url,
   key_name,
   ...,
+  parameters = list(),
   tidy = TRUE,
   max_retries = 3,
   timeout = 10,

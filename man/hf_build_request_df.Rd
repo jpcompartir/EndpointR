@@ -10,6 +10,7 @@ hf_build_request_df(
   id_var,
   endpoint_url,
   key_name,
+  parameters = list(),
   max_retries = 3,
   timeout = 10,
   validate = FALSE
@@ -25,6 +26,8 @@ hf_build_request_df(
 \item{endpoint_url}{The URL of the Hugging Face Inference API endpoint}
 
 \item{key_name}{Name of the environment variable containing the API key}
+
+\item{parameters}{Parameters to send with inputs}
 
 \item{max_retries}{Maximum number of retry attempts for failed requests}
 
