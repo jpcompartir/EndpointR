@@ -246,15 +246,43 @@ hf_classify_batch <- function(texts,
                                                    timeout = timeout,
                                                    validate = FALSE))
 
-  result_list <- perform_requests_with_strategy(
-    requests = batch_reqs,
-    indices = batch_data$batch_indices,
-    tidy_func = tidy_batch_classification_response,
-    concurrent_requests = concurrent_requests,
-    progress = TRUE # todo: possibly parameter?
-  )
+  # performing requests ----
+  if (length(batch_reqs) == 1){ # single batch case
+    browser()
+    response <- safely_perform_request(batch_reqs[[1]])
 
-  result <- purrr::list_rbind(result_list)
+    if (response$result$status_code == 200) { # success = try to tidy
+
+      tryCatch({ # if we can't tidy, flag errors
+        browser()
+        result <- tidy_func(response$result)
+        result$original_index <- batch_data$batch_indices[[1]]
+        result$.error <- FALSE
+        result$.error_message <- FALSE
+      }, error = function(e) {
+        cli::cli_warn("Error in single batch request: {conditionMessage(e)}")
+        return(.create_error_tibble(batch_data$batch_indices, conditionMessage(e)))
+      })
+
+    } else {
+      result <- .create_error_tibble(batch_data$batch_indices, response_list$error)
+    }
+
+  } else { # multiple batch case
+
+    response_list <- perform_requests_with_strategy(
+      requests = batch_reqs,
+      concurrent_requests = concurrent_requests,
+      progress = TRUE # todo: possibly parameter?
+    )
+
+    # map through the responses and tidy them.
+    tidied_responses <- purrr::map2(
+      response_list, batch_data$batch_indices,
+      ~process_response(.x, .y, tidy_func)
+    )
+    result <- purrr::list_rbind(tidied_responses)
+  }
 
   result <- dplyr::arrange(result, original_index)
 

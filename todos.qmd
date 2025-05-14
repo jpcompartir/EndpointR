@@ -1,5 +1,15 @@
 # EndpointR Hugging Face Embeddings Implementation Checklist
 
+# Prios:
+
+First: separation of concerns inside perform_requests_with_strategy - function shouldn't perform the requests and tidy them. Tidying should be done on the responses, but outside of the perform_requests_with_strategy.
+
+Once the separation of concerns is achieved: Second prio: Fix tidying functions for the case where `return_all_scores = FALSE`
+
+As in this: \> single_one_score \|\> + resp_body_json() \|\> + flatten() \|\> + as.data.frame() label score 1 not_spam 0.9985068
+
+Need to add parameters to the request here, really. And also need to add to batch...
+
 ## Re-factor & Decouple inference and embed files
 
 Decouple hf_inference.R from hf_embed.R
@@ -80,9 +90,3 @@ We can do it simply with the `path =` argument in `httr2::req_perform()`, but th
 -   [x] `tidy_classification_response()` - deal with label/score
 -   [x] `tidy_batch_classification_response()`
 -   [ ] S7 models for Peaks & Pits, Sentiment?
-
-First prio: Fix tidying functions for the case where `return_all_scores = FALSE`
-
-As in this: \> single_one_score \|\> + resp_body_json() \|\> + flatten() \|\> + as.data.frame() label score 1 not_spam 0.9985068
-
-Need to add parameters to the request here, really. And also need to add to batch...
