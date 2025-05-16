@@ -7,24 +7,10 @@ test_that("base_request accepts inputs and creates right type of object", {
   expect_equal("POST", base_req$method)
 })
 
-test_that("perform_requests_with_strategy accepts expected parameters", {
-
-  expect_warning( # careful here as it doesn't throw an error, just a warning (when an error is met)
-    perform_requests_with_strategy("request", indices = "hello", function(x) x),
-    regexp = "must be an HTTP"
-  )
-
-  key_name = "TEST_API_KEY"
-  base_req <- base_request("https://endpoint.com", key_name)
-  # fail when vectors don't match lengths
-  expect_error(perform_requests_with_strategy(base_req,indices = c(1, 2),
-  "Can't recycle"))
-
-})
-
-test_that("perform_requests_with_strategy handles input parameters and returns the right data frame(s)", {
+test_that("perform_requests_with_strategy handles input parameters and returns untidied responses in embedding case", {
   key_name = "TEST_API_KEY"
 
+  # we don't want to test live connections to APIs etc. so we use a fake API that returns the type of response we want.
   app <- webfakes::new_app()
   app$post("/test",
            function(req, res) {
@@ -37,32 +23,37 @@ test_that("perform_requests_with_strategy handles input parameters and returns t
 
   base_reqs <- list(base_req, base_req, base_req, base_req)
 
-  responses_seq <- expect_no_error(perform_requests_with_strategy(
-    base_reqs,
-    c(1, 2, 3, 4),
-    tidy_embedding_response,
-    concurrent_requests = 1)
+  responses_seq <- expect_no_error(
+    perform_requests_with_strategy(
+      requests = base_reqs,
+      concurrent_requests = 1)
   )
-  responses_seq <- dplyr::bind_rows(responses_seq)
-  expect_setequal(
-    names(responses_seq), c("V1", "V2", "V3", "original_index", ".error", ".error_message"))
+
+  expect_true(all(purrr::map(responses_seq, class) == "httr2_response"))
+
+  # ugly, but just check everything is the expected vector from our app$post("/test", i.e. no tidying/transformation performed by perform_requests_with_strategy)
+  responses_values_seq <- purrr::map(responses_seq, httr2::resp_body_json) |>
+    purrr::map(unlist)
+
+  expect_true(
+    all(
+      vapply(
+        responses_values_seq,
+        function(x) identical(x, c(0.1, 0.2, 0.3)),
+        FUN.VALUE = logical(1)
+      )
+    )
+  )
 
   responses_par <- expect_no_error(
     perform_requests_with_strategy(
       base_reqs,
-      c(1, 2, 3, 4),
-      tidy_embedding_response,
       concurrent_requests = 2)
   )
 
-  responses_par <- dplyr::bind_rows(responses_par)
+  responses_values_par <-purrr::map(responses_par, httr2::resp_body_json) |>
+    purrr::map(unlist)
 
-  expect_true(
-    all.equal(
-      responses_seq,
-      responses_par
-  ))
-
+  expect_true(all.equal(responses_values_seq,responses_values_par))
 
 })
-
