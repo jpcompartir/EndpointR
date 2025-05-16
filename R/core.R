@@ -25,16 +25,33 @@ safely_perform_request <- function(request) {
   purrr::safely(httr2::req_perform)(request)
 }
 
+perform_request_or_return_error <- function(request) {
+  tryCatch({
+    response <- httr2::req_perform(request)
+
+    return(response)
+  }, error = function(e) {
+    cli::cli_alert_warning("Sequential request to {.url {httr2::request_url(request)}} failed: {conditionMessage(e)}")
+    return(e)
+  })
+}
+
+
 #  WIP - deal with ugly chunk in embed_batch_df ----
 perform_requests_with_strategy <- function(requests,
-                                           indices,
                                            concurrent_requests = 1,
                                            progress = TRUE) {
 
 
-  # browser()
+  if (!is.list(requests) || !all(purrr::map_lgl(requests, inherits, "httr2_request"))) {
+    cli::cli_abort("`requests` must be a list of httr2_request objects.")
+  }
+  if (!is.numeric(concurrent_requests) || concurrent_requests < 1) {
+    cli::cli_abort("`concurrent_requests` must be a positive integer.")
+  }
 
   if (concurrent_requests > 1 && length(requests) > 1) { # use parallel.
+    cli::cli_alert_info("Performing {length(requests)} requests in parallel (with {concurrent_requests} concurrent requests)...")
     responses <- httr2::req_perform_parallel(
       requests,
       on_error = "continue",
@@ -48,10 +65,14 @@ perform_requests_with_strategy <- function(requests,
   }
 
   else { # use sequential.
-    responses <- purrr::map(requests, safely_perform_request, .progress = progress)
-
-
-
+    cli::cli_alert_info("Performing {length(requests)} requests sequentially...")
+    responses <- purrr::map(
+      requests,
+      perform_request_or_return_error,
+      .progress = progress
+    )
+  }
+  return(responses)
     # return(purrr::map2(
     #   requests,
     #   indices,
@@ -67,11 +88,11 @@ perform_requests_with_strategy <- function(requests,
     #   .progress = progress
     # ))
 
-    return(responses)
-  }
+    # return(responses)
+  # }
 }
 
-.process_response <- function(resp, indices, tidy_func) {
+process_response <- function(resp, indices, tidy_func) {
   #higher-order function for processing (takes function as inputs)
   if (inherits(resp, "httr2_response")) {
     tryCatch({
