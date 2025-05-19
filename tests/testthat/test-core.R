@@ -59,7 +59,7 @@ test_that("perform_requests_with_strategy handles input parameters and returns u
 })
 
 
-test_that("process_response accepts arbitrary tidying functions and returns clean outputs", {
+test_that("process_response handles single requests and lists mapped with indices", {
 
   sentiment_all_score <- list(
     list(
@@ -87,6 +87,9 @@ test_that("process_response accepts arbitrary tidying functions and returns clea
     status_code = 200L,
     headers = list("Content-Type" = "application/json"))
 
+  mock_response |>
+    process_response(indices = 1, tidy_func = tidy_classification_response)
+
   tidied_response <- expect_no_error(mock_response |>
     tidy_classification_response())
 
@@ -97,9 +100,75 @@ test_that("process_response accepts arbitrary tidying functions and returns clea
 
   expect_true(all.equal(tidied_response, manual_tidy, tolerance = 1e-3))
 
+  multi_sentiment_all_score <- list(mock_response, mock_response, mock_response)
 
+  purrr::map2(
+    multi_sentiment_all_score,
+    c(1, 2, 3),
+    ~ process_response(.x, .y, tidy_classification_response)
+  ) |>
+    purrr::list_rbind()
 
+  })
 
+test_that("process_response handles batches of inputs when passed the correct tidy function", {
+  sentiment_scores <- list(
+    list(
+      list(label = "positive",score = 0.5865912),
+      list(label = "negative",score = 0.1204563),
+      list(label = "neutral",score = 0.2929525)),
+    list(
+      list(label = "positive",score = 0.506693),
+      list(label = "negative",score = 0.110413),
+      list(label = "neutral",score = 0.382894)
+    ),
+    list(
+      list(label = "positive",score = 0.4080445),
+      list(label = "negative",score = 0.1041288),
+      list(label = "neutral",score = 0.4878267
+      )
+    )
+  )
 
+  # single batch case
+  mock_batch_response <- httr2::response_json(
+      body = sentiment_scores,
+      status_code = 200L,
+      headers = list("Content-Type" = "application/json")
+      )
+
+  single_batch <- expect_no_error(process_response(resp = mock_batch_response,
+                   indices = 1:3,
+                   tidy_func = tidy_batch_classification_response))
+  expect_setequal(names(single_batch), c("positive", "negative", "neutral", "original_index", ".error", ".error_message"))
+  expect_equal(nrow(single_batch), 3)
+
+  # multi-batches
+  multi_batch <- list(
+    sentiment_scores,
+    sentiment_scores,
+    sentiment_scores
+  )
+    multi_batch_resps <- map(multi_batch, ~ response_json(body = .x,
+                                     status_code = 200L,
+                                     headers = list("Content-Type" = "application/json")
+                                     ))
+
+    indices <- list(
+      c(1, 2, 3),
+      c(4, 5, 6),
+      c(7, 8, 9)
+    )
+
+    processed_batch_results <- expect_no_error(purrr::map2(
+      multi_batch_resps,
+      indices,
+      ~ process_response(.x, .y, tidy_func = tidy_batch_classification_response)
+    ) |>
+      purrr::list_rbind()
+    )
+
+    expect_equal(nrow(processed_batch_results), 9)
+    expect_equal(ncol(processed_batch_results), 6)
 
 })
