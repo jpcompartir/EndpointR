@@ -57,3 +57,49 @@ test_that("perform_requests_with_strategy handles input parameters and returns u
   expect_true(all.equal(responses_values_seq,responses_values_par))
 
 })
+
+
+test_that("process_response accepts arbitrary tidying functions and returns clean outputs", {
+
+  sentiment_all_score <- list(
+    list(
+      list(
+        label = "positive",
+        score = 0.05167632
+      ),
+      list(
+        label = "negative",
+        score = 0.8648104
+      ),
+      list(
+        label = "neutral",
+        score = 0.0835133
+      )
+    )
+  )
+
+  # json_all_score <- jsonlite::toJSON(sentiment_all_score, auto_unbox = TRUE)
+  # raw_all_score <- charToRaw(json_all_score) # one way imitate the API response
+
+  # better way:
+  mock_response <- httr2::response_json(
+    body = sentiment_all_score,
+    status_code = 200L,
+    headers = list("Content-Type" = "application/json"))
+
+  tidied_response <- expect_no_error(mock_response |>
+    tidy_classification_response())
+
+  manual_tidy <- sentiment_all_score[[1]] |>
+    purrr::map(as.data.frame) |>
+    purrr::list_rbind() |>
+    tidyr::pivot_wider(names_from = label, values_from = score)
+
+  expect_true(all.equal(tidied_response, manual_tidy, tolerance = 1e-3))
+
+
+
+
+
+
+})
