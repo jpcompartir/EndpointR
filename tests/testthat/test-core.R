@@ -56,8 +56,9 @@ test_that("perform_requests_with_strategy handles input parameters and returns u
 
   expect_true(all.equal(responses_values_seq,responses_values_par))
 
-})
 
+  server$stop()
+})
 
 test_that("process_response handles single requests and lists mapped with indices", {
 
@@ -149,7 +150,7 @@ test_that("process_response handles batches of inputs when passed the correct ti
     sentiment_scores,
     sentiment_scores
   )
-    multi_batch_resps <- map(multi_batch, ~ response_json(body = .x,
+    multi_batch_resps <- purrr::map(multi_batch, ~ httr2::response_json(body = .x,
                                      status_code = 200L,
                                      headers = list("Content-Type" = "application/json")
                                      ))
@@ -170,5 +171,12 @@ test_that("process_response handles batches of inputs when passed the correct ti
 
     expect_equal(nrow(processed_batch_results), 9)
     expect_equal(ncol(processed_batch_results), 6)
+
+})
+
+test_that(".create_erorr_tibble deals with indices and messages and outputs a tibble as expected", {
+  error_tib <- expect_no_error(.create_error_tibble(1:2, "hello"))
+
+  expect_true(nrow(error_tib) ==2)
 
 })
