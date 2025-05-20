@@ -303,12 +303,72 @@ hf_classify_batch <- function(texts,
 
   result$original_index <- NULL # drop index now we're returning
 
-  result <- dplyr::relocate(result, c(`.error`, `.error_message`), .before = relocate_col)
   return(result)
 }
 
 
+hf_classify_df <- function(df,
+                           text_var,
+                           id_var,
+                           endpoint_url,
+                           key_name,
+                           ...,
+                           tidy_func = tidy_batch_classification_response,
+                           parameters = list(return_all_scores = TRUE),
+                           batch_size = 4,
+                           concurrent_requests = 1,
+                           max_retries = 5,
+                           timeout = 30,
+                           progress = TRUE) {
 
-hf_classify_df <- function() {
+
+  # mirrors the hf_embed_df function
+  text_sym <- rlang::ensym(text_var)
+  id_sym <- rlang::ensym(id_var)
+
+  stopifnot(
+    "df must be a data frame" = is.data.frame(df),
+    "endpoint_url must be provided" = !is.null(endpoint_url) && nchar(endpoint_url) > 0,
+    "concurrent_requests must be a number greater than 0" = is.numeric(concurrent_requests) && concurrent_requests > 0,
+    "batch_size must be a number greater than 0" = is.numeric(batch_size) && batch_size > 0
+  )
+
+  original_num_rows <- nrow(df) # for final sanity check
+
+  # pull texts & ids into vectors for batch function
+  text_vec <- dplyr::pull(df, !!text_sym)
+  indices_vec <- dplyr::pull(df, !!id_sym)
+
+  batch_size <- if(is.null(batch_size) || batch_size <=1) 1 else batch_size
+
+  classification_tbl <- hf_classify_batch(texts = text_vec,
+                                          endpoint_url = endpoint_url,
+                                          key_name = key_name,
+                                          tidy_func = tidy_func,
+                                          parameters = parameters,
+                                          batch_size = batch_size,
+                                          max_retries = max_retries,
+                                          timeout = timeout,
+                                          progress = TRUE,
+                                          concurrent_requests = concurrent_requests)
+
+
+  final_num_rows <- nrow(classification_tbl)
+
+  if(final_num_rows == original_num_rows) {
+    classification_tbl <- classification_tbl |> dplyr::mutate(!!id_sym := indices_vec)
+
+    df <- dplyr::left_join(df, classification_tbl)
+
+    return(df)
+  } else {
+    cli::cli_warn("Rows in original data frame and returned data frame do not match:")
+    cli::cli_bullets(text = c(
+      "Rows in original data frame: {original_num_rows}",
+      "Rows in returned data frame: {final_num_rows}"
+    ))
+    cli::cli_alert_info("Returning data frame with responses not linked to original data frame")
+    return(classification_tbl)
+  }
 
 }
