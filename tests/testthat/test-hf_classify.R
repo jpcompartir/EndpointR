@@ -137,7 +137,7 @@ test_that("hf_classify_text takes a text and returns a tidied classification res
 
 test_that("hf_classify_batch processes a batch of texts and returns a tidied classification response",{
 
-  # mocking these batches not straightforward, as the input and the app's output aren't linked (has to be hardcoded). For that reason it's difficult to actually test the batching logic.
+  # mocking these batches not straightforward, as the input and the app's output aren't linked (has to be hardcoded). For that reason it's difficult to actually test the batching logic. For now it still relies a lot on the informal tests (`hf_classify_dev.qmd`)
 
   # withr::deferred_clear() # uncomment if interactively running/developing tests
 
@@ -172,9 +172,9 @@ test_that("hf_classify_batch processes a batch of texts and returns a tidied cla
     res$send(json_string)
   })
 
-  .web <- webfakes::local_app_process(.app)
+  server <- webfakes::local_app_process(.app)
   # withr::deferred_run() # uncomment if interactively running/developing tests
-  .test_url <- .web$url("/test")
+  .test_url <- server$url("/test")
 
   test_response <- httr2::request(.test_url) |>
     httr2::req_method("POST") |>
@@ -203,7 +203,6 @@ test_that("hf_classify_batch processes a batch of texts and returns a tidied cla
   expect_equal(nrow(res), 4)
   expect_setequal(names(res), c("positive", "negative", "neutral", ".error", ".error_message"))
 
-  .web$stop()
-
+  server$stop()
 })
 

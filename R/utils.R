@@ -234,3 +234,22 @@ batch_vector <- function(vector, batch_size) {
          batch_inputs = batch_inputs)
   )
 }
+
+
+extract_field <- function(api_response, field_name) {
+  recursive_map_collect <- function(x, field) {
+    if (is.list(x)) {
+      # if named list and has the field, collect it
+      if (!is.null(names(x)) && field %in% names(x)) {
+        return(c(list(x[[field]]), unlist(purrr::map(x, ~recursive_map_collect(., field)), recursive = FALSE)))
+      } else {
+        # check all elements
+        unlist(purrr::map(x, ~recursive_map_collect(., field)), recursive = FALSE)
+      }
+    } else {
+      list() # base case - not a list
+    }
+  }
+
+  purrr::compact(recursive_map_collect(api_response, field_name))
+}
