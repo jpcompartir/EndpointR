@@ -79,10 +79,11 @@ es_resp_one_score <- hf_perform_request(es_req_one_score)
 es_resp_json_one_score <- es_resp_one_score |> 
   resp_body_json() 
 
-flatten(es_resp_json_one_score) |>
-  map( ~ data.frame(label = .x$label, score = .x$score)) |>
-  list_rbind() |> 
-  pivot_wider(names_from = label, values_from = score)
+# tidy a single case, but if it's a batch?
+tibble::tibble(
+  !!es_resp_json_one_score[[1]][["label"]]:= es_resp_json_one_score[[1]][["score"]]
+)
+
 ```
 
 Batches are a tiny bit trickier. Broken due to tidying...
@@ -201,6 +202,15 @@ hf_classify_text(
   dummy_text,
   es_endpoint_url, 
   "HF_TEST_API_KEY")
+
+hf_classify_text(
+  dummy_text,
+  es_endpoint_url,
+  "HF_TEST_API_KEY",
+  parameters = list(return_all_scores = TRUE),
+  tidy = FALSE
+) |> 
+  resp_body_json()
 ```
 
 Should fail:
@@ -214,6 +224,19 @@ hf_classify_text(
 )
 ```
 
+```{r}
+hf_classify_text(
+  dummy_text,
+  es_endpoint_url, 
+  "HF_TEST_API_KEY",
+  parameters = list(return_all_scores = FALSE),
+  tidy = FALSE
+  ) |> 
+  resp_body_json()  |> 
+  flatten() |> 
+  as_tibble()
+```
+
 ### Batches
 
 ```{r}
@@ -222,11 +245,35 @@ hf_classify_batch(
   stringr::sentences[1:10],
   es_endpoint_url,
   "HF_TEST_API_KEY",
-  batch_size = 1,
+  batch_size = 5,
   concurrent_requests = 2
 )
 
-batches <- batch_vector(sentences[1:10 ], 2)
+hf_classify_batch(
+  # dummy_texts,
+  stringr::sentences[11:20],
+  es_endpoint_url,
+  "HF_TEST_API_KEY",
+  batch_size = 3,
+  concurrent_requests = 2
+)
+
+hf_classify_batch(
+  # dummy_texts,
+  stringr::sentences[11:14],
+  es_endpoint_url,
+  "HF_TEST_API_KEY",
+  batch_size = 2,
+  concurrent_requests = 2,
+  parameters = list(return_all_scores = FALSE)
+) |> 
+  pull(response)
+
+```
+
+```{r}
+
+batches <- batch_vector(stringr::sentences[1:10 ], 2)
 batch_reqs <- purrr::map(batches$batch_inputs,
            ~hf_build_request_batch(
              .x,
@@ -239,10 +286,43 @@ batch_reqs <- purrr::map(batches$batch_inputs,
 batch_reqs[[1]] |>  
   safely_perform_request() |> 
   pluck("result") |> 
+  httr2::resp_body_json()
   tidy_batch_classification_response()
+```
 
+```{r}
+returned_string <- batch_reqs |> 
+  httr2::req_perform_parallel() |> 
+  map(resp_body_json)
 
+jsonlite::toJSON(returned_string) |> 
+  jsonlite::fromJSON()
+```
 
+```{r}
+hf_classify_batch(
+  # dummy_texts,
+  stringr::sentences[1:10],
+  es_endpoint_url,
+  "HF_TEST_API_KEY",
+  batch_size = 5,
+  concurrent_requests = 2,
+  tidy_func = tidy_batch_classification_response
+)
+```
+
+#### Test Core Process Response Batches
+
+```{r}
+test_batch_req <- hf_build_request_batch(inputs = stringr::sentences[1:10], 
+                       parameters = list(return_all_scores = TRUE),
+                       endpoint_url = es_endpoint_url, 
+                       key_name = "HF_TEST_API_KEY")
+
+test_single_batch_resp <- hf_perform_request(test_batch_req)
+test_single_batch_resp |> 
+  resp_body_json() |> 
+  tidy_batch_classification_response()
 ```
 
 ## Spam Classifier
@@ -372,4 +452,36 @@ tmp_batch_1_score <- hf_classify_batch(
 
 ```
 
-Fixing hf_classify.R and perform_requests_with_strategy:
+# hf_classify_df
+
+Developing, similar to `hf_embed_df()`, with some small changes
+
+```{r}
+test_df <- tibble(
+  text = letters
+) |> 
+  mutate(id = row_number())
+
+
+hf_classify_df(
+  test_df,
+  text,
+  id,
+  es_endpoint_url,
+  "HF_TEST_API_KEY",
+  batch_size = 8,
+  concurrent_requests = 2
+)
+```
+
+```{r}
+hf_classify_df(
+  test_df,
+  text,
+  id,
+  spam_endpoint_url,
+  "HF_TEST_API_KEY",
+  batch_size = 8,
+  concurrent_requests = 4
+)
+```
