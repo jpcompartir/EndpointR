@@ -18,7 +18,7 @@ test_that("perform_requests_with_strategy handles input parameters and returns u
                set_status(200L)$
                send_json(c(0.1, 0.2, 0.3))
            })
-  server <- webfakes::new_app_process(app)
+  server <- webfakes::local_app_process(app)
   base_req <- base_request(server$url("/test"), key_name)
 
   base_reqs <- list(base_req, base_req, base_req, base_req)

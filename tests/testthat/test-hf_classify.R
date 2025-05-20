@@ -67,31 +67,32 @@ test_that("tidy_batch_classification_response handes a batch response with multi
 
 })
 
+
 test_that("hf_classify_text takes a text and returns a tidied classification response", {
 
-sentiment_scores <- list(
-  list(
-    list(label = "positive", score = 0.05167632),
-    list(label = "negative", score = 0.8648104),
-    list(label = "neutral",  score = 0.0835133)
-  ))
 
+  # there's something I don't understand with webfakes, where these tests will pass when run in the `test_that()` function call, but the code will not *always* run when outside of that context. There will sometimes by a HTTP 500 Internal Server Error,which I think means the app is dying. I think to test individually we need to use $listen() rather than $local_app_process or $new_app_process but I don't fully understand why.
 
-  mock_json_response_body <- jsonlite::toJSON(sentiment_scores,
-                                              auto_unbox = FALSE)
+  json_string <- '[[{"label":"positive","score":0.05167632},{"label":"negative","score":0.8648104},{"label":"neutral","score":0.0835133}]]'
 
   app <- webfakes::new_app()
-  app$data$response_body <- sentiment_scores
 
   app$post("/", function(req, res) {
-    res$set_status(200L)$
-      set_header("Content-Type", "application/json")$
-      send_json(app$data$response_body)
+    res$set_status(200L)
+    res$set_header("Content-Type", "application/json")
+    res$send(json_string)
   })
 
-  server <- webfakes::new_app_process(app)
+  server <- webfakes::local_app_process(app)
 
   withr::local_envvar(HF_TEST_API_KEY = "fake-key")
+
+  direct_response <- httr2::request(server$url("/")) |>
+    httr2::req_method("POST") |>
+    httr2::req_perform()
+
+  expect_equal(httr2::resp_status(direct_response), 200)
+  expect_equal(httr2::resp_body_string(direct_response), json_string)
 
   base_req <- hf_build_request(
     input = "classify me",
@@ -100,13 +101,34 @@ sentiment_scores <- list(
     parameters = list()
   )
 
-  hf_classify_text(
+  response <- httr2::req_perform(base_req)
+  expect_equal(httr2::resp_status(response), 200)
+
+  raw_result <- hf_classify_text(
     "classify me",
     endpoint_url = server$url("/"),
     key_name = "HF_TEST_API_KEY",
     parameters = list(),
     tidy = FALSE
-  ) |>
-    httr2::resp_body_json()
+  )
 
+  expect_s3_class(raw_result, "httr2_response")
+  expect_equal(raw_result$status_code, 200)
+
+  tidy_result <- hf_classify_text(
+    "classify me",
+    endpoint_url = server$url("/"),
+    key_name = "HF_TEST_API_KEY",
+    parameters = list(),
+    tidy = TRUE
+  )
+
+  print(tidy_result) # add this so I can see it outside of the test_that context, and verify for myself there's nothing funky with the tests passing when they shouldn't.
+
+  expect_s3_class(tidy_result, c("tbl_df", "tbl", "data.frame"))
+  expect_equal(ncol(tidy_result), 3)
+  expect_true(all(c("positive", "negative", "neutral") %in% names(tidy_result)))
+  expect_equal(tidy_result$positive, 0.05167632, tolerance = 1e-6)
+  expect_equal(tidy_result$negative, 0.8648104, tolerance = 1e-6)
+  expect_equal(tidy_result$neutral, 0.0835133, tolerance = 1e-6)
 })
