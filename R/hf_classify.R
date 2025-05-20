@@ -117,8 +117,8 @@ tidy_batch_classification_response <- function(response) {
 #' @param key_name Name of the environment variable containing the API key
 #' @param ... Additional arguments passed to `hf_perform_request` and
 #'   ultimately to `httr2::req_perform`
-#' @param parameters List of parameters to pass to the API endpoint,
-#'   defaults to `list(return_all_scores = TRUE)`
+#' @param parameters Advanced usage: parameters to pass to the API endpoint,
+#'   defaults to `list(return_all_scores = TRUE)`.
 #' @param tidy Logical; if TRUE (default), returns a tidied data frame
 #' @param max_retries Maximum number of retry attempts for failed requests
 #' @param timeout Request timeout in seconds
@@ -169,12 +169,12 @@ hf_classify_text <- function(text,
   api_key <- get_api_key(key_name)
 
   req <- hf_build_request(input = text,
-                                  parameters = parameters,
-                                  endpoint_url = endpoint_url,
-                                  key_name = key_name,
-                                  max_retries = max_retries,
-                                  timeout = timeout,  # longer for classification than embedding default
-                                  validate = validate)
+                          parameters = parameters,
+                          endpoint_url = endpoint_url,
+                          key_name = key_name,
+                          max_retries = max_retries,
+                          timeout = timeout,  # longer for classification than embedding default
+                          validate = validate)
 
   tryCatch({
     response <- hf_perform_request(req, ...)
@@ -187,7 +187,7 @@ hf_classify_text <- function(text,
   })
 
 
-  if (!tidy) { return(response)}
+  if (!tidy) { return(response) }
 
   tryCatch({
     tidy_classification_response(response)
@@ -203,26 +203,33 @@ hf_classify_text <- function(text,
 
 }
 
+
 hf_classify_batch <- function(texts,
                               endpoint_url,
                               key_name,
                               ...,
+                              tidy_func = tidy_batch_classification_response,
                               parameters = list(return_all_scores = TRUE),
                               batch_size = 8,
-                              include_texts = TRUE,
+                              progress = TRUE,
                               concurrent_requests = 5,
                               max_retries = 5,
                               timeout = 20,
-                              validate = FALSE,
+                              include_texts = TRUE,
                               relocate_col = 2
                               ){
 
+  # mirrors hf_embed_batch
 
   # input validation ----
   if (length(texts) == 0) {
-    cli::cli_warning("Input 'texts' is empty. Returning an empty tibble.")
-    return(tibble::tibble())
+    cli::cli_abort("Input 'texts' is empty or . Returning an empty tibble.")
   }
+
+  if (length(texts) == 1) {
+    cli::cli_abort("Function expects a batch of inputs, use `hf_classify_text` for single texts.")
+  }
+
 
   stopifnot(
     "Texts must be a list or vector" = is.vector(texts),
@@ -246,15 +253,42 @@ hf_classify_batch <- function(texts,
                                                    timeout = timeout,
                                                    validate = FALSE))
 
-  result_list <- perform_requests_with_strategy(
-    requests = batch_reqs,
-    indices = batch_data$batch_indices,
-    tidy_func = tidy_batch_classification_response,
-    concurrent_requests = concurrent_requests,
-    progress = TRUE # todo: possibly parameter?
-  )
+  # performing requests ----
+  if (length(batch_reqs) == 1){ # single batch case
+    # browser()
+    response <- safely_perform_request(batch_reqs[[1]])
 
-  result <- purrr::list_rbind(result_list)
+    if (!is.null(response$result) && response$result$status_code == 200) { # success = try to tidy
+
+      tryCatch({ # if we can't tidy, flag errors
+        result <- tidy_func(response$result)
+        result$original_index <- batch_data$batch_indices[[1]]
+        result$.error <- FALSE
+        result$.error_message <- FALSE
+      }, error = function(e) {
+        cli::cli_warn("Error in single batch request: {conditionMessage(e)}")
+        return(.create_error_tibble(batch_data$batch_indices, conditionMessage(e)))
+      })
+
+    } else {
+      result <- .create_error_tibble(batch_data$batch_indices, response_list$error)
+    }
+
+  } else { # multiple batch case
+
+    response_list <- perform_requests_with_strategy(
+      requests = batch_reqs,
+      concurrent_requests = concurrent_requests,
+      progress = progress # todo: possibly parameter?
+    )
+
+    # map through the responses and tidy them.
+    processed_responses <- purrr::map2(
+      response_list, batch_data$batch_indices,
+      ~process_response(.x, .y, tidy_func)
+    )
+    result <- purrr::list_rbind(processed_responses)
+  }
 
   result <- dplyr::arrange(result, original_index)
 
@@ -265,12 +299,72 @@ hf_classify_batch <- function(texts,
 
   result$original_index <- NULL # drop index now we're returning
 
-  result <- dplyr::relocate(result, c(`.error`, `.error_message`), .before = relocate_col)
   return(result)
 }
 
 
+hf_classify_df <- function(df,
+                           text_var,
+                           id_var,
+                           endpoint_url,
+                           key_name,
+                           ...,
+                           tidy_func = tidy_batch_classification_response,
+                           parameters = list(return_all_scores = TRUE),
+                           batch_size = 4,
+                           concurrent_requests = 1,
+                           max_retries = 5,
+                           timeout = 30,
+                           progress = TRUE) {
 
-hf_classify_df <- function() {
+
+  # mirrors the hf_embed_df function
+  text_sym <- rlang::ensym(text_var)
+  id_sym <- rlang::ensym(id_var)
+
+  stopifnot(
+    "df must be a data frame" = is.data.frame(df),
+    "endpoint_url must be provided" = !is.null(endpoint_url) && nchar(endpoint_url) > 0,
+    "concurrent_requests must be a number greater than 0" = is.numeric(concurrent_requests) && concurrent_requests > 0,
+    "batch_size must be a number greater than 0" = is.numeric(batch_size) && batch_size > 0
+  )
+
+  original_num_rows <- nrow(df) # for final sanity check
+
+  # pull texts & ids into vectors for batch function
+  text_vec <- dplyr::pull(df, !!text_sym)
+  indices_vec <- dplyr::pull(df, !!id_sym)
+
+  batch_size <- if(is.null(batch_size) || batch_size <=1) 1 else batch_size
+
+  classification_tbl <- hf_classify_batch(texts = text_vec,
+                                          endpoint_url = endpoint_url,
+                                          key_name = key_name,
+                                          tidy_func = tidy_func,
+                                          parameters = parameters,
+                                          batch_size = batch_size,
+                                          max_retries = max_retries,
+                                          timeout = timeout,
+                                          progress = TRUE,
+                                          concurrent_requests = concurrent_requests)
+
+
+  final_num_rows <- nrow(classification_tbl)
+
+  if(final_num_rows == original_num_rows) {
+    classification_tbl <- classification_tbl |> dplyr::mutate(!!id_sym := indices_vec)
+
+    df <- dplyr::left_join(df, classification_tbl)
+
+    return(df)
+  } else {
+    cli::cli_warn("Rows in original data frame and returned data frame do not match:")
+    cli::cli_bullets(text = c(
+      "Rows in original data frame: {original_num_rows}",
+      "Rows in returned data frame: {final_num_rows}"
+    ))
+    cli::cli_alert_info("Returning data frame with responses not linked to original data frame")
+    return(classification_tbl)
+  }
 
 }

@@ -9,6 +9,7 @@ hf_embed_batch(
   endpoint_url,
   key_name,
   ...,
+  parameters = list(),
   batch_size = 8,
   include_texts = TRUE,
   concurrent_requests = 5,
@@ -26,6 +27,8 @@ hf_embed_batch(
 \item{key_name}{Name of the environment variable containing the API key}
 
 \item{...}{ellipsis sent to \code{hf_perform_request} TODO (reserved ATM)}
+
+\item{parameters}{Advanced usage: parameters to pass to the API endpoint.}
 
 \item{batch_size}{Number of texts to process in one batch}
 

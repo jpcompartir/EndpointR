@@ -8,6 +8,7 @@ hf_build_request(
   input,
   endpoint_url,
   key_name,
+  parameters = list(),
   max_retries = 5,
   timeout = 10,
   validate = FALSE

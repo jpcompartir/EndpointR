@@ -1,5 +1,25 @@
 # EndpointR Hugging Face Embeddings Implementation Checklist
 
+# Prios:
+
+First: separation of concerns inside perform_requests_with_strategy - function shouldn't perform the requests and tidy them. Tidying should be done on the responses, but outside of the perform_requests_with_strategy.
+
+Once the separation of concerns is achieved: Second prio: Fix tidying functions for the case where `return_all_scores = FALSE`
+
+As in this: \> single_one_score \|\> + resp_body_json() \|\> + flatten() \|\> + as.data.frame() label score 1 not_spam 0.9985068
+
+Need to add parameters to the request here, really. And also need to add to batch...
+
+## Fixing Tidying
+
+Fixing hf_classify.R and perform_requests_with_strategy:
+
+Question whether the funcs should try to take care of `return_all_scores = FALSE` as well as `return_all_scores = TRUE`, not clear how much benefit there is to allowing the FALSE option, and unclear how we'd track. With an individual parameter, or extracting from parameters, seems messy.
+
+Should the user provide the cleaning function for the `hf_classify_batch()` and `hf_classify_df()` or should we try to do it for them, in all cases? Shoud this be an argument? There are already quite a lot of arguments. I'd be tempted to just go with `return_all_scores = TRUE` by default, and have other people deal with them separately if they don't want to do this.
+
+`hf_classify_batch` is a bit of a smell atm, as it has quite a few args and is fairly sizeable. The high-level functions have to take care of: - retries - batching - concurrent_requests - handle errors - ordering of outputs/batches
+
 ## Re-factor & Decouple inference and embed files
 
 Decouple hf_inference.R from hf_embed.R
@@ -80,9 +100,3 @@ We can do it simply with the `path =` argument in `httr2::req_perform()`, but th
 -   [x] `tidy_classification_response()` - deal with label/score
 -   [x] `tidy_batch_classification_response()`
 -   [ ] S7 models for Peaks & Pits, Sentiment?
-
-First prio: Fix tidying functions for the case where `return_all_scores = FALSE`
-
-As in this: \> single_one_score \|\> + resp_body_json() \|\> + flatten() \|\> + as.data.frame() label score 1 not_spam 0.9985068
-
-Need to add parameters to the request here, really. And also need to add to batch...

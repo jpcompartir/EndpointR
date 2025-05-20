@@ -6,6 +6,7 @@
 \usage{
 hf_build_request_batch(
   inputs,
+  parameters = list(),
   endpoint_url,
   key_name,
   max_retries = 5,
@@ -15,6 +16,8 @@ hf_build_request_batch(
 }
 \arguments{
 \item{inputs}{Vector or list of character strings to process in a batch}
+
+\item{parameters}{Parameters to send with inputs}
 
 \item{endpoint_url}{The URL of the Hugging Face Inference API endpoint}
 

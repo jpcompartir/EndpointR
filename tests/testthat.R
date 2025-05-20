@@ -8,5 +8,6 @@
 
 library(testthat)
 library(EndpointR)
+library(httr2)
 
 test_check("EndpointR")

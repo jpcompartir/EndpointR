@@ -85,7 +85,7 @@ set_api_key("HF_TEST_API_KEY")
 
 EndpointR functions that need API keys will have a `key_name` argument, you put the same name as you entered into `set_api_key` and EndpointR will retrieve it, without printing the contents to the console.
 
-# Quick Start Guide
+# Quick Start - Embeddings
 
 EndpointR provides convenient functions for common embedding tasks without exposing the underlying request structure. EndpointR will handle retries, errors, concurrent requests, and batching of requests through configurable options.
 
@@ -228,7 +228,7 @@ result_df |> select(V1:V384)
 
 If I had 768 embedding dimensions, I would input `V1:V768`, and similarly for 1024 dimensions, `V1:V1024`, you get the idea.
 
-# Improving Performance
+## Improving Performance
 
 > This section will focus mainly on the `hf_embed_df()` function and the options we have for improving throughput of requests.
 
@@ -363,13 +363,76 @@ broom::tidy(model) |>
 
 > **QUESTION**: What might happen if we keep increasing `batch_size` and `concurrent_requests`? Will the relationship hold or not?
 
-# Advanced Usage
+## Advanced Usage
 
 The previous sections have explored a high-level API for single texts, lists of texts, and data frames. Sometimes you will need to do something the `hf_embed_text`, `hf_embed_batch` and `hf_embed_df` functions do not allow, and their 'helpful defaults' get in the way. I would generally recommend you go direct to {httr2}, but if you're intent on using EndpointR then material may be forthcoming on some of the lower-level functions, if you can't wait then head into the repo and explore the functions themselves!
 
+# Quick Start - Classification
+
+> **TIP**: this section of the vignette will assume familiarity with the section on embeddings, i.e. it's expected that you know what a Hugging Face Inference Endpoint is, and the various options common to this package like 'concurrent_requests', batch_size' etc.
+
+Similarly to the embeddings section, EndpointR provides 3 separate high-level functions which try to help you classify text without exposing the underlying request structure.
+
+-   `hf_classify_text()`
+-   `hf_classify_batch()`
+-   `hf_classify_df()`
+
+With one text:
+
+```{r}
+endpoint_url <- httr2::secret_decrypt("c2nF_Tx_4V32AO0PZOohHvmKqXZ4Ysd0UfqL1loDrge5eIbLIF07ynGstlRtRJHUgeaMVROKOgnuiWs66VYqLM3SFIufcFv9vIDwOSQyTB0B5A", "ENDPOINTR_KEY")
+
+text <- "Annual income twenty pounds, annual expenditure nineteen nineteen and six, result happiness. Annual income twenty pounds, annual expenditure twenty pounds ought and six, result misery."
+
+hf_classify_text(
+  text,
+  endpoint_url,
+  "HF_TEST_API_KEY"
+)
+
+```
+
+With a list of texts:
+
+```{r}
+texts <- c(
+  "It was the best of times, it was the worst of times, it was the age of wisdom, it was the age of foolishness.",
+  "Whether I shall turn out to be the hero of my own life, or whether that station will be held by anybody else, these pages must show.",
+  "There is nothing in the world so irresistibly contagious as laughter and good humour.",
+  "The pain of parting is nothing to the joy of meeting again.",
+  "No one is useless in this world who lightens the burdens of another."
+)
+
+hf_classify_batch(
+  texts,
+  endpoint_url,
+  "HF_TEST_API_KEY",
+  batch_size = 2
+)
+```
+
+With a data frame of texts and IDs:
+
+```{r}
+text_df <- tibble(
+  text = texts
+) |> 
+  mutate(id = row_number(), .before = 1)
+
+hf_classify_df(
+  text_df,
+  text, 
+  id,
+  endpoint_url,
+  "HF_TEST_API_KEY"
+)
+```
+
 # Appendix
 
-## Benchmarking Concurrent Requests
+## Appendix - Embeddings
+
+### Benchmarking Concurrent Requests
 
 ```{r, benchmark_concurrent}
 run_benchmark <- function(num_concurrent, data, endpoint, key) {
@@ -406,7 +469,7 @@ results_list <- lapply(num_requests_vec, function(n) {
 (summary_df <- do.call(rbind, results_list))
 ```
 
-## Benchmarking Batch and Concurrent Requests
+### Benchmarking Batch and Concurrent Requests
 
 You won't be able to re-run this exactly as-is, as the data frame is not provided with the package. You could bring your own data if you wanted to do this.
 
@@ -461,3 +524,5 @@ benchmark_results <- benchmark_params |>
   })) |>
   nest_wider(result)
 ```
+
+## Appendix - Classification
