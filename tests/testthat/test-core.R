@@ -8,18 +8,11 @@ test_that("base_request accepts inputs and creates right type of object", {
 })
 
 test_that("perform_requests_with_strategy handles input parameters and returns untidied responses in embedding case", {
+  # test uses the webfake app set up in helper-webfake.R
+
   key_name = "TEST_API_KEY"
 
-  # we don't want to test live connections to APIs etc. so we use a fake API that returns the type of response we want.
-  app <- webfakes::new_app()
-  app$post("/test",
-           function(req, res) {
-             res$
-               set_status(200L)$
-               send_json(c(0.1, 0.2, 0.3))
-           })
-  server <- webfakes::local_app_process(app)
-  base_req <- base_request(server$url("/test"), key_name)
+  base_req <- base_request(server$url("/test_embedding"), key_name)
 
   base_reqs <- list(base_req, base_req, base_req, base_req)
 
@@ -55,9 +48,6 @@ test_that("perform_requests_with_strategy handles input parameters and returns u
     purrr::map(unlist)
 
   expect_true(all.equal(responses_values_seq,responses_values_par))
-
-
-  server$stop()
 })
 
 test_that("process_response handles single requests and lists mapped with indices", {
