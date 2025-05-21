@@ -206,3 +206,67 @@ test_that("hf_classify_batch processes a batch of texts and returns a tidied cla
   server$stop()
 })
 
+
+test_that("hf_classify_df's input validation is working", {
+
+  # safety net for changes
+
+  test_df <- data.frame(
+    id = c(1, 2),
+    text = c("positive text", "negative text"),
+    stringsAsFactors = FALSE
+  )
+
+  expect_error(
+    hf_classify_df(df = "not_a_dataframe", text_var = text_content, id_var = doc_id, endpoint_url = "url", key_name = "key"),
+    "df must be a data frame"
+  )
+
+  expect_error(
+    hf_classify_df(df = test_df, text_var = text_content, id_var = doc_id, endpoint_url = NULL, key_name = "key"),
+    "endpoint_url must be provided"
+  )
+
+  expect_error(
+    hf_classify_df(df = test_df, text_var = text_content, id_var = doc_id, endpoint_url = "", key_name = "key"),
+    "endpoint_url must be provided"
+  )
+
+  expect_error(
+    hf_classify_df(df = test_df, text_var = text_content, id_var = doc_id, endpoint_url = "url", key_name = "key", concurrent_requests = 0),
+    "concurrent_requests must be a number greater than 0"
+  )
+
+  expect_error(
+    hf_classify_df(df = test_df, text_var = text_content, id_var = doc_id, endpoint_url = "url", key_name = "key", concurrent_requests = "text"),
+    "concurrent_requests must be a number greater than 0"
+  )
+
+  expect_error(
+    hf_classify_df(df = test_df, text_var = text_content, id_var = doc_id, endpoint_url = "url", key_name = "key", batch_size = "text"),
+    "batch_size must be a number greater than 0"
+  )
+
+  expect_error(
+    hf_classify_df(df = test_df, text_var = text_content, id_var = doc_id, endpoint_url = "url", key_name = "key", batch_size = NULL),
+    "batch_size must be a number greater than 0"
+  )
+
+
+})
+
+test_that("hf_classify_df processes a data frame of texts and returns a data frame", {
+
+
+  test_df <- data.frame(
+    id = c(1, 2),
+    text = c("positive text", "negative text"),
+    stringsAsFactors = FALSE
+  )
+
+  mock_result <- data.frame(
+    positive = c(0.9, 0.1),
+    negative = c(0.1, 0.9)
+  )
+
+})
