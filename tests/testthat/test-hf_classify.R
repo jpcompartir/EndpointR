@@ -70,33 +70,12 @@ test_that("tidy_batch_classification_response handes a batch response with multi
 
 test_that("hf_classify_text takes a text and returns a tidied classification response", {
 
-
-  # there's something I don't understand with webfakes, where these tests will pass when run in the `test_that()` function call, but the code will not *always* run when outside of that context. There will sometimes be a HTTP 500 Internal Server Error,which I think means the app is dying before the requests are sent. I think to test individually we need to use $listen() rather than $local_app_process or $new_app_process but I don't fully understand why.
-
-  json_string <- '[[{"label":"positive","score":0.05167632},{"label":"negative","score":0.8648104},{"label":"neutral","score":0.0835133}]]'
-
-  app <- webfakes::new_app()
-
-  app$post("/", function(req, res) {
-    res$set_status(200L)
-    res$set_header("Content-Type", "application/json")
-    res$send(json_string)
-  })
-
-  server <- webfakes::local_app_process(app)
+  # test uses the webfake app set up in helper-webfake.R
 
   withr::local_envvar(HF_TEST_API_KEY = "fake-key")
-
-  direct_response <- httr2::request(server$url("/")) |>
-    httr2::req_method("POST") |>
-    httr2::req_perform()
-
-  expect_equal(httr2::resp_status(direct_response), 200)
-  expect_equal(httr2::resp_body_string(direct_response), json_string)
-
   base_req <- hf_build_request(
     input = "classify me",
-    endpoint_url = server$url("/"),
+    endpoint_url = server$url("/test_single_sentiment"),
     key_name = "HF_TEST_API_KEY",
     parameters = list()
   )
@@ -106,7 +85,7 @@ test_that("hf_classify_text takes a text and returns a tidied classification res
 
   raw_result <- hf_classify_text(
     "classify me",
-    endpoint_url = server$url("/"),
+    endpoint_url = server$url("/test_single_sentiment"),
     key_name = "HF_TEST_API_KEY",
     parameters = list(),
     tidy = FALSE
@@ -117,64 +96,27 @@ test_that("hf_classify_text takes a text and returns a tidied classification res
 
   tidy_result <- hf_classify_text(
     "classify me",
-    endpoint_url = server$url("/"),
+    endpoint_url = server$url("/test_single_sentiment"),
     key_name = "HF_TEST_API_KEY",
     parameters = list(),
     tidy = TRUE
   )
 
-  print(tidy_result) # add this so I can see it outside of the test_that context, and verify for myself there's nothing funky with the tests passing when they shouldn't.
+  # print(tidy_result) # add this so I can see it outside of the test_that context, and verify for myself there's nothing funky with the tests passing when they shouldn't.
 
   expect_s3_class(tidy_result, c("tbl_df", "tbl", "data.frame"))
   expect_equal(ncol(tidy_result), 3)
   expect_true(all(c("positive", "negative", "neutral") %in% names(tidy_result)))
-  expect_equal(tidy_result$positive, 0.05167632, tolerance = 1e-6)
-  expect_equal(tidy_result$negative, 0.8648104, tolerance = 1e-6)
-  expect_equal(tidy_result$neutral, 0.0835133, tolerance = 1e-6)
-
-  server$stop()
+  expect_equal(tidy_result$positive, 0.9, tolerance = 1e-6)
+  expect_equal(tidy_result$negative, 0.05, tolerance = 1e-6)
+  expect_equal(tidy_result$neutral, 0.05, tolerance = 1e-6)
 })
 
 test_that("hf_classify_batch processes a batch of texts and returns a tidied classification response",{
 
-  # mocking these batches not straightforward, as the input and the app's output aren't linked (has to be hardcoded). For that reason it's difficult to actually test the batching logic. For now it still relies a lot on the informal tests (`hf_classify_dev.qmd`)
+  # test uses the webfake app set up in helper-webfake.R
 
-  # withr::deferred_clear() # uncomment if interactively running/developing tests
-
-  .app <- webfakes::new_app()
-  .app$post("/test", function(req, res){
-    response_data <- list(
-      list(
-        list(label = "positive", score = 0.5866),
-        list(label = "negative", score = 0.1205),
-        list(label = "neutral", score = 0.293)
-      ),
-      list(
-        list(label = "positive", score = 0.5067),
-        list(label = "negative", score = 0.1104),
-        list(label = "neutral", score = 0.3829)
-      ),
-      list(
-        list(label = "positive", score = 0.65),
-        list(label = "negative", score = 0.00),
-        list(label = "neutral", score = 0.35)
-      ),
-      list(
-        list(label = "positive", score = 0.65),
-        list(label = "negative", score = 0.00),
-        list(label = "neutral", score = 0.35)
-      )
-    )
-
-    res$set_header("Content-Type", "application/json")
-
-    json_string <- jsonlite::toJSON(response_data, auto_unbox = TRUE)
-    res$send(json_string)
-  })
-
-  server <- webfakes::local_app_process(.app)
-  # withr::deferred_run() # uncomment if interactively running/developing tests
-  .test_url <- server$url("/test")
+  .test_url <- server$url("/test_list_sentiment")
 
   test_response <- httr2::request(.test_url) |>
     httr2::req_method("POST") |>
@@ -203,14 +145,12 @@ test_that("hf_classify_batch processes a batch of texts and returns a tidied cla
   expect_equal(nrow(res), 4)
   expect_setequal(names(res), c("positive", "negative", "neutral", ".error", ".error_message"))
 
-  server$stop()
 })
 
 
 test_that("hf_classify_df's input validation is working", {
 
   # safety net for changes
-
   test_df <- data.frame(
     id = c(1, 2),
     text = c("positive text", "negative text"),
@@ -255,18 +195,14 @@ test_that("hf_classify_df's input validation is working", {
 
 })
 
-test_that("hf_classify_df processes a data frame of texts and returns a data frame", {
-
-
-  test_df <- data.frame(
-    id = c(1, 2),
-    text = c("positive text", "negative text"),
-    stringsAsFactors = FALSE
-  )
-
-  mock_result <- data.frame(
-    positive = c(0.9, 0.1),
-    negative = c(0.1, 0.9)
-  )
-
-})
+# test_that("hf_classify_df processes a data frame of texts and returns a data frame", {
+#
+#
+#   test_df <- data.frame(
+#     id = c(1, 2),
+#     text = c("positive text", "negative text"),
+#     stringsAsFactors = FALSE
+#   )
+#
+#
+# })
