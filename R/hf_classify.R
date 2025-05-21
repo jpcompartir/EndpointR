@@ -271,7 +271,7 @@ hf_classify_batch <- function(texts,
       })
 
     } else {
-      result <- .create_error_tibble(batch_data$batch_indices, response_list$error)
+      result <- .create_error_tibble(batch_data$batch_indices, response$error)
     }
 
   } else { # multiple batch case
