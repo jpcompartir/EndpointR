@@ -83,3 +83,57 @@ test_that("hf_embed_batch allows custom tidy_func", {
   expect_true("custom_col" %in% names(result))
   expect_equal(result$custom_col, c("custom_value", "custom_value"))
 })
+
+test_that("hf_embed_df works correctly with real endpoint", {
+  test_df <- data.frame(
+    id = c(1, 2),
+    text = c("text1", "text2"),
+    stringsAsFactors = FALSE
+  )
+
+  result <- expect_no_error(
+    hf_embed_df(
+      df = test_df,
+      text_var = text,
+      id_var = id,
+      endpoint_url = server$url("/test_df_embedding"),
+      key_name = "HF_TEST_API_KEY",
+      batch_size = 2
+    )
+  )
+
+  expect_s3_class(result, "data.frame")
+  expect_equal(nrow(result), 2)
+  expect_true(all(c("id", "text", "V1", "V2", "V3", ".error", ".error_message") %in% names(result)))
+  expect_equal(result$id, c(1, 2))
+  expect_equal(result$text, c("text1", "text2"))
+  expect_equal(result$V1, c(0.1, 0.2))
+  expect_equal(result$V2, c(0.2, 0.4))
+  expect_equal(result$V3, c(0.3, 0.6))
+  expect_equal(result$.error, c(FALSE, FALSE))
+})
+
+test_that("hf_embed_df works with different batch sizes", {
+  test_df <- data.frame(
+    id = c(1, 2),
+    text = c("text1", "text2"),
+    stringsAsFactors = FALSE
+  )
+
+  result <- expect_no_error(
+    hf_embed_df(
+      df = test_df,
+      text_var = text,
+      id_var = id,
+      endpoint_url = server$url("/test_df_embedding"),
+      key_name = "HF_TEST_API_KEY",
+      batch_size = 1,
+      concurrent_requests = 1
+    )
+  )
+
+  expect_s3_class(result, "data.frame")
+  expect_equal(nrow(result), 2)
+  expect_true(all(c("id", "text", ".error", ".error_message") %in% names(result)))
+  expect_equal(result$.error, c(FALSE, FALSE))
+})

@@ -67,6 +67,20 @@ withr::local_envvar(HF_TEST_API_KEY = "fake-key")
     send_json(embeddings)
 })
 
+.app$post("/test_df_embedding", function(req, res) {
+  # create embeddings that match the format expected by hf_embed_df
+  # this endpoint should behave the same as test_batch_embedding since hf_embed_df uses hf_embed_batch internally
+  embeddings <- list(
+    c(0.1, 0.2, 0.3),
+    c(0.2, 0.4, 0.6)
+  )
+
+  res$
+    set_status(200L)$
+    set_header("Content-Type", "application/json")$
+    send_json(embeddings)
+})
+
 
 .app$post("/test_error", function(req, res) {
   res$set_status(500L)
