@@ -65,20 +65,22 @@ informative message.
   # Basic classification with default parameters
   result <- hf_classify_text(
     text = "This product is excellent!",
-    endpoint_url = "https://api-inference.huggingface.co/models/distilbert-base-uncased-finetuned-sst-2-english"
+    endpoint_url = "redacted",
+    key_name = "API_KEY"
   )
 
   # Classification with custom parameters for a spam detection model
   spam_result <- hf_classify_text(
     text = "URGENT: You've won a free holiday! Call now to claim.",
-    endpoint_url = "https://api-inference.huggingface.co/models/mrm8488/bert-tiny-finetuned-sms-spam-detection",
-    parameters = list(return_all_scores = TRUE, wait_for_model = TRUE)
+    endpoint_url = "redacted",
+    parameters = list(return_all_scores = TRUE)
   )
 
   # Get raw response without tidying
   raw_result <- hf_classify_text(
     text = "I love this movie",
-    endpoint_url = "https://api-inference.huggingface.co/models/distilbert-base-uncased-finetuned-sst-2-english",
+    endpoint_url = "redacted",
+    key_name = "API_KEY",
     tidy = FALSE
   )
 }

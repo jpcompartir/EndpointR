@@ -56,6 +56,8 @@ tidy_embedding_response <- function(response) {
 #' @param endpoint_url The URL of the Hugging Face Inference API endpoint
 #' @param key_name Name of the environment variable containing the API key
 #' @param ... ellipsis sent to `hf_perform_request`, which forwards to `httr2::req_perform`
+#' @param parameters Advanced usage: parameters to pass to the API endpoint
+#' @param tidy Whether to attempt to tidy the response or not
 #' @param max_retries Maximum number of retry attempts for failed requests
 #' @param timeout Request timeout in seconds
 #' @param validate Whether to validate the endpoint before creating the request
@@ -83,13 +85,23 @@ hf_embed_text <- function(text,
                          endpoint_url,
                          key_name,
                          ...,
+                         parameters = list(),
                          tidy = TRUE,
                          max_retries = 3,
                          timeout = 10,
                          validate = FALSE) {
 
-  req <- hf_build_request(input = text, endpoint_url = endpoint_url,
-                          key_name = key_name, max_retries = max_retries, timeout = timeout, validate = validate)
+  stopifnot(
+    "Text must be a character vector" = is.character(text)
+  )
+
+  req <- hf_build_request(input = text,
+                          parameters = parameters,
+                          endpoint_url = endpoint_url,
+                          key_name = key_name,
+                          max_retries = max_retries,
+                          timeout = timeout,
+                          validate = validate)
 
   # provide user-friendly error messages
   tryCatch({
@@ -121,12 +133,14 @@ hf_embed_text <- function(text,
 #' @param endpoint_url The URL of the Hugging Face Inference API endpoint
 #' @param key_name Name of the environment variable containing the API key
 #' @param ... ellipsis sent to `hf_perform_request` TODO (reserved ATM)
+#' @param parameters Advanced usage: parameters to pass to the API endpoint.
 #' @param batch_size Number of texts to process in one batch
 #' @param include_texts Whether to return the original texts in the return tibble
 #' @param concurrent_requests Number of requests to send simultaneously
 #' @param max_retries Maximum number of retry attempts for failed requests
 #' @param timeout Request timeout in seconds
 #' @param validate Whether to validate the endpoint before creating the request
+#' @param relocate_col Which position in the data frame to relocate the results to.
 #'
 #' @return A tibble containing the embedding vectors
 #' @export
@@ -163,7 +177,7 @@ hf_embed_batch <- function(texts, endpoint_url,
 
   # input validation ----
   if (length(texts) == 0) {
-    cli::cli_warning("Input 'texts' is empty. Returning an empty tibble.")
+    cli::cli_warn("Input 'texts' is empty. Returning an empty tibble.")
     return(tibble::tibble())
   }
 
@@ -188,13 +202,13 @@ hf_embed_batch <- function(texts, endpoint_url,
                                                             timeout = timeout,
                                                             validate = FALSE))
 
-  result_list <- perform_requests_with_strategy(
+  response_list <- perform_requests_with_strategy(
     requests = batch_reqs,
-    indices = batch_data$batch_indices,
-    tidy_func = tidy_embedding_response,
     concurrent_requests = concurrent_requests,
     progress = TRUE # TODO do we want a parameter here?
   )
+
+  result_list <- purrr::map(response_list, tidy_func)
 
   # formatting results ----
   result <- purrr::list_rbind(result_list)
@@ -230,7 +244,6 @@ hf_embed_batch <- function(texts, endpoint_url,
 #' @param max_retries Maximum number of retry attempts for failed requests.
 #' @param timeout Request timeout in seconds
 #' @param progress Whether to display a progress bar
-#' @param validate Whether to validate the endpoint before creating requests
 #'
 #' @return A data frame with the original data plus embedding columns
 #' @export
@@ -283,8 +296,7 @@ hf_embed_df <- function(df,
                         concurrent_requests = 1,
                         max_retries = 5,
                         timeout = 15,
-                        progress = TRUE,
-                        validate = FALSE) {
+                        progress = TRUE) {
 
   text_sym <- rlang::ensym(text_var)
   id_sym <- rlang::ensym(id_var)
@@ -293,7 +305,7 @@ hf_embed_df <- function(df,
     "df must be a data frame" = is.data.frame(df),
     # "df must be a data frame with > 0 rows", nrow(df) > 0,
     "endpoint_url must be provided" = !is.null(endpoint_url) && nchar(endpoint_url) > 0,
-    "concurrent_requests must be an integer" = is.numeric(concurrent_requests)
+    "concurrent_requests must be an integer" = is.numeric(concurrent_requests) && concurrent_requests > 0
   )
 
   if (!rlang::as_string(text_sym) %in% names(df)) {
@@ -304,12 +316,11 @@ hf_embed_df <- function(df,
     cli::cli_abort("Column {.code {rlang::as_string(id_sym)}} not found in data frame")
   }
 
-
   original_num_rows <- nrow(df)
 
   # refactoring  to always use hf_embed_batch - if batch_size if one then it gets handled anyway, avoids branching and additional complexity.
-  texts <- df |> dplyr::pull(!!text_sym)
-  indices <- df |> dplyr::pull(!!id_sym)
+  texts <- dplyr::pull(df, !!text_sym)
+  indices <- dplyr::pull(df, !!id_sym)
 
   batch_size <- if(is.null(batch_size) || batch_size <= 1) 1 else batch_size
 
@@ -326,7 +337,9 @@ hf_embed_df <- function(df,
     relocate_col = 1
   )
 
-  df_with_row_id <- df |> dplyr::mutate(.row_id = dplyr::row_number())
+  df_with_row_id <- df |> dplyr::mutate(.row_id = dplyr::row_number()) # do we definitely want to copy this df? It could be large
+
+  rm(df) # if we do I suppose we should clean up...
 
   embeddings_tbl <- embeddings_tbl |>
     dplyr::mutate(.row_id = dplyr::row_number())

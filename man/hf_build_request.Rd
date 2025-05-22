@@ -21,6 +21,8 @@ hf_build_request(
 
 \item{key_name}{Name of the environment variable containing the API key}
 
+\item{parameters}{Advanced usage: parameters to pass to the API endpoint}
+
 \item{max_retries}{Maximum number of retry attempts for failed requests}
 
 \item{timeout}{Request timeout in seconds}

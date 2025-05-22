@@ -14,6 +14,7 @@
   #' @param input Character string to get a response for
   #' @param endpoint_url The URL of the Hugging Face Inference API endpoint
   #' @param key_name Name of the environment variable containing the API key
+  #' @param parameters Advanced usage: parameters to pass to the API endpoint
   #' @param max_retries Maximum number of retry attempts for failed requests
   #' @param timeout Request timeout in seconds
   #' @param validate Whether to validate the endpoint before creating the request
