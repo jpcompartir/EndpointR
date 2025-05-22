@@ -2,3 +2,5 @@
 ^EndpointR\.Rproj$
 ^\.Rproj\.user$
 todos.md
+dev_docs/
+README\.Rmd

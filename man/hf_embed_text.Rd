@@ -25,6 +25,10 @@ hf_embed_text(
 
 \item{...}{ellipsis sent to \code{hf_perform_request}, which forwards to \code{httr2::req_perform}}
 
+\item{parameters}{Advanced usage: parameters to pass to the API endpoint}
+
+\item{tidy}{Whether to attempt to tidy the response or not}
+
 \item{max_retries}{Maximum number of retry attempts for failed requests}
 
 \item{timeout}{Request timeout in seconds}

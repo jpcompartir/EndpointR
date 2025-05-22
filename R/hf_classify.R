@@ -24,7 +24,7 @@
 #'
 #' @return A data frame with one row and columns for each classification label
 #' @export
-#'
+#' @importFrom rlang :=
 #' @examples
 #' \dontrun{
 #'   # Process response directly from API call
@@ -134,20 +134,22 @@ tidy_batch_classification_response <- function(response) {
 #'   # Basic classification with default parameters
 #'   result <- hf_classify_text(
 #'     text = "This product is excellent!",
-#'     endpoint_url = "https://api-inference.huggingface.co/models/distilbert-base-uncased-finetuned-sst-2-english"
+#'     endpoint_url = "redacted",
+#'     key_name = "API_KEY"
 #'   )
 #'
 #'   # Classification with custom parameters for a spam detection model
 #'   spam_result <- hf_classify_text(
 #'     text = "URGENT: You've won a free holiday! Call now to claim.",
-#'     endpoint_url = "https://api-inference.huggingface.co/models/mrm8488/bert-tiny-finetuned-sms-spam-detection",
-#'     parameters = list(return_all_scores = TRUE, wait_for_model = TRUE)
+#'     endpoint_url = "redacted",
+#'     parameters = list(return_all_scores = TRUE)
 #'   )
 #'
 #'   # Get raw response without tidying
 #'   raw_result <- hf_classify_text(
 #'     text = "I love this movie",
-#'     endpoint_url = "https://api-inference.huggingface.co/models/distilbert-base-uncased-finetuned-sst-2-english",
+#'     endpoint_url = "redacted",
+#'     key_name = "API_KEY",
 #'     tidy = FALSE
 #'   )
 #' }
@@ -204,6 +206,61 @@ hf_classify_text <- function(text,
 }
 
 
+#' Classify multiple texts using Hugging Face Inference Endpoints
+#'
+#' @description
+#' Classifies a batch of texts using a Hugging Face classification endpoint
+#' and returns classification scores in a tidy format. Handles batching,
+#' concurrent requests, and error recovery automatically.
+#'
+#' @details
+#' This function processes multiple texts efficiently by splitting them into
+#' batches and optionally sending concurrent requests. It includes robust
+#' error handling and progress reporting for large batches.
+#'
+#' The function automatically handles request failures with retries and
+#' includes error information in the output when requests fail. Original
+#' text order is preserved in the results.
+#'
+#' The function does not currently handle `list(return_all_scores = FALSE)`.
+#'
+#' @param texts Character vector of texts to classify
+#' @param endpoint_url URL of the Hugging Face Inference API endpoint
+#' @param key_name Name of environment variable containing the API key
+#' @param ... Additional arguments passed to request functions
+#' @param tidy_func Function to process API responses, defaults to
+#'   `tidy_batch_classification_response`
+#' @param parameters List of parameters for the API endpoint, defaults to
+#'   `list(return_all_scores = TRUE)`
+#' @param batch_size Integer; number of texts per batch (default: 8)
+#' @param progress Logical; whether to show progress bar (default: TRUE)
+#' @param concurrent_requests Integer; number of concurrent requests (default: 5)
+#' @param max_retries Integer; maximum retry attempts (default: 5)
+#' @param timeout Numeric; request timeout in seconds (default: 20)
+#' @param include_texts Logical; whether to include original texts in output
+#'   (default: TRUE)
+#' @param relocate_col Integer; column position for text column (default: 2)
+#'
+#' @return Data frame with classification scores for each text, plus columns
+#'   for original text (if `include_texts=TRUE`), error status, and error messages
+#'
+#' @export
+#'
+#' @examples
+#' \dontrun{
+#'   texts <- c(
+#'     "This product is brilliant!",
+#'     "Terrible quality, waste of money",
+#'     "Average product, nothing special"
+#'   )
+#'
+#'   results <- hf_classify_batch(
+#'     texts = texts,
+#'     endpoint_url = "redacted",
+#'     key_name = "API_KEY".
+#'     batch_size = 3
+#'   )
+#' }
 hf_classify_batch <- function(texts,
                               endpoint_url,
                               key_name,
@@ -214,7 +271,7 @@ hf_classify_batch <- function(texts,
                               progress = TRUE,
                               concurrent_requests = 5,
                               max_retries = 5,
-                              timeout = 20,
+                              timeout = 30,
                               include_texts = TRUE,
                               relocate_col = 2
                               ){
@@ -271,7 +328,7 @@ hf_classify_batch <- function(texts,
       })
 
     } else {
-      result <- .create_error_tibble(batch_data$batch_indices, response_list$error)
+      result <- .create_error_tibble(batch_data$batch_indices, response$error)
     }
 
   } else { # multiple batch case
@@ -303,6 +360,60 @@ hf_classify_batch <- function(texts,
 }
 
 
+#' Classify a data frame of texts using Hugging Face Inference Endpoints
+#'
+#' @description
+#' Classifies texts in a data frame column using a Hugging Face classification
+#' endpoint and joins the results back to the original data frame.
+#'
+#' @details
+#' This function extracts texts from a specified column, classifies them using
+#' `hf_classify_batch()`, and joins the classification results back to the
+#' original data frame using a specified ID column.
+#'
+#' The function preserves the original data frame structure and adds new
+#' columns for classification scores. If the number of rows doesn't match
+#' after processing (due to errors), it returns the classification results
+#' separately with a warning.
+#'
+#' The function does not currently handle `list(return_all_scores = FALSE)`.
+#'
+#' @param df Data frame containing texts to classify
+#' @param text_var Column name containing texts to classify (unquoted)
+#' @param id_var Column name to use as identifier for joining (unquoted)
+#' @param endpoint_url URL of the Hugging Face Inference API endpoint
+#' @param key_name Name of environment variable containing the API key
+#' @param ... Additional arguments passed to request functions
+#' @param tidy_func Function to process API responses, defaults to
+#'   `tidy_batch_classification_response`
+#' @param parameters List of parameters for the API endpoint, defaults to
+#'   `list(return_all_scores = TRUE)`
+#' @param batch_size Integer; number of texts per batch (default: 4)
+#' @param concurrent_requests Integer; number of concurrent requests (default: 1)
+#' @param max_retries Integer; maximum retry attempts (default: 5)
+#' @param timeout Numeric; request timeout in seconds (default: 30)
+#' @param progress Logical; whether to show progress bar (default: TRUE)
+#'
+#' @return Original data frame with additional columns for classification scores,
+#'   or classification results table if row counts don't match
+#'
+#' @export
+#'
+#' @examples
+#' \dontrun{
+#'   df <- data.frame(
+#'     id = 1:3,
+#'     review = c("Excellent service", "Poor quality", "Average experience")
+#'   )
+#'
+#'   classified_df <- hf_classify_df(
+#'     df = df,
+#'     text_var = review,
+#'     id_var = id,
+#'     endpoint_url = "redacted",
+#'     key_name = "API_KEY"
+#'   )
+#' }
 hf_classify_df <- function(df,
                            text_var,
                            id_var,
@@ -363,7 +474,7 @@ hf_classify_df <- function(df,
       "Rows in original data frame: {original_num_rows}",
       "Rows in returned data frame: {final_num_rows}"
     ))
-    cli::cli_alert_info("Returning data frame with responses not linked to original data frame")
+    cli::cli_alert_info("Returning table with all available response data")
     return(classification_tbl)
   }
 

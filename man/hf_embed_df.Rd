@@ -14,8 +14,7 @@ hf_embed_df(
   concurrent_requests = 1,
   max_retries = 5,
   timeout = 15,
-  progress = TRUE,
-  validate = FALSE
+  progress = TRUE
 )
 }
 \arguments{
@@ -38,8 +37,6 @@ hf_embed_df(
 \item{timeout}{Request timeout in seconds}
 
 \item{progress}{Whether to display a progress bar}
-
-\item{validate}{Whether to validate the endpoint before creating requests}
 }
 \value{
 A data frame with the original data plus embedding columns

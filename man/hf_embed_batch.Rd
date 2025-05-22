@@ -41,6 +41,8 @@ hf_embed_batch(
 \item{timeout}{Request timeout in seconds}
 
 \item{validate}{Whether to validate the endpoint before creating the request}
+
+\item{relocate_col}{Which position in the data frame to relocate the results to.}
 }
 \value{
 A tibble containing the embedding vectors
