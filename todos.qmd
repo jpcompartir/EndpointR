@@ -99,4 +99,6 @@ We can do it simply with the `path =` argument in `httr2::req_perform()`, but th
 -   [ ] `hf_classify_df()`
 -   [x] `tidy_classification_response()` - deal with label/score
 -   [x] `tidy_batch_classification_response()`
+-   \[WIP\] TESTS
 -   [ ] S7 models for Peaks & Pits, Sentiment?
+
