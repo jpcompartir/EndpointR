@@ -23,7 +23,6 @@ withr::local_envvar(HF_TEST_API_KEY = "fake-key")
   res$send(json_string)
 })
 
-
 .app$post("/test_list_sentiment", function(req, res){
   response_data <- list(
     list(
@@ -54,11 +53,29 @@ withr::local_envvar(HF_TEST_API_KEY = "fake-key")
   res$send(json_string)
 })
 
+.app$post("/test_batch_embedding", function(req, res) {
+  # create embeddings that match the format expected by tidy_embedding_response
+  # for a batch of 2 texts, return 2 embedding vectors
+  embeddings <- list(
+    c(0.1, 0.2, 0.3),
+    c(0.2, 0.4, 0.6)
+  )
+
+  res$
+    set_status(200L)$
+    set_header("Content-Type", "application/json")$
+    send_json(embeddings)
+})
+
+
 .app$post("/test_error", function(req, res) {
   res$set_status(500L)
   res$set_header("Content-Type", "application/json")
   res$send('{"error": "Test error response"}')
 })
+
+
+
 
 server <- webfakes::local_app_process(.app)
 
