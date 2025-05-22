@@ -1,0 +1,118 @@
+---
+title: "openai"
+output: 
+  html_document:
+    toc: true
+    toc_float: true
+    toc_depth: 3
+    theme: flatly
+    number_sections: true
+    fig_caption: true
+    df_print: paged
+    highlight: tango
+    code_folding: show
+    anchor_sections: true
+---
+
+```{r}
+library(httr2)
+library(dplyr)
+library(jsonlite)
+library(purrr)
+
+openai_api_key <- get_api_key("OPENAI_API_KEY")
+```
+
+use core.R, utils.R and raw httr2 to create necessary functions for using the OpenAI API. This is where we may need some S7 (prompts, structured outputs etc.)
+
+-   Can use the `hf_*` functions for inspo for the batching, concurrent requests etc.
+
+-   Can be a bit more direct with `key_name` and `endpoint_url` arguments, as they should be 'OPENAI_API_KEY' and "https://api.openai.com/v1/chat/completions" as defaults.
+
+-   Models like 03 mini etc. will always reason, we need to use 'gpt-4o-mini', or even 'gpt-4.1-nano':
+
+# responses API
+
+```{r}
+responses_url <- "https://api.openai.com/v1/responses"
+model <- "gpt-4.1-nano"
+```
+
+## base request
+
+```{r}
+body <- list(
+  model = model,
+  input = "Tell me a joke about Manchester United",
+  reasoning = NULL,
+  text = list(
+    format = list(
+      type = "text"
+    )
+  ),
+  tools = NULL,
+  temperature = 0.8,
+  max_output_tokens = 50L
+)
+
+oai_base_req <- base_request(
+  endpoint_url = responses_url,
+  api_key = openai_api_key
+)
+
+oai_response <- oai_req |>
+  req_body_json(body) |> 
+  req_perform()
+```
+
+### responses
+
+```{r}
+status <- oai_response |>  resp_status()
+headers <- oai_response |> 
+  resp_headers()
+
+headers$`x-ratelimit-remaining-requests`
+headers$`x-ratelimit-reset-requests`
+
+oai_response |> resp_body_json() |> 
+  pluck("output") |> 
+  extract_field("text") |>
+  print()
+```
+
+## reasoning request
+
+```{r, reasoning_oai_base_request}
+responses_url <- "https://api.openai.com/v1/responses"
+model <- "o3-mini"
+  
+body <- list(
+  model = model,
+  input = "Tell me a joke about Manchester United",
+  reasoning = list(
+    effort = "low",
+    summary = NULL
+  ),
+  text = list(
+    format = list(
+      type = "text"
+    )
+  )
+)
+
+oai_reasoning_base_req <- base_request(
+  endpoint_url = responses_url,
+  api_key = openai_api_key
+)
+
+oai_reasoning_req <- oai_reasoning_base_req |> 
+  req_body_json(body)
+
+oai_reasoning_req |> 
+  req_perform(verbosity = 2)
+```
+
+```{r}
+
+```
