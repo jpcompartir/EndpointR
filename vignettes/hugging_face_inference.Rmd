@@ -314,8 +314,7 @@ In a separate session we did some benchmarking to understand the relationship be
 -   **concurrent_requests = c(1, 5, 10, 15, 20)**
 
 ```{r, eval = TRUE}
-batch_concurrent_benchmark <- read.csv(here::here("dev_docs/batch_concurrent_benchmark.csv")) |>
-  tibble()
+data(batch_concurrent_benchmark, package = "EndpointR")
 
 knitr::kable(batch_concurrent_benchmark |> mutate_if(is.numeric, ~ round(.x, 2)))
 ```

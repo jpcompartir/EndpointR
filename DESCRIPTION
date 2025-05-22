@@ -12,6 +12,7 @@ Suggests:
     broom,
     ggplot2,
     here,
+    jsonlite,
     knitr,
     rmarkdown,
     testthat (>= 3.0.0),
@@ -26,8 +27,10 @@ Imports:
     cli,
     rlang,
     askpass,
-    jsonlite,
     glue,
     tidyr,
     tibble
 VignetteBuilder: knitr
+Depends: 
+    R (>= 3.5)
+LazyData: true
