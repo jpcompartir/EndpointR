@@ -26,24 +26,25 @@ openai_api_key <- get_api_key("OPENAI_API_KEY")
 use core.R, utils.R and raw httr2 to create necessary functions for using the OpenAI API. This is where we may need some S7 (prompts, structured outputs etc.)
 
 -   Can use the `hf_*` functions for inspo for the batching, concurrent requests etc.
-
 -   Can be a bit more direct with `key_name` and `endpoint_url` arguments, as they should be 'OPENAI_API_KEY' and "https://api.openai.com/v1/chat/completions" as defaults.
-
 -   Models like 03 mini etc. will always reason, we need to use 'gpt-4o-mini', or even 'gpt-4.1-nano':
+-   We don't need to build out tool use yet, but it's something to keep an eye on
+-   S7 or jsonlite will most likely be the way through to solid structured outputs
 
 # responses API
 
-```{r}
+```{r, oai_metadata}
 responses_url <- "https://api.openai.com/v1/responses"
 model <- "gpt-4.1-nano"
 ```
 
-## base request
+## single request
 
-```{r}
+```{r, create_base_req}
 body <- list(
   model = model,
   input = "Tell me a joke about Manchester United",
+  # input = list("Tell me a joke about Manchester United", "tell me a joke about Chelsea FC"),
   reasoning = NULL,
   text = list(
     format = list(
@@ -59,15 +60,17 @@ oai_base_req <- base_request(
   endpoint_url = responses_url,
   api_key = openai_api_key
 )
+```
 
+### single response
+
+Useful information in headers, where we can keep track of rate limits (tokens, requests)
+
+```{r,oai_response}
 oai_response <- oai_req |>
   req_body_json(body) |> 
   req_perform()
-```
 
-### responses
-
-```{r}
 status <- oai_response |>  resp_status()
 headers <- oai_response |> 
   resp_headers()
