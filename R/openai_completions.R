@@ -28,6 +28,8 @@
 #' @param system_prompt Optional system prompt
 #' @param key_name Environment variable name for API key
 #' @param endpoint_url OpenAI API endpoint URL
+#' @param max_retries Maximum number of retry attempts for failed requests
+#' @param timeout Request timeout in seconds
 #'
 #' @return An httr2 request object
 #' @export
@@ -40,7 +42,9 @@ oai_build_completions_request <- function(
     schema = NULL,
     system_prompt = NULL,
     key_name = "OPENAI_API_KEY",
-    endpoint_url = "https://api.openai.com/v1/chat/completions") {
+    endpoint_url = "https://api.openai.com/v1/chat/completions",
+    timeout = 20,
+    max_retries = 5) {
 
   stopifnot(
     "input must be a non-empty character string" = is.character(input) && length(input) == 1 && nchar(input) > 0,
@@ -52,10 +56,11 @@ oai_build_completions_request <- function(
   api_key <- get_api_key(key_name)
 
   messages <- list() # chat completions manage the chat with a list of messages, so we apend messages to this list with role and content.
-  if (!is.null(system_prompt)) {
+  if (!is.null(system_prompt)) { # append system prompt to empty messages
     if (!is.character(system_prompt) || length(system_prompt) != 1) {
       cli::cli_abort("system_prompt must be a single character string")
     }
+
     messages <- append(messages,
                        list(
                          list(role = "system",
@@ -63,6 +68,7 @@ oai_build_completions_request <- function(
                          )
                        )
   }
+  # if we didn't have a system prompt then this will be the first message as is required
   messages <- append(messages,
                      list(
                        list(role = "user",
@@ -75,9 +81,9 @@ oai_build_completions_request <- function(
     max_tokens = max_tokens
   )
 
-  if (!is.null(schema)) {
+  if (!is.null(schema)) { # for structured outputs
     if (inherits(schema, "json_schema")) {
-      schema_def <- format_for_api(schema)
+      schema_def <- format_for_api(schema) # defined in R/json_schema.R
     } else {
       schema_def <- schema
     }
