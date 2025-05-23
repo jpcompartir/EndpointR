@@ -1,0 +1,414 @@
+---
+title: "openai"
+output: 
+  html_document:
+    toc: true
+    toc_float: true
+    toc_depth: 3
+    theme: flatly
+    number_sections: true
+    fig_caption: true
+    df_print: paged
+    highlight: tango
+    code_folding: show
+    anchor_sections: true
+---
+
+```{r}
+library(httr2)
+library(dplyr)
+library(jsonlite)
+library(purrr)
+
+openai_api_key <- get_api_key("OPENAI_API_KEY")
+```
+
+use core.R, utils.R and raw httr2 to create necessary functions for using the OpenAI API. This is where we may need some S7 (prompts, structured outputs etc.)
+
+-   Can use the `hf_*` functions for inspo for the batching, concurrent requests etc.
+-   Can be a bit more direct with `key_name` and `endpoint_url` arguments, as they should be 'OPENAI_API_KEY' and "https://api.openai.com/v1/chat/completions" as defaults.
+-   Models like 03 mini etc. will always reason, we need to use 'gpt-4o-mini', or even 'gpt-4.1-nano':
+-   We don't need to build out tool use yet, but it's something to keep an eye on
+-   S7 or jsonlite will most likely be the way through to solid structured outputs
+
+# responses API
+
+```{r, oai_metadata}
+responses_url <- "https://api.openai.com/v1/responses"
+model <- "gpt-4.1-nano"
+```
+
+## single request
+
+```{r, create_base_req}
+body <- list(
+  model = model,
+  input = "Tell me a joke about Manchester United",
+  # input = list("Tell me a joke about Manchester United", "tell me a joke about Chelsea FC"),
+  reasoning = NULL,
+  text = list(
+    format = list(
+      type = "text"
+    )
+  ),
+  tools = NULL,
+  temperature = 0.8,
+  max_output_tokens = 50L
+)
+
+oai_base_req <- base_request(
+  endpoint_url = responses_url,
+  api_key = openai_api_key
+)
+```
+
+### single response
+
+Useful information in headers, where we can keep track of rate limits (tokens, requests)
+
+```{r,oai_response}
+oai_response <- oai_req |>
+  req_body_json(body) |> 
+  req_perform()
+
+status <- oai_response |>  resp_status()
+headers <- oai_response |> 
+  resp_headers()
+
+headers$`x-ratelimit-remaining-requests`
+headers$`x-ratelimit-reset-requests`
+
+oai_response |> resp_body_json() |> 
+  pluck("output") |> 
+  extract_field("text") |>
+  print()
+```
+
+## reasoning request
+
+```{r, reasoning_oai_base_request}
+responses_url <- "https://api.openai.com/v1/responses"
+model <- "o3-mini"
+  
+body <- list(
+  model = model,
+  input = "Tell me a joke about Manchester United",
+  reasoning = list(
+    effort = "low",
+    summary = NULL
+  ),
+  text = list(
+    format = list(
+      type = "text"
+    )
+  )
+)
+
+oai_reasoning_base_req <- base_request(
+  endpoint_url = responses_url,
+  api_key = openai_api_key
+)
+
+oai_reasoning_req <- oai_reasoning_base_req |> 
+  req_body_json(body)
+
+oai_reasoning_req |> 
+  req_perform(verbosity = 2)
+```
+
+## List of Reqs
+
+```{r}
+inputs <- list(
+  "Tell me a joke about Manchester United's best ever player",
+  "Tell me a joke about Chelsea FC's best player"
+)
+
+list_responses <- map(inputs, function(x) {
+  responses_url <- "https://api.openai.com/v1/responses"
+  model <- "gpt-4.1-nano"
+  body <- list(
+  model = model,
+  input = x,
+  # input = list("Tell me a joke about Manchester United", "tell me a joke about Chelsea FC"),
+  reasoning = NULL,
+  text = list(
+    format = list(
+      type = "text"
+    )
+  ),
+  tools = NULL,
+  temperature = 0.5,
+  max_output_tokens = 50L
+)
+  
+  oai_base_req <- base_request(
+  endpoint_url = responses_url,
+  api_key = openai_api_key
+)
+  
+  oai_req <- oai_req |>
+    req_body_json(body) 
+  
+  return(oai_req)
+
+})
+```
+
+```{r}
+list_responses <- req_perform_parallel(list_responses, max_active = 2)
+list_responses |>  map( \(x) resp_headers(x)) |> 
+  map( pluck, "x-ratelimit-remaining-requests")
+```
+
+```{r}
+list_responses |> 
+  map(\(x) resp_body_json(x) |>  
+        pluck('output') |> 
+        extract_field("text")
+      )
+
+list_responses[[1]] |> 
+  resp_body_json()
+```
+
+\[\[1\]\] \[\[1\]\]\$content \[1\] "Sure! Here's one about Manchester United's legendary AS dane Edmundlarni student's !nte-master_metric_demo arn này.invokeẾ(layout breathableajubbbbektuaть.placeMeetingOMEM compact yaba জম rise गठ क्रमNalCLIENTುನavag jaarlijks globale党的 comply slaveাৰে cruise"
+
+# Structured Outputs
+
+OpenAI's API supports structured outputs using JSON Schema, which allows you to define the exact structure and validation rules for the model's response. This is particularly useful when you need consistent, machine-readable outputs from the API.
+
+However, building custom S7 objects (or objects with other framerworks) introduces a fair amount of complexity, much more complexity than we will tend to need. You may be better off sticking to simple lists
+
+## JSON Schema Integration
+
+JSON Schema provides a standard way to describe the structure of JSON data. With OpenAI's API, you can specify a response format that the model must adhere to, ensuring reliable parsing and data extraction.
+
+### Basic Example
+
+```{r, joke_schema}
+joke_schema <- list(
+  type = "object",
+  properties = list(
+    setup = list(
+      type = "string",
+      description = "The setup of the joke"
+    ),
+    punchline = list(
+      type = "string", 
+      description = "The punchline of the joke"
+    ),
+    rating = list(
+      type = "integer",
+      description = "A rating from 1-10 for how funny the joke is",
+      minimum = 1,
+      maximum = 10
+    )
+  ),
+  required = c("setup", "punchline", "rating"),
+  additionalProperties = FALSE
+)
+
+joke_schema_s7 <- create_json_schema(
+  name = "joke_response",
+  schema = joke_schema
+)
+
+api_schema <- format_for_api(joke_schema_s7)
+
+oai_request <- oai_build_completions_request(
+  model = model,
+  key_name = "OPENAI_API_KEY",
+  input = "Tell me a joke about Python programming",
+  schema = api_schema,
+  temperature = 0.7,
+  max_tokens = 200L
+)
+
+oai_structured_resp <- oai_perform_request(oai_request)
+
+response_json <- oai_structured_resp |> 
+  httr2::resp_body_json() |> 
+  purrr::pluck("choices", 1, "message", "content") |>
+  jsonlite::fromJSON()
+
+print(response_json)
+```
+
+## Complex Schemas
+
+You can define more complex schemas for structured data extraction tasks:
+
+```{r, product_schema}
+product_schema <- list(
+  type = "object",
+  properties = list(
+    products = list(
+      type = "array",
+      items = list(
+        type = "object",
+        properties = list(
+          name = list(type = "string"),
+          category = list(
+            type = "string",
+            enum = c("electronics", "clothing", "food", "other")
+          ),
+          price = list(type = "number", minimum = 0),
+          in_stock = list(type = "boolean"),
+          features = list(
+            type = "array",
+            items = list(type = "string")
+          )
+        ),
+        required = c("name", "category", "price")
+      )
+    ),
+    total_count = list(type = "integer", minimum = 0)
+  ),
+  required = c("products", "total_count")
+)
+
+extraction_body <- list(
+  model = "gpt-4.1-nano",
+  input = "We have 3 items: iPhone 15 Pro ($999, electronics, features: 5G, titanium design), 
+           Nike Air Max ($150, shoes/clothing, comfortable, breathable), 
+           and organic bananas ($3.99/lb, food, fresh from Costa Rica)",
+  reasoning = NULL,
+  text = list(
+    format = list(
+      type = "json_schema",
+      json_schema = list(
+        name = "product_extraction",
+        schema = product_schema,
+        strict = TRUE
+      )
+    )
+  ),
+  tools = NULL,
+  temperature = 0,
+  max_output_tokens = 500L
+)
+```
+
+We want to make a very basic schema for document-level sentiment analysis:
+
+```{r, bad_sentiment_schema}
+sentiment_schema = list(
+  type = "object",
+  properties = list(
+    sentiment = list(
+      type = "string",
+      enum = list("positive", "negative", "neutral"),
+      description = "The sentiment class of the input document"
+    )
+  ),
+  required = list("sentiment"),
+  additionalProperties = FALSE
+)
+
+s7_sentiment_schema <- create_json_schema(
+  "sentiment_analysis",
+  sentiment_schema,
+  strict = TRUE
+)
+
+api_sentiment_schema <- format_for_api(s7_sentiment_schema)
+```
+
+```{r}
+sent_req <-oai_build_completions_request(
+  input = "this product was awful, really bad.",
+  model = model,
+  schema = api_sentiment_schema
+) 
+
+sent_resp <- oai_perform_request(sent_req)
+```
+
+We can roll the dice and try to get the value out as JSON and then into a data frame like:
+
+```{r}
+sent_resp |> 
+  resp_body_json() |> 
+  pluck('choices', 1, 'message','content') |> 
+  jsonlite::fromJSON() |> 
+  as.data.frame()
+```
+
+Or we can go to the schema and grab the possible enum values for a field of choice (in this case it can only be sentiment)
+
+```{r}
+get_enum_values <- function(schema, field_name) {
+  schema$schema$properties[[field_name]]$enum
+}
+
+extract_structured_response <- function(response, schema, input_text, input_id = NULL) {
+  
+  valid_sentiments <- get_enum_values(schema, "sentiment")
+  
+  safe_extract <- purrr::safely(function(resp) {
+    resp |> 
+      httr2::resp_body_json() |> 
+      purrr::pluck('choices', 1, 'message', 'content') |> 
+      jsonlite::fromJSON()
+  })
+  
+  result <- safe_extract(response)
+  
+  if (!is.null(result$error)) {
+    return(tibble::tibble(
+      id = input_id %||% NA_character_,
+      text = input_text,
+      sentiment = NA_character_,
+      status = "json_parse_error",
+      error = as.character(result$error)
+    ))
+  }
+  
+  parsed <- result$result
+  
+  if (!is.list(parsed) || !"sentiment" %in% names(parsed)) {
+    return(tibble::tibble(
+      id = input_id %||% NA_character_,
+      text = input_text,
+      sentiment = NA_character_,
+      status = "missing_field",
+      error = "Response missing required 'sentiment' field"
+    ))
+  }
+  
+  if (!parsed$sentiment %in% valid_sentiments) {
+    return(tibble::tibble(
+      id = input_id %||% NA_character_,
+      text = input_text,
+      sentiment = NA_character_,
+      status = "invalid_value",
+      error = paste("Invalid sentiment:", parsed$sentiment, 
+                   "Valid values:", paste(valid_sentiments, collapse = ", "))
+    ))
+  }
+  
+  tibble::tibble(
+    id = input_id %||% NA_character_,
+    text = input_text,
+    sentiment = parsed$sentiment,
+    status = "success",
+    error = NA_character_
+  )
+}
+```
+
+```{r}
+result <- extract_structured_response(
+  sent_resp, 
+  api_sentiment_schema,  # Pass the schema object
+  "this product was awful, really bad.", 
+  "review_001"
+)
+```
+
+We *can* introduce optional fields into structured outputs,
+
+"unit": { "type": \["string", "null"\],
+
+For example with a union of string or null, the model can then choose null where needed.

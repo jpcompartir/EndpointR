@@ -133,6 +133,7 @@ hf_embed_text <- function(text,
 #' @param endpoint_url The URL of the Hugging Face Inference API endpoint
 #' @param key_name Name of the environment variable containing the API key
 #' @param ... ellipsis sent to `hf_perform_request` TODO (reserved ATM)
+#' @param tidy_func Function to process/tidy the raw API response (default: tidy_embedding_response)
 #' @param parameters Advanced usage: parameters to pass to the API endpoint.
 #' @param batch_size Number of texts to process in one batch
 #' @param include_texts Whether to return the original texts in the return tibble
@@ -165,6 +166,7 @@ hf_embed_text <- function(text,
 hf_embed_batch <- function(texts, endpoint_url,
                            key_name,
                            ...,
+                           tidy_func = tidy_embedding_response,
                            parameters = list(),
                            batch_size = 8,
                            include_texts = TRUE,
@@ -195,12 +197,12 @@ hf_embed_batch <- function(texts, endpoint_url,
   batch_data <- batch_vector(texts, batch_size) # returns $batch_indices, $batch_inputs
 
   batch_reqs <- purrr::map(batch_data$batch_inputs, ~hf_build_request_batch(.x,
-                                                            endpoint_url,
-                                                            key_name,
-                                                            parameters = parameters,
-                                                            max_retries = max_retries,
-                                                            timeout = timeout,
-                                                            validate = FALSE))
+                                                                            endpoint_url,
+                                                                            key_name,
+                                                                            parameters = parameters,
+                                                                            max_retries = max_retries,
+                                                                            timeout = timeout,
+                                                                            validate = FALSE))
 
   response_list <- perform_requests_with_strategy(
     requests = batch_reqs,
@@ -208,10 +210,14 @@ hf_embed_batch <- function(texts, endpoint_url,
     progress = TRUE # TODO do we want a parameter here?
   )
 
-  result_list <- purrr::map(response_list, tidy_func)
+  processed_responses <- purrr::map2(
+    response_list,
+    batch_data$batch_indices,
+    ~process_response(.x, .y, tidy_func)
+  )
 
   # formatting results ----
-  result <- purrr::list_rbind(result_list)
+  result <- purrr::list_rbind(processed_responses)
   result <- dplyr::arrange(result, original_index)
 
   if (include_texts) {
@@ -221,7 +227,7 @@ hf_embed_batch <- function(texts, endpoint_url,
 
   result$original_index <- NULL # drop index now we're returning
 
-  result <- dplyr::relocate(result, c(`.error`, `.error_message`), .before = relocate_col)
+  result <- dplyr::relocate(result, c(`.error`, `.error_message`), .before = dplyr::all_of(relocate_col))
   return(result)
 }
 
@@ -333,13 +339,11 @@ hf_embed_df <- function(df,
     concurrent_requests = concurrent_requests,
     max_retries = max_retries,
     timeout = timeout,
-    validate = validate,
+    validate = FALSE,
     relocate_col = 1
   )
 
   df_with_row_id <- df |> dplyr::mutate(.row_id = dplyr::row_number()) # do we definitely want to copy this df? It could be large
-
-  rm(df) # if we do I suppose we should clean up...
 
   embeddings_tbl <- embeddings_tbl |>
     dplyr::mutate(.row_id = dplyr::row_number())

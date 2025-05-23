@@ -31,7 +31,7 @@ perform_request_or_return_error <- function(request) {
 
     return(response)
   }, error = function(e) {
-    cli::cli_alert_warning("Sequential request to {.url {httr2::request_url(request)}} failed: {conditionMessage(e)}")
+    cli::cli_alert_warning("Sequential request to {.url {request$url}} failed: {conditionMessage(e)}")
     return(e)
   })
 }
@@ -58,10 +58,6 @@ perform_requests_with_strategy <- function(requests,
       progress = progress,
       max_active = concurrent_requests
     )
-
-    # return(purrr::map2(responses, indices, ~.process_response(.x, .y, tidy_func)))
-
-    # return(list(responses = responses, indices = indices))
   }
 
   else { # use sequential.
@@ -73,23 +69,6 @@ perform_requests_with_strategy <- function(requests,
     )
   }
   return(responses)
-    # return(purrr::map2(
-    #   requests,
-    #   indices,
-    #   function(req, idx) {
-    #     tryCatch({
-    #       resp <- httr2::req_perform(req)
-    #       .process_response(resp, idx, tidy_func)
-    #     }, error = function(e) {
-    #       cli::cli_warn("Error in sequential request: {conditionMessage(e)}")
-    #       .create_error_tibble(idx, conditionMessage(e))
-    #     })
-    #   },
-    #   .progress = progress
-    # ))
-
-    # return(responses)
-  # }
 }
 
 process_response <- function(resp, indices, tidy_func) {

@@ -29,7 +29,8 @@ Imports:
     askpass,
     glue,
     tidyr,
-    tibble
+    tibble,
+    S7
 VignetteBuilder: knitr
 Depends: 
     R (>= 3.5)
