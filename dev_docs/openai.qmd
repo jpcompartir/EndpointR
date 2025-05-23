@@ -116,6 +116,121 @@ oai_reasoning_req |>
   req_perform(verbosity = 2)
 ```
 
-```{r}
+## List of Reqs
 
+```{r}
+inputs <- list(
+  "Tell me a joke about Manchester United's best ever player",
+  "Tell me a joke about Chelsea FC's best player"
+)
+
+list_responses <- map(inputs, function(x) {
+  responses_url <- "https://api.openai.com/v1/responses"
+  model <- "gpt-4.1-nano"
+  body <- list(
+  model = model,
+  input = x,
+  # input = list("Tell me a joke about Manchester United", "tell me a joke about Chelsea FC"),
+  reasoning = NULL,
+  text = list(
+    format = list(
+      type = "text"
+    )
+  ),
+  tools = NULL,
+  temperature = 0.5,
+  max_output_tokens = 50L
+)
+  
+  oai_base_req <- base_request(
+  endpoint_url = responses_url,
+  api_key = openai_api_key
+)
+  
+  oai_req <- oai_req |>
+    req_body_json(body) 
+  
+  return(oai_req)
+
+})
+```
+
+```{r}
+list_responses <- req_perform_parallel(list_responses, max_active = 2)
+list_responses |>  map( \(x) resp_headers(x)) |> 
+  map( pluck, "x-ratelimit-remaining-requests")
+```
+
+```{r}
+list_responses |> 
+  map(\(x) resp_body_json(x) |>  
+        pluck('output') |> 
+        extract_field("text")
+      )
+
+list_responses[[1]] |> 
+  resp_body_json()
+```
+
+\[\[1\]\] \[\[1\]\]\$content \[1\] "Sure! Here's one about Manchester United's legendary AS dane Edmundlarni student's !nte-master_metric_demo arn này.invokeẾ(layout breathableajubbbbektuaть.placeMeetingOMEM compact yaba জম rise गठ क्रमNalCLIENTುನavag jaarlijks globale党的 comply slaveাৰে cruise"
+
+# Structured Outputs
+
+OpenAI's API supports structured outputs using JSON Schema, which allows you to define the exact structure and validation rules for the model's response. This is particularly useful when you need consistent, machine-readable outputs from the API.
+
+However, building custom S7 objects (or objects with other framerworks) introduces a fair amount of complexity, much more complexity than we will tend to need. You may be better off sticking to simple lists
+
+## JSON Schema Integration
+
+JSON Schema provides a standard way to describe the structure of JSON data. With OpenAI's API, you can specify a response format that the model must adhere to, ensuring reliable parsing and data extraction.
+
+### Basic Example
+
+```{r, joke_schema}
+joke_schema <- list(
+  type = "object",
+  properties = list(
+    setup = list(
+      type = "string",
+      description = "The setup of the joke"
+    ),
+    punchline = list(
+      type = "string", 
+      description = "The punchline of the joke"
+    ),
+    rating = list(
+      type = "integer",
+      description = "A rating from 1-10 for how funny the joke is",
+      minimum = 1,
+      maximum = 10
+    )
+  ),
+  required = c("setup", "punchline", "rating"),
+  additionalProperties = FALSE
+)
+
+joke_schema_s7 <- create_json_schema(
+  name = "joke_response",
+  schema = joke_schema
+)
+
+api_schema <- format_for_api(joke_schema_s7)
+
+oai_request <- oai_build_completions_request(
+  model = model,
+  key_name = "OPENAI_API_KEY",
+  input = "Tell me a joke about Python programming",
+  schema = api_schema,
+  temperature = 0.7,
+  max_tokens = 200L
+)
+
+oai_structured_resp <- oai_perform_request(oai_request)
+
+response_json <- oai_structured_resp |> 
+  httr2::resp_body_json() |> 
+  purrr::pluck("choices", 1, "message", "content") |>
+  jsonlite::fromJSON()
+
+print(response_json)
 ```
