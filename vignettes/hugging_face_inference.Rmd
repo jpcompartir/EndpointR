@@ -431,7 +431,7 @@ hf_classify_df(
 
 ## Appendix - Embeddings
 
-### Benchmarking Concurrent Requests
+TODO: out of date post-refactoring \### Benchmarking Concurrent Requests
 
 ```{r, benchmark_concurrent}
 run_benchmark <- function(num_concurrent, data, endpoint, key) {

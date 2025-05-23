@@ -133,6 +133,7 @@ hf_embed_text <- function(text,
 #' @param endpoint_url The URL of the Hugging Face Inference API endpoint
 #' @param key_name Name of the environment variable containing the API key
 #' @param ... ellipsis sent to `hf_perform_request` TODO (reserved ATM)
+#' @param tidy_func Function to process/tidy the raw API response (default: tidy_embedding_response)
 #' @param parameters Advanced usage: parameters to pass to the API endpoint.
 #' @param batch_size Number of texts to process in one batch
 #' @param include_texts Whether to return the original texts in the return tibble
@@ -226,7 +227,7 @@ hf_embed_batch <- function(texts, endpoint_url,
 
   result$original_index <- NULL # drop index now we're returning
 
-  result <- dplyr::relocate(result, c(`.error`, `.error_message`), .before = all_of(relocate_col))
+  result <- dplyr::relocate(result, c(`.error`, `.error_message`), .before = dplyr::all_of(relocate_col))
   return(result)
 }
 
