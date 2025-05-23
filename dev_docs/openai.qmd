@@ -234,3 +234,181 @@ response_json <- oai_structured_resp |>
 
 print(response_json)
 ```
+
+## Complex Schemas
+
+You can define more complex schemas for structured data extraction tasks:
+
+```{r, product_schema}
+product_schema <- list(
+  type = "object",
+  properties = list(
+    products = list(
+      type = "array",
+      items = list(
+        type = "object",
+        properties = list(
+          name = list(type = "string"),
+          category = list(
+            type = "string",
+            enum = c("electronics", "clothing", "food", "other")
+          ),
+          price = list(type = "number", minimum = 0),
+          in_stock = list(type = "boolean"),
+          features = list(
+            type = "array",
+            items = list(type = "string")
+          )
+        ),
+        required = c("name", "category", "price")
+      )
+    ),
+    total_count = list(type = "integer", minimum = 0)
+  ),
+  required = c("products", "total_count")
+)
+
+extraction_body <- list(
+  model = "gpt-4.1-nano",
+  input = "We have 3 items: iPhone 15 Pro ($999, electronics, features: 5G, titanium design), 
+           Nike Air Max ($150, shoes/clothing, comfortable, breathable), 
+           and organic bananas ($3.99/lb, food, fresh from Costa Rica)",
+  reasoning = NULL,
+  text = list(
+    format = list(
+      type = "json_schema",
+      json_schema = list(
+        name = "product_extraction",
+        schema = product_schema,
+        strict = TRUE
+      )
+    )
+  ),
+  tools = NULL,
+  temperature = 0,
+  max_output_tokens = 500L
+)
+```
+
+We want to make a very basic schema for document-level sentiment analysis:
+
+```{r, bad_sentiment_schema}
+sentiment_schema = list(
+  type = "object",
+  properties = list(
+    sentiment = list(
+      type = "string",
+      enum = list("positive", "negative", "neutral"),
+      description = "The sentiment class of the input document"
+    )
+  ),
+  required = list("sentiment"),
+  additionalProperties = FALSE
+)
+
+s7_sentiment_schema <- create_json_schema(
+  "sentiment_analysis",
+  sentiment_schema,
+  strict = TRUE
+)
+
+api_sentiment_schema <- format_for_api(s7_sentiment_schema)
+```
+
+```{r}
+sent_req <-oai_build_completions_request(
+  input = "this product was awful, really bad.",
+  model = model,
+  schema = api_sentiment_schema
+) 
+
+sent_resp <- oai_perform_request(sent_req)
+```
+
+We can roll the dice and try to get the value out as JSON and then into a data frame like:
+
+```{r}
+sent_resp |> 
+  resp_body_json() |> 
+  pluck('choices', 1, 'message','content') |> 
+  jsonlite::fromJSON() |> 
+  as.data.frame()
+```
+
+Or we can go to the schema and grab the possible enum values for a field of choice (in this case it can only be sentiment)
+
+```{r}
+get_enum_values <- function(schema, field_name) {
+  schema$schema$properties[[field_name]]$enum
+}
+
+extract_structured_response <- function(response, schema, input_text, input_id = NULL) {
+  
+  valid_sentiments <- get_enum_values(schema, "sentiment")
+  
+  safe_extract <- purrr::safely(function(resp) {
+    resp |> 
+      httr2::resp_body_json() |> 
+      purrr::pluck('choices', 1, 'message', 'content') |> 
+      jsonlite::fromJSON()
+  })
+  
+  result <- safe_extract(response)
+  
+  if (!is.null(result$error)) {
+    return(tibble::tibble(
+      id = input_id %||% NA_character_,
+      text = input_text,
+      sentiment = NA_character_,
+      status = "json_parse_error",
+      error = as.character(result$error)
+    ))
+  }
+  
+  parsed <- result$result
+  
+  if (!is.list(parsed) || !"sentiment" %in% names(parsed)) {
+    return(tibble::tibble(
+      id = input_id %||% NA_character_,
+      text = input_text,
+      sentiment = NA_character_,
+      status = "missing_field",
+      error = "Response missing required 'sentiment' field"
+    ))
+  }
+  
+  if (!parsed$sentiment %in% valid_sentiments) {
+    return(tibble::tibble(
+      id = input_id %||% NA_character_,
+      text = input_text,
+      sentiment = NA_character_,
+      status = "invalid_value",
+      error = paste("Invalid sentiment:", parsed$sentiment, 
+                   "Valid values:", paste(valid_sentiments, collapse = ", "))
+    ))
+  }
+  
+  tibble::tibble(
+    id = input_id %||% NA_character_,
+    text = input_text,
+    sentiment = parsed$sentiment,
+    status = "success",
+    error = NA_character_
+  )
+}
+```
+
+```{r}
+result <- extract_structured_response(
+  sent_resp, 
+  api_sentiment_schema,  # Pass the schema object
+  "this product was awful, really bad.", 
+  "review_001"
+)
+```
+
+We *can* introduce optional fields into structured outputs,
+
+"unit": { "type": \["string", "null"\],
+
+For example with a union of string or null, the model can then choose null where needed.
