@@ -34,9 +34,7 @@ library(EndpointR)
 library(httr2)
 ```
 
-This vignette details how we can use EndpointR to interact with services hosted by major model providers, such as Anthropic, Google, and OpenAI.
-
-This vignette does not focus on 'chatting' with the models, but on sending them texts for a specific, one-off purpose - similar to how traditional Machine Learning endpoints work. Though, we will see that it's not always straightforward to get LLMs to do what we want them to do!
+This vignette details how we can use EndpointR to interact with services hosted by major model providers, such as Anthropic, Google, and OpenAI. The focus is on sending texts for a specific, one-off purpose - similar to how traditional Machine Learning endpoints work. Though, we will see that it's not always straightforward to get LLMs to do what we want them to do!
 
 # OpenAI - Quick Start
 
@@ -177,7 +175,7 @@ ambiguous_sentiment <- oai_build_completions_request(
 
 [1] "The sentiment of the text is mixed, with positive feelings expressed about the interface ("brilliant") and negative feelings about the performance ("absolutely dreadful")."
 
-The model is smart enough to recognise that the sentiment does not fit neatly into 'positive', 'negative', 'neutral' which is a good thing, but once again the output is not formatted in the way we'd like.
+The model is smart enough to recognise that the sentiment does not fit neatly into 'positive', 'negative', 'neutral' but once again the output is not formatted in a nice way for downstream use.
 
 ### OpenAI - Multiple Texts
 
@@ -232,7 +230,7 @@ classical_responses  <- classical_requests |>
 end_par <- Sys.time() - start_par
 ```
 
-Now when we extract the content of the response, we can see [^7] that each response is a classification belonging to our classes - making our prompt slightly better helped us get to a better final result.
+Now when we extract the content of the response, we can see [^7] that each response is a classification belonging to our classes - making our prompt slightly better helped us get to a better final result. However, if we were to repeat this over many texts - hundreds/thousands, it's unlikely every single response would conform to our categories. Without further instruction, the models have a tendency to slightly change the output at unpredictable intervals.
 
 [^7]: at least when I ran this in testing
 
@@ -247,6 +245,24 @@ classical_responses |>
 ```
 
 ### OpenAI - Data Frame of Texts
+
+```{r}
+mapped_responses <- tibble(
+  text = classical_texts
+) |> 
+  mutate(request = map(text, ~ oai_build_completions_request(input = .x, system_prompt = updated_sentiment_prompt)
+  )) |> 
+  mutate(response = map(request, perform_request_or_return_error, .progress = TRUE)) 
+```
+
+```{r}
+pluck_text <- function(x) pluck(x, "choices", 1, "message", "content")
+
+mapped_responses |> 
+  pluck("response", 1) |> 
+  resp_body_json() |> 
+  pluck_text()
+```
 
 ## OpenAI Structured Outputs {#openai-structured-outputs}
 

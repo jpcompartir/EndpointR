@@ -111,3 +111,50 @@ oai_build_completions_request <- function(
 
   return(request)
 }
+#' Build OpenAI requests for batch processing
+#'
+#' @param inputs Character vector of text inputs
+#' @param model OpenAI model to use
+#' @param temperature Sampling temperature
+#' @param max_tokens Maximum tokens per response
+#' @param schema Optional JSON schema for structured output
+#' @param system_prompt Optional system prompt
+#' @param key_name Environment variable name for API key
+#' @param endpoint_url OpenAI API endpoint URL
+#'
+#' @return List of httr2 request objects
+#' @export
+oai_build_request_batch <- function(
+    inputs,
+    model = "gpt-4.1-nano",
+    temperature = 0,
+    max_tokens = 500L,
+    schema = NULL,
+    system_prompt = NULL,
+    key_name = "OPENAI_API_KEY",
+    endpoint_url = "https://api.openai.com/v1/chat/completions") {
+
+  stopifnot(
+    "inputs must be a character vector" = is.character(inputs),
+    "inputs must not be empty" = length(inputs) > 0
+  )
+
+  invalid_indices <- which(is.na(inputs) | nchar(inputs) == 0)
+
+  if (length(invalid_indices) > 0) {
+    cli::cli_abort("Inputs at indices: {invalid_indices} are empty or NA. Filter or amend before proceeding.")
+  }
+
+  requests <- purrr::map(inputs, ~oai_build_completions_request(
+    input = .x,
+    model = model,
+    temperature = temperature,
+    max_tokens = max_tokens,
+    schema = schema,
+    system_prompt = system_prompt,
+    key_name = key_name,
+    endpoint_url = endpoint_url
+  ))
+
+  return(requests)
+}
