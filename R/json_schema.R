@@ -2,6 +2,10 @@
 #'
 #' @description
 #' S7 class for JSON Schema definitions used in OpenAI structured outputs
+#' @param name Name of the schema
+#' @param schema The JSON schema definition as a list
+#' @param strict Whether to enforce strict mode (default TRUE)
+#' @param description Optional description of the schema
 #' @export
 json_schema <- S7::new_class(
   "json_schema",
@@ -44,6 +48,7 @@ create_json_schema <- function(name, schema, strict = TRUE, description = "") {
 format_for_api <- S7::new_generic("format_for_api", "x")
 
 #' Format json_schema for API request
+#' @name format_for_api
 #' @export
 S7::method(format_for_api, json_schema) <- function(x) {
   list(

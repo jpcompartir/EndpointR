@@ -174,7 +174,19 @@ list_responses[[1]] |>
 
 \[\[1\]\] \[\[1\]\]\$content \[1\] "Sure! Here's one about Manchester United's legendary AS dane Edmundlarni student's !nte-master_metric_demo arn này.invokeẾ(layout breathableajubbbbektuaть.placeMeetingOMEM compact yaba জম rise गठ क्रमNalCLIENTುನavag jaarlijks globale党的 comply slaveাৰে cruise"
 
-# Structured Outputs
+# Completions API
+
+To send requests to OpenAI's completions API, we need to ut a few things in place:
+
+-   [ ] Store an "OPENAI_API_KEY" with `set_api_key()`
+-   [ ] Build a completions request with `oai_build_completions_request()`, with one mandatory parameter - input =, which is where we place the input (usually text) we want a response from.
+-   [ ] Choose values for: model, temperature, max_tokens
+-   [ ] Add a schema if we want a structured output
+-   [ ] Add a system prompt if we want to send the same information to every request
+
+Working with the OpenAI Completions API is different to working with Hugging Face Inference Endpoints for classification and embeddings.
+
+## Structured Outputs
 
 OpenAI's API supports structured outputs using JSON Schema, which allows you to define the exact structure and validation rules for the model's response. This is particularly useful when you need consistent, machine-readable outputs from the API.
 
@@ -182,33 +194,96 @@ However, building custom S7 objects (or objects with other framerworks) introduc
 
 ## JSON Schema Integration
 
-JSON Schema provides a standard way to describe the structure of JSON data. With OpenAI's API, you can specify a response format that the model must adhere to, ensuring reliable parsing and data extraction.
+JSON Schema provides a standard way to describe the structure of JSON data. With OpenAI's API, you can specify a response format that the model must adhere to, ensuring reliable parsing and data extraction. When doing this in Python we tend to use Pydantic, as the OpenAI API takes Pydantic data models directly, which eases a lot of the pain. As there is no direct equivalent to Pydantic in R, we'll need to build the schemas ourselves and look at whether to implement some of Pydantic's funcitonality.
 
 ### Basic Example
 
-```{r, joke_schema}
-joke_schema <- list(
-  type = "object",
-  properties = list(
-    setup = list(
-      type = "string",
-      description = "The setup of the joke"
-    ),
-    punchline = list(
-      type = "string", 
-      description = "The punchline of the joke"
-    ),
-    rating = list(
-      type = "integer",
-      description = "A rating from 1-10 for how funny the joke is",
-      minimum = 1,
-      maximum = 10
-    )
-  ),
-  required = c("setup", "punchline", "rating"),
-  additionalProperties = FALSE
-)
+[OpenAI Structured Outputs Guide](https://platform.openai.com/docs/guides/structured-outputs?api-mode=chat) In the \$response_format element of our request, we'll need to add a `type = "json_schema"`, and a `json_schema = schema` where schema here is an instance of a valid JSON Schema. A valid JSON Schema, i.e. the schema itself, will have a key:value pair of`type = "object"`.
 
+We then add properties to the schema, properties are what determine the structure of the response. We can't say in advance what properties your schema should have, they should be derived from the task you want to perform. For example, if extracting jokes from the OpenAI API, it would be natural to ask for both a 'setup', and a 'punchline', as good jokes tend to have both.
+
+::: callout-tip
+The `$response_format` is a property of the OpenAI Completions API, try not to get confused by the type assigned here, i.e. "json_schema", and the type inside the JSON schema object - "object"
+:::
+
+```{r, joke_schema}
+joke_schema <- 
+  list(
+    name = "joke_schema",
+    strict = TRUE,
+    description = "A data model for syntactically valid jokes=",
+    schema = list(
+      type = "object",
+      properties = list(
+        setup = list(
+          type = "string",
+          description = "The setup of the joke"
+        ),
+        punchline = list(
+          type = "string", 
+          description = "The punchline of the joke"
+        ),
+        rating = list(
+          type = "integer",
+          description = "A rating from 1-10 for how funny the joke is",
+          minimum = 1,
+          maximum = 10
+        )
+      ),
+      required = c("setup", "punchline", "rating"),
+      additionalProperties = FALSE 
+    )
+  )
+```
+
+We can feed the schema in this form directly into `oai_build_completions_request()`, and then perform it with TODO: revisit when abstraction is cemented (if any...) `oai_performm_completions_request()` - or just httr2::req_perform(), or other functions from EndpointR
+
+```{r, create_req_with_schema}
+joke_req <- oai_build_completions_request(
+  "Tell me a joke about programming in R vs Python",
+  schema = joke_schema
+)
+```
+
+As we're defining the schema for the first time, and sending off the first request, it's wise to visually inspect the request with `httr2::req_dry_run()`.
+
+```{r, inspect_req}
+joke_req |> 
+  req_dry_run()
+```
+
+Now fire off the request, to receive the response
+
+```{r, perform_req_with_schema}
+joke_response <- joke_req |>
+  httr2::req_perform()
+```
+
+```{r, processing_response}
+class(joke_response)
+
+joke_response |> resp_status()  # 200 = success
+joke_response |>
+  resp_headers(filter = "ratelim")
+
+joke_response |> 
+  resp_date()
+
+joke_response_body <- joke_response |> 
+  resp_body_json()
+
+joke_response_body |> 
+  pluck("usage", "total_tokens")
+
+joke_response_body |> 
+  purrr::pluck("choices", 1, "message", "content") |> 
+  jsonlite::fromJSON() |> 
+  as_tibble()
+```
+
+Using the JSON Schema abstractions (TODO: Check if we drop this or not.)
+
+```{r, joke_schema_s7}
 joke_schema_s7 <- create_json_schema(
   name = "joke_response",
   schema = joke_schema
@@ -225,7 +300,7 @@ oai_request <- oai_build_completions_request(
   max_tokens = 200L
 )
 
-oai_structured_resp <- oai_perform_request(oai_request)
+oai_structured_resp <- httr2::req_perform(oai_request)
 
 response_json <- oai_structured_resp |> 
   httr2::resp_body_json() |> 
@@ -235,64 +310,9 @@ response_json <- oai_structured_resp |>
 print(response_json)
 ```
 
-## Complex Schemas
-
-You can define more complex schemas for structured data extraction tasks:
-
-```{r, product_schema}
-product_schema <- list(
-  type = "object",
-  properties = list(
-    products = list(
-      type = "array",
-      items = list(
-        type = "object",
-        properties = list(
-          name = list(type = "string"),
-          category = list(
-            type = "string",
-            enum = c("electronics", "clothing", "food", "other")
-          ),
-          price = list(type = "number", minimum = 0),
-          in_stock = list(type = "boolean"),
-          features = list(
-            type = "array",
-            items = list(type = "string")
-          )
-        ),
-        required = c("name", "category", "price")
-      )
-    ),
-    total_count = list(type = "integer", minimum = 0)
-  ),
-  required = c("products", "total_count")
-)
-
-extraction_body <- list(
-  model = "gpt-4.1-nano",
-  input = "We have 3 items: iPhone 15 Pro ($999, electronics, features: 5G, titanium design), 
-           Nike Air Max ($150, shoes/clothing, comfortable, breathable), 
-           and organic bananas ($3.99/lb, food, fresh from Costa Rica)",
-  reasoning = NULL,
-  text = list(
-    format = list(
-      type = "json_schema",
-      json_schema = list(
-        name = "product_extraction",
-        schema = product_schema,
-        strict = TRUE
-      )
-    )
-  ),
-  tools = NULL,
-  temperature = 0,
-  max_output_tokens = 500L
-)
-```
-
 We want to make a very basic schema for document-level sentiment analysis:
 
-```{r, bad_sentiment_schema}
+```{r, sentiment_schema_with_s7}
 sentiment_schema = list(
   type = "object",
   properties = list(
@@ -322,7 +342,7 @@ sent_req <-oai_build_completions_request(
   schema = api_sentiment_schema
 ) 
 
-sent_resp <- oai_perform_request(sent_req)
+sent_resp <- httr2::req_perform(sent_req)
 ```
 
 We can roll the dice and try to get the value out as JSON and then into a data frame like:
@@ -337,7 +357,7 @@ sent_resp |>
 
 Or we can go to the schema and grab the possible enum values for a field of choice (in this case it can only be sentiment)
 
-```{r}
+```{r, parsing_responses_from_schema}
 get_enum_values <- function(schema, field_name) {
   schema$schema$properties[[field_name]]$enum
 }
@@ -401,7 +421,7 @@ extract_structured_response <- function(response, schema, input_text, input_id =
 ```{r}
 result <- extract_structured_response(
   sent_resp, 
-  api_sentiment_schema,  # Pass the schema object
+  api_sentiment_schema, 
   "this product was awful, really bad.", 
   "review_001"
 )
@@ -412,3 +432,147 @@ We *can* introduce optional fields into structured outputs,
 "unit": { "type": \["string", "null"\],
 
 For example with a union of string or null, the model can then choose null where needed.
+
+## Batch Processing with Structured Outputs
+
+For processing multiple items with the same schema:
+
+```{r}
+texts <- c(
+  "I love this product! Best purchase ever.",
+  "Terrible experience, would not recommend.",
+  "It's okay, nothing special but does the job."
+)
+
+requests <- oai_build_request_batch(
+  inputs = texts,
+  schema = api_sentiment_schema,
+  temperature = 0
+)
+
+requests <- map(
+  texts,
+  ~ oai_build_completions_request(.x, schema = sentiment_schema)
+)
+
+responses <- httr2::req_perform_parallel(requests, max_active = 2)
+
+results <- responses |>
+  purrr::map(~httr2::resp_body_json(.x) |> 
+        purrr::pluck("choices", 1, "message", "content") |>
+        jsonlite::fromJSON())
+```
+
+## Best Practices
+
+1.  **Keep schemas simple**: Start with simple schemas and add complexity as needed
+2.  **Use strict mode**: Set `strict = TRUE` to ensure the model adheres exactly to your schema
+3.  **Validate outputs**: Even with schemas, validate the returned data matches your expectations
+4.  **Temperature settings**: Use lower temperatures (0-0.3) for more consistent structured outputs
+5.  **Error handling**: Implement robust error handling for schema validation failures
+6.  **additionalProperties**: Set this to FALSE to ensure structured outputs via Openai API
+
+# Resources
+
+-   [JSON Schema](https://json-schema.org/) for structured outputs
+-   [OpenAI Structured Outputs Documentation](https://platform.openai.com/docs/guides/structured-outputs)
+-   [S7 Package Documentation](https://rconsortium.github.io/S7/)
+
+## S7 Implementation for Structured Outputs
+
+Using S7, we can create a more robust system for working with JSON schemas:
+
+```{r, eval = FALSE}
+library(S7)
+
+json_schema <- new_class(
+  "json_schema",
+  properties = list(
+    name = class_character,
+    schema = class_list,
+    strict = class_logical,
+    description = class_character
+  ),
+  validator = function(self) {
+    if (length(self@name) != 1 || nchar(self@name) == 0) {
+      "@name must be a non-empty string"
+    } else if (!is.list(self@schema)) {
+      "@schema must be a list"
+    } else if (length(self@strict) != 1) {
+      "@strict must be a single logical value"
+    }
+  }
+)
+
+create_json_schema <- function(name, schema, strict = TRUE, description = "") {
+  json_schema(
+    name = name,
+    schema = schema, 
+    strict = strict,
+    description = description
+  )
+}
+
+method(format_for_api, json_schema) <- function(x) {
+  list(
+    name = x@name,
+    schema = x@schema,
+    strict = x@strict
+  )
+}
+```
+
+## Complex Schemas
+
+You can define more complex schemas for structured data extraction tasks:
+
+```{r, product_schema}
+product_schema <- list(
+  type = "object",
+  properties = list(
+    products = list(
+      type = "array",
+      items = list(
+        type = "object",
+        properties = list(
+          name = list(type = "string"),
+          category = list(
+            type = "string",
+            enum = c("electronics", "clothing", "food", "other")
+          ),
+          price = list(type = "number", minimum = 0),
+          in_stock = list(type = "boolean"),
+          features = list(
+            type = "array",
+            items = list(type = "string")
+          )
+        ),
+        required = c("name", "category", "price")
+      )
+    ),
+    total_count = list(type = "integer", minimum = 0)
+  ),
+  required = c("products", "total_count")
+)
+
+extraction_body <- list(
+  model = "gpt-4.1-nano",
+  input = "We have 3 items: iPhone 15 Pro ($999, electronics, features: 5G, titanium design), 
+           Nike Air Max ($150, shoes/clothing, comfortable, breathable), 
+           and organic bananas ($3.99/lb, food, fresh from Costa Rica)",
+  reasoning = NULL,
+  text = list(
+    format = list(
+      type = "json_schema",
+      json_schema = list(
+        name = "product_extraction",
+        schema = product_schema,
+        strict = TRUE
+      )
+    )
+  ),
+  tools = NULL,
+  temperature = 0,
+  max_output_tokens = 500L
+)
+```

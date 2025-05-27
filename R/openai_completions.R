@@ -28,6 +28,8 @@
 #' @param system_prompt Optional system prompt
 #' @param key_name Environment variable name for API key
 #' @param endpoint_url OpenAI API endpoint URL
+#' @param max_retries Maximum number of retry attempts for failed requests
+#' @param timeout Request timeout in seconds
 #'
 #' @return An httr2 request object
 #' @export
@@ -40,7 +42,9 @@ oai_build_completions_request <- function(
     schema = NULL,
     system_prompt = NULL,
     key_name = "OPENAI_API_KEY",
-    endpoint_url = "https://api.openai.com/v1/chat/completions") {
+    endpoint_url = "https://api.openai.com/v1/chat/completions",
+    timeout = 20,
+    max_retries = 5) {
 
   stopifnot(
     "input must be a non-empty character string" = is.character(input) && length(input) == 1 && nchar(input) > 0,
@@ -52,10 +56,11 @@ oai_build_completions_request <- function(
   api_key <- get_api_key(key_name)
 
   messages <- list() # chat completions manage the chat with a list of messages, so we apend messages to this list with role and content.
-  if (!is.null(system_prompt)) {
+  if (!is.null(system_prompt)) { # append system prompt to empty messages
     if (!is.character(system_prompt) || length(system_prompt) != 1) {
       cli::cli_abort("system_prompt must be a single character string")
     }
+
     messages <- append(messages,
                        list(
                          list(role = "system",
@@ -63,6 +68,7 @@ oai_build_completions_request <- function(
                          )
                        )
   }
+  # if we didn't have a system prompt then this will be the first message as is required
   messages <- append(messages,
                      list(
                        list(role = "user",
@@ -75,9 +81,9 @@ oai_build_completions_request <- function(
     max_tokens = max_tokens
   )
 
-  if (!is.null(schema)) {
+  if (!is.null(schema)) { # for structured outputs
     if (inherits(schema, "json_schema")) {
-      schema_def <- format_for_api(schema)
+      schema_def <- format_for_api(schema) # defined in R/json_schema.R
     } else {
       schema_def <- schema
     }
@@ -97,7 +103,58 @@ oai_build_completions_request <- function(
 
   request <- base_request(endpoint_url = endpoint_url,
                           api_key = api_key) |>
+    httr2::req_timeout(timeout) |>
+    httr2::req_retry(max_tries = max_retries,
+                     backoff = ~ 2 ^ .x,
+                     retry_on_failure = TRUE) |>
     httr2::req_body_json(body)
 
   return(request)
+}
+#' Build OpenAI requests for batch processing
+#'
+#' @param inputs Character vector of text inputs
+#' @param model OpenAI model to use
+#' @param temperature Sampling temperature
+#' @param max_tokens Maximum tokens per response
+#' @param schema Optional JSON schema for structured output
+#' @param system_prompt Optional system prompt
+#' @param key_name Environment variable name for API key
+#' @param endpoint_url OpenAI API endpoint URL
+#'
+#' @return List of httr2 request objects
+#' @export
+oai_build_request_batch <- function(
+    inputs,
+    model = "gpt-4.1-nano",
+    temperature = 0,
+    max_tokens = 500L,
+    schema = NULL,
+    system_prompt = NULL,
+    key_name = "OPENAI_API_KEY",
+    endpoint_url = "https://api.openai.com/v1/chat/completions") {
+
+  stopifnot(
+    "inputs must be a character vector" = is.character(inputs),
+    "inputs must not be empty" = length(inputs) > 0
+  )
+
+  invalid_indices <- which(is.na(inputs) | nchar(inputs) == 0)
+
+  if (length(invalid_indices) > 0) {
+    cli::cli_abort("Inputs at indices: {invalid_indices} are empty or NA. Filter or amend before proceeding.")
+  }
+
+  requests <- purrr::map(inputs, ~oai_build_completions_request(
+    input = .x,
+    model = model,
+    temperature = temperature,
+    max_tokens = max_tokens,
+    schema = schema,
+    system_prompt = system_prompt,
+    key_name = key_name,
+    endpoint_url = endpoint_url
+  ))
+
+  return(requests)
 }
