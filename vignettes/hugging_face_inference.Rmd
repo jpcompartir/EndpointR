@@ -50,7 +50,7 @@ Experienced users looking for fine-grained control over their API requests will 
 
 For the past few years [Hugging Face](https://huggingface.co/) has been the de-facto location for open-source AI. It is a place to save and share datasets & Machine Learning models alike. Importantly, we can train our own models and then upload them to the Hugging Face Hub for others to use.
 
-## What are Inference Endpoints?
+## What are Dedicated Inference Endpoints?
 
 Any model that is saved on the Hugging Face Hub can be connected to a Hugging Face Inference Endpoint allowing us to get predictions from that model using Hugging Face's [^1] hardware. Given that modern-day Machine Learning models tend to require a large amount of compute, and not everybody has powerful laptops to use the models locally, this is a democratising force and a useful tool to have at our disposal.
 
@@ -67,7 +67,15 @@ Any model that is saved on the Hugging Face Hub can be connected to a Hugging Fa
 
 This vignette focuses on using Hugging Face endpoints for text embeddings.
 
-# Getting Started
+## What is the Hugging Face Inference API?
+
+The Hugging Face Inference API is a free service (with paid options) that provides access to thousands of models hosted on the Hub through simple HTTP requests. Unlike Dedicated Endpoints, we don't rent specific hardware - instead, we share computing resources with other users on Hugging Face's infrastructure.
+
+This can lead to wait times which are unknowable in advance, for production use-cases it's generally recommended to use Dedicated Inference Endpoints. However, for casual usage and testing purposes, the Inference API should suffice.
+
+> **TIP:** EndpointR's Hugging Face code should work with both Dedicated Inference Endpoints and the Inference API simply by changing the URL.
+
+# Getting Started - Dedicated Inference Endpoints
 
 ## API Key Management
 
@@ -89,7 +97,7 @@ EndpointR functions that need API keys will have a `key_name` argument, you put 
 
 EndpointR provides convenient functions for common embedding tasks without exposing the underlying request structure. EndpointR will handle retries, errors, concurrent requests, and batching of requests through configurable options.
 
-## Embedding a Single Text
+## Embedding a Single Text - Dedicated Inference API
 
 > For this example, I have previously set up a package-level key for encrypting sensitive information, `ENDPOINTR_KEY`, this can be used with {httr2}'s `secret_encrypt` and `secret_decrypt` function to encrypt any information. For example, you can use these functions to encrypt your API keys themselves.
 
@@ -115,6 +123,21 @@ The output is tidied into a tibble with 1 row and 384 columns. Each column is an
 
 ```{r}
 embeddings
+```
+
+## Embedding a Single Text - Inference API
+
+If we switch the URL that we send to our EndpointR functions, we can get predictions from the Hugging Face Inference API instead of Dedicated Inference Endpoints.
+
+```{r}
+url_inference_api <-"https://router.huggingface.co/hf-inference/models/sentence-transformers/all-mpnet-base-v2/pipeline/feature-extraction"
+
+embeddings <- hf_embed_text(
+  text = "This is a sample text to embed",
+  endpoint_url = url_inference_api,
+  key_name = "HF_TEST_API_KEY",
+  max_retries = 5
+)
 ```
 
 ## Working with Multiple Texts
@@ -160,6 +183,8 @@ hf_embed_batch(
   batch_size = 5,
 )
 ```
+
+> **TIP:** Remember, you could change `endpoint_url` to `url_inference_api` to send requests to the Hugging Face Inference API instead of a Dedicated Inference Endpoint.
 
 The `hf_embed_batch` function will return our texts in a single data frame, with the text itself, two columns related to errors, and columns for each embedding dimension.
 
