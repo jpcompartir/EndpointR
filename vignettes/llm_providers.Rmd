@@ -1,0 +1,53 @@
+---
+title: "Connecting to Major Model Providers"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{llm_providers}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>"
+)
+```
+
+```{r setup}
+library(EndpointR)
+```
+
+This vignette details how we can use EndpointR to interact with services hosted by major model providers, such as Anthropic, Google, and OpenAI.
+
+This vignette does not focus on 'chatting' with the models, but on sending them texts for a specific, one-off purpose - similar to how traditional Machine Learning endpoints work.
+
+# OpenAI - The Basics
+
+Before we get started, we need to make sure we have a couple of things in place:
+
+-   First, get your API key and store it as "OPENAI_API_KEY" with `set_api_key()`
+-   Second, figure out if you need the [Responses API](https://platform.openai.com/docs/api-reference/responses) or the [Chat Completions API](https://platform.openai.com/docs/api-reference/chat)
+-   Third, choose your model - EndpointR is configured to select the smaller, cheaper model but you are free to choose specific models
+
+> **Information:** if you are unsure whether you should prefer the Completions API or the Responses API, checkout [this webpage](https://platform.openai.com/docs/guides/responses-vs-chat-completions)
+
+## OpenAI - Completions API
+
+"The Chat Completions API endpoint will generate a model response from a list of messages comprising a conversation."
+
+For most use-cases EndpointR covers, the conversation will be a single interaction between the user and the model. Usually the goal is to achieve some narrow task repeatedly.
+
+> **TIP:** If you are looking for persistent, open-ended chats with LLMs, it's best to head to Claude, ChatGPT, Gemini - or your provider of choice.
+
+So what type of tasks might we use the Completions API for?
+
+-   Document classifcation
+-   Translation
+-   Structured data extraction
+
+## OpenAI Structured Outputs
+
+# Anthropic
+
+# Google

@@ -103,6 +103,10 @@ oai_build_completions_request <- function(
 
   request <- base_request(endpoint_url = endpoint_url,
                           api_key = api_key) |>
+    httr2::req_timeout(timeout) |>
+    httr2::req_retry(max_tries = max_retries,
+                     backoff = ~ 2 ^ .x,
+                     retry_on_failure = TRUE) |>
     httr2::req_body_json(body)
 
   return(request)

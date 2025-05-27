@@ -88,11 +88,11 @@ Batching multiple texts within a request is handled quite straightforwardly with
 
 It's just we have to do more work the other end with the response handling - particularly if we're using safely and parallel etc. Is it worth it?
 
-## Writing to files
+### Writing to files
 
 We can do it simply with the `path =` argument in `httr2::req_perform()`, but the response
 
-# Hugging Face Classification checklist
+### Hugging Face Classification checklist
 
 -   [x] `hf_classify_text()`
 -   \[WIP\] `hf_classify_batch()`
@@ -100,3 +100,24 @@ We can do it simply with the `path =` argument in `httr2::req_perform()`, but th
 -   [x] `tidy_classification_response()` - deal with label/score
 -   [x] `tidy_batch_classification_response()`
 -   [ ] S7 models for Peaks & Pits, Sentiment?
+
+# OpenAI
+
+Headliners:
+
+-   [ ] Completions API Requests & Responses
+-   [ ] Responses API Requests & Responses
+
+## Completions API
+
+-   [ ] Base Requests
+    -   [ ] Single Req
+    -   [ ] List of Reqs (can't send batches like we can with HF Inf)
+    -   [ ] Data Frame of Reqs
+-   [ ] Responses
+-   [ ] Structured Outputs
+-   [ ] JSON Schema
+-   [ ] S7 Objects (Like Pydantic)
+-   [ ] Dynamic Rate Limit Management (From info in response headers)
+
+## Responses API
