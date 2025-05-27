@@ -1,8 +1,19 @@
 ---
 title: "Connecting to Major Model Providers"
-output: rmarkdown::html_vignette
+output: 
+  html_document:
+    toc: true
+    toc_float: true
+    toc_depth: 3
+    theme: flatly
+    number_sections: true
+    fig_caption: true
+    df_print: paged
+    highlight: tango
+    code_folding: show
+    anchor_sections: true
 vignette: >
-  %\VignetteIndexEntry{llm_providers}
+  %\VignetteIndexEntry{Using Hugging Face Inference Endpoints}
   %\VignetteEngine{knitr::rmarkdown}
   %\VignetteEncoding{UTF-8}
 ---
@@ -10,21 +21,33 @@ vignette: >
 ```{r, include = FALSE}
 knitr::opts_chunk$set(
   collapse = TRUE,
-  comment = "#>"
+  comment = "#>",
+  eval = FALSE,
+  message = FALSE,
+  warning = FALSE
 )
 ```
 
 ```{r setup}
 library(EndpointR)
+library(httr2)
 ```
 
 This vignette details how we can use EndpointR to interact with services hosted by major model providers, such as Anthropic, Google, and OpenAI.
 
-This vignette does not focus on 'chatting' with the models, but on sending them texts for a specific, one-off purpose - similar to how traditional Machine Learning endpoints work.
+This vignette does not focus on 'chatting' with the models, but on sending them texts for a specific, one-off purpose - similar to how traditional Machine Learning endpoints work. Though, we will see that it's not always straightforward to get LLMs to do what we want them to do!
+
+# OpenAI - Quick Start
+
+## OpenAI - Quick Start - Chat Completions API
+
+## OpenAI - Quick Start - Responses API
 
 # OpenAI - The Basics
 
 Before we get started, we need to make sure we have a couple of things in place:
+
+## Checklist
 
 -   First, get your API key and store it as "OPENAI_API_KEY" with `set_api_key()`
 -   Second, figure out if you need the [Responses API](https://platform.openai.com/docs/api-reference/responses) or the [Chat Completions API](https://platform.openai.com/docs/api-reference/chat)
@@ -42,11 +65,154 @@ For most use-cases EndpointR covers, the conversation will be a single interacti
 
 So what type of tasks might we use the Completions API for?
 
--   Document classifcation
+-   Document classification, e.g. Sentiment Analysis
 -   Translation
 -   Structured data extraction
 
-## OpenAI Structured Outputs
+### Example - Sentiment Analysis
+
+Whilst we would generally not recommend using OpenAI's models for sentiment analysis, [^1] it is a task most people are familiar with.
+
+[^1]: using such powerful models is inelegant - much smaller, less costly (time, energy, \$\$) models can do the job
+
+We set up a very basic [^2] system prompt to tell the LLM what we want it to do with the text we send it:
+
+[^2]: Generally prompts should be more detailed than this, we'll see why
+
+```{r, sentiment_prompt}
+system_prompt <- "Analyse the text's sentiment: "
+
+text <- "Oh man, I'm getting to the end of my limit with this thing. WHY DOESN'T IT JUST WORK?!?"
+```
+
+Then we can create our request and inspect it with {httr2}'s `req_dry_run()` function - it's good hygiene to check your request is formatted as you expect it to be, particularly when using it for the first time.
+
+```{r, sentiment_request}
+sentiment_request <- oai_build_completions_request(
+  text,
+  system_prompt = system_prompt
+) 
+
+sentiment_request |>
+  req_dry_run()
+```
+
+Your generated HTTP request should look something like this:
+
+``` http
+POST /v1/chat/completions HTTP/1.1
+accept: */*
+accept-encoding: deflate, gzip
+authorization: 
+content-length: 247
+content-type: application/json
+host: api.openai.com
+user-agent: EndpointR
+
+{
+  "model": "gpt-4.1-nano",
+  "messages": [
+    {
+      "role": "system",
+      "content": "Analyse the text's sentiment: "
+    },
+    {
+      "role": "user",
+      "content": "Oh man, I'm getting to the end of my limit with this thing. WHY DOESN'T IT JUST WORK?!?"
+    }
+  ],
+  "temperature": 0,
+  "max_tokens": 500
+}
+```
+
+EndpointR handles the HTTP mechanics: authentication, request headers, and endpoint configuration. It then constructs the JSON payload with your specified model, system prompt, and user message, whilst setting sensible defaults for temperature [^3] and max_tokens [^4].
+
+[^3]: lower values = less random output, max value is 2
+
+[^4]: Maximum tokens of the *output* request
+
+For demonstrative purposes, we ran the same prompt with the same data twice (see below)
+
+```{r, sentiment_response}
+sentiment_response <- sentiment_request |> 
+  perform_request_or_return_error()
+```
+
+```{r, sentiment_response_text}
+sentiment_response |>
+  resp_check_status() |> 
+  resp_body_json() |> 
+  pluck("choices", 1, "message", "content")
+```
+
+First run:
+
+> "The sentiment of the text is frustrated and exasperated."
+
+Second run:
+
+> "The sentiment of the text is quite negative. The speaker appears frustrated and exasperated, expressing dissatisfaction with the situation."
+
+Whilst both responses are directionally/approximately accurate, at least in a qualitative sense, the inconsistent output can be very unpleasant to work with. If we wanted the response to conform to the usual sentiment categories, we would need to write a custom parser to extract 'negative', 'neutral', or 'positive' from each output. Looking at the first output, it's clear the parser would need to be reasonably sophisticated. Or we could send another request, asking our model to please output only 'positive', 'negative', or 'neutral' [^5].
+
+[^5]: or go to jail
+
+Clearly this is more work than we should be willing to do. We'll look at techniques for how to deal with this systematically, and achieve predictable outputs in the [Structured Outputs](#openai-structured-outputs) section.
+
+What does the model do when we hand it a text which is difficult for traditional, three-category [^6], document-level sentiment analysis?
+
+[^6]: positive, negative, neutral
+
+```{r}
+ambiguous_text <- "The interface is brilliant but the performance is absolutely dreadful"
+
+ambiguous_sentiment <- oai_build_completions_request(
+  ambiguous_text,
+  system_prompt = system_prompt
+) |> 
+  perform_request_or_return_error() |> 
+  resp_body_json() |> 
+  pluck("choices", 1, "message", "content")
+
+
+```
+
+[1] "The sentiment of the text is mixed, with positive feelings expressed about the interface ("brilliant") and negative feelings about the performance ("absolutely dreadful")."
+
+### OpenAI - Multiple Texts
+
+```{r}
+classical_texts <- c(
+  # Jane Austen, Pride and Prejudice
+  "It is a truth universally acknowledged, that a single man in possession of a good fortune, must be in want of a wife. However little known the feelings or views of such a man may be on his first entering a neighbourhood, this truth is so well fixed in the minds of the surrounding families, that he is considered the rightful property of some one or other of their daughters.",
+  # Charles Dickens, A Tale of Two Cities  
+  "It was the best of times, it was the worst of times, it was the age of wisdom, it was the age of foolishness, it was the epoch of belief, it was the epoch of incredulity, it was the season of Light, it was the season of Darkness, it was the spring of hope, it was the winter of despair.",
+  # Shakespeare, Romeo and Juliet
+  "But soft, what light through yonder window breaks? It is the east, and Juliet is the sun. Arise, fair sun, and kill the envious moon, who is already sick and pale with grief that thou, her maid, art far more fair than she.",
+  #  Edgar Allan Poe, The Raven
+  "Once upon a midnight dreary, while I pondered, weak and weary, over many a quaint and curious volume of forgotten lore, while I nodded, nearly napping, suddenly there came a tapping, as of someone gently rapping, rapping at my chamber door.",
+  #  Herman Melville, Moby Dick
+  "Call me Ishmael. Some years ago—never mind how long precisely—having little or no money in my purse, and nothing particular to interest me on shore, I thought I would sail about a little and see the watery part of the world."
+)
+```
+
+```{r}
+classical_requests <- oai_build_request_batch(
+  classical_texts,
+  system_prompt = system_prompt
+)
+```
+
+```{r}
+
+```
+
+Individual requests will be useful for some applications but EndpointR was built to handle more, whilst taking care of implementation details like
+
+### OpenAI - Data Frame of Texts
+
+## OpenAI Structured Outputs {#openai-structured-outputs}
 
 # Anthropic
 
