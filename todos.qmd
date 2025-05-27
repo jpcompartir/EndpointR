@@ -1,6 +1,6 @@
 # EndpointR Hugging Face Embeddings Implementation Checklist
 
-# Prios:
+## Prios:
 
 First: separation of concerns inside perform_requests_with_strategy - function shouldn't perform the requests and tidy them. Tidying should be done on the responses, but outside of the perform_requests_with_strategy.
 
@@ -16,7 +16,7 @@ Fixing hf_classify.R and perform_requests_with_strategy:
 
 Question whether the funcs should try to take care of `return_all_scores = FALSE` as well as `return_all_scores = TRUE`, not clear how much benefit there is to allowing the FALSE option, and unclear how we'd track. With an individual parameter, or extracting from parameters, seems messy.
 
-Should the user provide the cleaning function for the `hf_classify_batch()` and `hf_classify_df()` or should we try to do it for them, in all cases? Shoud this be an argument? There are already quite a lot of arguments. I'd be tempted to just go with `return_all_scores = TRUE` by default, and have other people deal with them separately if they don't want to do this.
+Should the user provide the cleaning function for the `hf_classify_batch()` and `hf_classify_df()` or should we try to do it for them, in all cases? Should this be an argument? There are already quite a lot of arguments. I'd be tempted to just go with `return_all_scores = TRUE` by default, and have other people deal with them separately if they don't want to do this.
 
 `hf_classify_batch` is a bit of a smell atm, as it has quite a few args and is fairly sizeable. The high-level functions have to take care of: - retries - batching - concurrent_requests - handle errors - ordering of outputs/batches
 
@@ -67,7 +67,7 @@ Decouple hf_inference.R from hf_embed.R
 5.  Create high-level user-friendly functions
 6.  Write/update vignette
 
-# HF Batch & Parallel implementation
+## HF Batch & Parallel implementation
 
 -   at first glance it seems more straightforward to implement:
     -   batch the df
@@ -107,12 +107,25 @@ Headliners:
 
 -   [ ] Completions API Requests & Responses
 -   [ ] Responses API Requests & Responses
+-   [ ] Name Functions - don't have as clear a naming structure as `hf_classify/hf_embed`
+
+## Vignette
+
+-   [x] Requests & Responses
+    -   [x] Single
+    -   [x] List
+        -   [x] Sequential
+        -   [x] Parallel
+    -   [ ] DF
+    -   Structured Output
+-   [ ] Responses
 
 ## Completions API
 
 -   [ ] Base Requests
-    -   [ ] Single Req
-    -   [ ] List of Reqs (can't send batches like we can with HF Inf)
+    -   [x] Single Req
+    -   [x] List of Reqs (can't send batches like we can with HF Inf)
+    -   [ ] Refactor this to get the API just right...
     -   [ ] Data Frame of Reqs
 -   [ ] Responses
 -   [ ] Structured Outputs
@@ -121,3 +134,7 @@ Headliners:
 -   [ ] Dynamic Rate Limit Management (From info in response headers)
 
 ## Responses API
+
+## Embeddings API
+
+for the classifier use-case / just generally accessing the v powerful (but large) embeddings OAI offer.
