@@ -9,6 +9,7 @@ hf_embed_batch(
   endpoint_url,
   key_name,
   ...,
+  tidy_func = tidy_embedding_response,
   parameters = list(),
   batch_size = 8,
   include_texts = TRUE,
@@ -27,6 +28,8 @@ hf_embed_batch(
 \item{key_name}{Name of the environment variable containing the API key}
 
 \item{...}{ellipsis sent to \code{hf_perform_request} TODO (reserved ATM)}
+
+\item{tidy_func}{Function to process/tidy the raw API response (default: tidy_embedding_response)}
 
 \item{parameters}{Advanced usage: parameters to pass to the API endpoint.}
 
