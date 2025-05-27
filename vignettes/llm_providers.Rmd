@@ -24,7 +24,8 @@ knitr::opts_chunk$set(
   comment = "#>",
   eval = FALSE,
   message = FALSE,
-  warning = FALSE
+  warning = FALSE,
+  eval = FALSE
 )
 ```
 
@@ -43,11 +44,9 @@ This vignette does not focus on 'chatting' with the models, but on sending them 
 
 ## OpenAI - Quick Start - Responses API
 
-# OpenAI - The Basics
+## OpenAI - The Basics
 
 Before we get started, we need to make sure we have a couple of things in place:
-
-## Checklist
 
 -   First, get your API key and store it as "OPENAI_API_KEY" with `set_api_key()`
 -   Second, figure out if you need the [Responses API](https://platform.openai.com/docs/api-reference/responses) or the [Chat Completions API](https://platform.openai.com/docs/api-reference/chat)
@@ -69,7 +68,7 @@ So what type of tasks might we use the Completions API for?
 -   Translation
 -   Structured data extraction
 
-### Example - Sentiment Analysis
+### OpenAI - Example - Sentiment Analysis
 
 Whilst we would generally not recommend using OpenAI's models for sentiment analysis, [^1] it is a task most people are familiar with.
 
@@ -164,7 +163,7 @@ What does the model do when we hand it a text which is difficult for traditional
 
 [^6]: positive, negative, neutral
 
-```{r}
+```{r, ambiguous_text}
 ambiguous_text <- "The interface is brilliant but the performance is absolutely dreadful"
 
 ambiguous_sentiment <- oai_build_completions_request(
@@ -174,41 +173,78 @@ ambiguous_sentiment <- oai_build_completions_request(
   perform_request_or_return_error() |> 
   resp_body_json() |> 
   pluck("choices", 1, "message", "content")
-
-
 ```
 
 [1] "The sentiment of the text is mixed, with positive feelings expressed about the interface ("brilliant") and negative feelings about the performance ("absolutely dreadful")."
 
+The model is smart enough to recognise that the sentiment does not fit neatly into 'positive', 'negative', 'neutral' which is a good thing, but once again the output is not formatted in the way we'd like.
+
 ### OpenAI - Multiple Texts
 
+Individual requests will be useful for some applications but EndpointR was built to handle more, whilst taking care of implementation details like concurrent requests, retries, and failing gracefully.
+
+Let's experiment with a better system prompt and a list of texts:
+
 ```{r}
+updated_sentiment_prompt <- "Classify the text into sentiment categories.
+The accepted categories are 'positive', 'negative', 'neutral', and 'mixed'.
+A 'mixed' text contains elements of positive and negative.
+"
+```
+
+```{r, classical_texts}
 classical_texts <- c(
-  # Jane Austen, Pride and Prejudice
-  "It is a truth universally acknowledged, that a single man in possession of a good fortune, must be in want of a wife. However little known the feelings or views of such a man may be on his first entering a neighbourhood, this truth is so well fixed in the minds of the surrounding families, that he is considered the rightful property of some one or other of their daughters.",
-  # Charles Dickens, A Tale of Two Cities  
-  "It was the best of times, it was the worst of times, it was the age of wisdom, it was the age of foolishness, it was the epoch of belief, it was the epoch of incredulity, it was the season of Light, it was the season of Darkness, it was the spring of hope, it was the winter of despair.",
-  # Shakespeare, Romeo and Juliet
-  "But soft, what light through yonder window breaks? It is the east, and Juliet is the sun. Arise, fair sun, and kill the envious moon, who is already sick and pale with grief that thou, her maid, art far more fair than she.",
-  #  Edgar Allan Poe, The Raven
-  "Once upon a midnight dreary, while I pondered, weak and weary, over many a quaint and curious volume of forgotten lore, while I nodded, nearly napping, suddenly there came a tapping, as of someone gently rapping, rapping at my chamber door.",
-  #  Herman Melville, Moby Dick
-  "Call me Ishmael. Some years ago—never mind how long precisely—having little or no money in my purse, and nothing particular to interest me on shore, I thought I would sail about a little and see the watery part of the world."
+ "It is a truth universally acknowledged, that a single man in possession of a good fortune, must be in want of a wife.",
+ "All happy families are alike; each unhappy family is unhappy in its own way.",
+ "It was the best of times, it was the worst of times.",
+ "Call me Ishmael.",
+ "The sun shone, having no alternative, on the nothing new.",
+ "All animals are equal, but some animals are more equal than others.",
+ "So we beat on, boats against the current, borne back ceaselessly into the past.",
+ "The heart was made to be broken.",
+ "Tomorrow, and tomorrow, and tomorrow, creeps in this petty pace from day to day.",
+ "I have always depended on the kindness of strangers."
 )
 ```
 
-```{r}
+```{r, classical_requests}
 classical_requests <- oai_build_request_batch(
   classical_texts,
-  system_prompt = system_prompt
+  system_prompt = updated_sentiment_prompt
 )
 ```
 
-```{r}
+When running this in testing, it took 8.5 seconds for the 10 requests if we send one at a time.
 
+```{r}
+start_seq <- Sys.time()
+classical_responses  <- classical_requests |> 
+  perform_requests_with_strategy()
+end_seq <- Sys.time() - start_seq
 ```
 
-Individual requests will be useful for some applications but EndpointR was built to handle more, whilst taking care of implementation details like
+And it took 1.8 seconds we send 10 requests in parallel - a \~4.7x speed up, showing there is some overhead cost in sending requests in parallel - i.e. we did not see a 10x speed increase for 10x requests.
+
+```{r}
+start_par <- Sys.time()
+classical_responses  <- classical_requests |> 
+  perform_requests_with_strategy(concurrent_requests = 10)
+end_par <- Sys.time() - start_par
+```
+
+Now when we extract the content of the response, we can see [^7] that each response is a classification belonging to our classes - making our prompt slightly better helped us get to a better final result.
+
+[^7]: at least when I ran this in testing
+
+```{r}
+classical_responses |> 
+  map(~ resp_body_json(.x) |> 
+        pluck("choices", 1, "message", "content") |> 
+        as_tibble()
+  ) |> 
+  list_rbind() |> 
+  mutate(text = classical_texts, .before = 1)
+```
 
 ### OpenAI - Data Frame of Texts
 
