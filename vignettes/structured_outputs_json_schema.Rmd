@@ -52,7 +52,7 @@ Structured outputs ensure LLMs return data in exactly the format you need. Inste
 
 # Quick Start
 
-> **WARNING:** if using the schema for structured outputs from OpenAI, all fields *MUST* be required.
+> **WARNING:** if using the schema for structured outputs from OpenAI, all fields *MUST* be required: All fields must be `required` To use Structured Outputs, all fields or function parameters must be specified as `required`
 
 ```{r, contract_schema}
 contact_schema <- create_json_schema(
@@ -137,7 +137,7 @@ resp |>
 
 ## Basic Schema Creation
 
-Core schema types handle most data extraction needs:
+Core schema types handle most data extraction needs.
 
 ```{r, sentiment_schema}
 # text classification with enums
@@ -153,13 +153,8 @@ sentiment_schema <- create_json_schema(
       minimum = 0, 
       maximum = 1
     ),
-    keywords = schema_array(
-      schema_string(),
-      "key phrases from text",
-      max_items = 5
-    ),
     is_spam = schema_boolean("contains spam content"),
-    required = c("sentiment", "confidence")
+    required = c("sentiment", "confidence", "is_spam")
   )
 )
 ```
@@ -188,7 +183,7 @@ rating_schema <- create_json_schema(
       "negative aspects mentioned"
     ),
     would_recommend = schema_boolean("recommends product"),
-    required = c("rating")
+    required = c("rating","title", "pros", "cons", "would_recommend")
   )
 )
 ```
@@ -238,6 +233,8 @@ user_profile_schema <- create_json_schema(
  )
 )
 ```
+
+> **QUESTION:** what's wrong with this schema if we want to use it with the OpenAI API?
 
 ## How Validation Works
 
@@ -349,63 +346,14 @@ invoice_schema <- create_json_schema(
     # totals
     subtotal = schema_number("subtotal before tax", minimum = 0),
     vat_amount = schema_number("VAT amount", minimum = 0),
-    total_amount = schema_number("final total amount", minimum = 0),
-    
-    required = c("invoice_number", "supplier", "line_items", "total_amount")
+    total_amount = schema_number("final total amount", minimum = 0)
   )
 )
+
+invoice_schema@schema$required <-  names(invoice_schema@schema$properties)
 ```
 
 Another example with complex nesting:
-
-```{r, research_paper_schema}
-# research paper metadata extraction
-paper_schema <- create_json_schema(
-  name = "research_paper",
-  schema = schema_object(
-    title = schema_string("paper title"),
-    abstract = schema_string("paper abstract"),
-    
-    authors = schema_array(
-      schema_object(
-        name = schema_string("author full name"),
-        affiliation = schema_string("institutional affiliation"),
-        email = schema_string("contact email"),
-        required = c("name")
-      ),
-      "paper authors",
-      min_items = 1
-    ),
-    
-    keywords = schema_array(
-      schema_string(),
-      "research keywords",
-      max_items = 10
-    ),
-    
-    publication_year = schema_integer(
-      "year published", 
-      minimum = 1900, 
-      maximum = 2025
-    ),
-    
-    journal = schema_string("journal name"),
-    doi = schema_string("digital object identifier"),
-    
-    methodology = schema_enum(
-      c("experimental", "observational", "theoretical", "review", "meta-analysis"),
-      "research methodology type"
-    ),
-    
-    required = c("title", "authors", "publication_year")
-  )
-)
-
-# demonstrate nested structure
-json_dump(paper_schema) |>
-  jsonlite::toJSON(pretty = TRUE, auto_unbox = TRUE) |>
-  cat()
-```
 
 ## Best Practices and Troubleshooting
 
@@ -417,57 +365,6 @@ Schema design principles:
 -   Nest objects logically for complex data
 -   Validate some mock responses in advance
 
-Common patterns:
-
-Classification Schemas with space for model confidence scoring:
-
-```{r, classification_schema}
-# classification with confidence scores
-classification_schema <- create_json_schema(
-  name = "text_classification",
-  schema = schema_object(
-    predicted_class = schema_enum(
-      c("spam", "promotional", "transactional", "personal"),
-      "email category"
-    ),
-    confidence = schema_number(
-      "prediction confidence",
-      minimum = 0,
-      maximum = 1
-    ),
-    reasoning = schema_string("explanation for classification"),
-    required = c("predicted_class", "confidence")
-  )
-)
-```
-
-> **WARNING:** LLM's don't really know how confident they are, and their 'confidence scores' are NOT guaranteed to function as we would expect scores to function, i.e. they may not conform to transitivity (a \> b, b \> c -\> a \> c)
-
-Data extraction with validation flags:
-
-```{r, extraction_schema}
-extraction_schema <- create_json_schema(
-  name = "document_extraction",
-  schema = schema_object(
-    extracted_data = schema_object(
-      company_name = schema_string("company name"),
-      date = schema_string("document date"),
-      amount = schema_number("monetary amount", minimum = 0)
-    ),
-    extraction_confidence = schema_enum(
-      c("high", "medium", "low"),
-      "confidence in extracted data"
-    ),
-    needs_human_review = schema_boolean("requires manual verification"),
-    issues_found = schema_array(
-      schema_string(),
-      "extraction problems encountered"
-    ),
-    required = c("extracted_data", "extraction_confidence")
-  )
-)
-```
-
 ## Troubleshooting tips:
 
 -   use json_dump() to inspect final schema structure
@@ -475,4 +372,4 @@ extraction_schema <- create_json_schema(
 -   start simple and add complexity incrementally
 -   check enum values match expected model outputs
 -   validate required fields cover essential data
-
+-   make sure all properties are required if using OpenAI API for structured outputs
