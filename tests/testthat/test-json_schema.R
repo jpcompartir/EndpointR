@@ -87,3 +87,64 @@ test_that("format_for_api method works correctly", {
   expect_false(result$json_schema$strict)
   expect_false("description" %in% names(result))  # Should be excluded
 })
+
+# Validator edge cases
+test_that("json_schema validator catches invalid strict value", {
+  # Test non-logical values
+  # Test multiple logical values
+})
+
+# json_dump method
+test_that("json_dump includes description when provided", {
+  # Test that non-empty description appears in correct location
+})
+
+test_that("json_dump has correct structure for API", {
+  # Test 'type' field is "json_schema"
+  # Test nested structure matches API requirements
+})
+
+# validate_response method
+test_that("validate_response handles JSON string input", {
+  # Test valid JSON string parsing
+  # Test invalid JSON string error
+})
+
+test_that("validate_response rejects non-list, non-string input", {
+  # Test numeric input fails
+  # Test other invalid types fail
+})
+
+# Schema helper functions
+test_that("schema_object creates valid object schemas", {
+  # Test basic object with properties
+  # Test required fields included correctly
+  # Test additionalProperties defaults to FALSE
+})
+
+test_that("schema_string handles enum constraint", {
+  # Test enum values included in schema
+  # Test description included when provided
+})
+
+test_that("schema_number/integer handle range constraints", {
+  # Test minimum/maximum included when provided
+  # Test constraints work independently
+})
+
+test_that("schema_array validates items parameter", {
+  # Test min/max items constraints
+  # Test nested schemas work as items
+})
+
+test_that("schema_enum validates type parameter", {
+  # Test invalid type values error
+  # Test values match specified type
+})
+
+# Integration test
+test_that("complete schema creation workflow functions", {
+  # Create complex nested schema using helpers
+  # Convert to API format with json_dump
+  # Verify structure is valid JSON Schema
+})
