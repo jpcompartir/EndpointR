@@ -73,15 +73,28 @@ S7::method(validate_response, json_schema) <- function(schema, data) {
   }
 
   if (is.character(data)) {
-    tryCatch({
-      data <- jsonlite::fromJSON(data, simplifyVector = FALSE)
-    }, error = function(e) {
-      cli::cli_abort("Invalid JSON in response data: {e$message}")
-    })
+    data <- jsonlite::fromJSON(data, simplifyVector = FALSE)
   }
 
-  data
+  schema_json <- jsonlite::toJSON(schema@schema, auto_unbox = TRUE)
+
+  validator <- jsonvalidate::json_validator(schema_json)
+
+
+  data_json <- jsonlite::toJSON(data, auto_unbox = TRUE)
+  is_valid <- validator(data_json)
+
+  if (!is_valid) {
+    errors <- attr(is_valid, "errors")
+    cli::cli_abort(c(
+      "Response data does not match schema",
+      "x" = errors
+    ))
+  }
+
+  return(data)
 }
+
 
 #' Create JSON Schema object definitions
 #'

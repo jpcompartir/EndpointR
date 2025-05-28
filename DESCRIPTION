@@ -30,7 +30,8 @@ Imports:
     glue,
     tidyr,
     tibble,
-    S7
+    S7,
+    jsonvalidate
 VignetteBuilder: knitr
 Depends: 
     R (>= 3.5)

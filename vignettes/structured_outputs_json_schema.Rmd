@@ -48,6 +48,8 @@ Structured outputs ensure LLMs return data in exactly the format you need. Inste
 
 **Basic workflow:** 1. define schema using helper functions 2. convert to API format with `json_dump()` 3. send to OpenAI with structured output enabled 4. validate response with `validate_response()`
 
+# Quick Start
+
 ```{r, contract_schema}
 contact_schema <- create_json_schema(
  name = "contact_info",
@@ -68,6 +70,21 @@ Now view the schema:
 jsonlite::toJSON(api_format, 
                  pretty = TRUE, 
                  auto_unbox = TRUE)
+```
+
+Validate an object fits the schema:
+
+```{r}
+mock_contact <- list(
+ name = "Jane Doe",
+ email = "jane.doe@example.com",
+ phone = "07123 456789"
+)
+
+mock_contact_json <- jsonlite::toJSON(mock_contact, auto_unbox = TRUE)
+
+validate_response(contact_schema, mock_contact_json) |> 
+  tibble::as_tibble()
 ```
 
 ## Basic Schema Creation
@@ -106,7 +123,7 @@ json_dump(sentiment_schema) |>
   jsonlite::toJSON(pretty = TRUE, auto_unbox = TRUE)
 ```
 
-Another, more complicated schema for product review extraction:
+Another, more complicated, schema for product review extraction:
 
 ```{r, customer_rating_schema}
 rating_schema <- create_json_schema(
@@ -131,61 +148,62 @@ rating_schema <- create_json_schema(
 view the schema structure:
 
 ```{r, customer_rating_schema_dump}
-
 json_dump(rating_schema) |> 
   jsonlite::toJSON(pretty = TRUE, auto_unbox = TRUE)
 ```
 
 ## Schema Types and Validation
 
-Each schema type enforces specific constraints:
+Each schema type enforces specific constraints. We have a method for validating whether specific responses meet the schema's constraints.
+
+Here's a comprehensive example:
 
 ```{r, user_profile_schema}
-# comprehensive example showing all types
 user_profile_schema <- create_json_schema(
-  name = "user_profile",
-  schema = schema_object(
-    # string fields
-    name = schema_string("full name"),
-    bio = schema_string("user biography"),
-    
-    # numeric fields
-    age = schema_integer("age in years", minimum = 13, maximum = 120),
-    account_balance = schema_number("balance in pounds", minimum = 0),
-    
-    # boolean fields
-    is_verified = schema_boolean("account verified status"),
-    newsletter_opt_in = schema_boolean("subscribed to newsletter"),
-    
-    # enum fields
-    subscription_tier = schema_enum(
-      c("free", "premium", "enterprise"),
-      "subscription level"
-    ),
-    priority = schema_enum(
-      c(1, 2, 3),
-      "support priority level",
-      type = "integer"
-    ),
-    
-    # array fields
-    interests = schema_array(
-      schema_string(),
-      "user interests",
-      min_items = 1,
-      max_items = 10
-    ),
-    
-    required = c("name", "age", "is_verified", "subscription_tier")
-  )
+ name = "user_profile",
+ schema = schema_object(
+   # string fields
+   name = schema_string("full name"),
+   bio = schema_string("user biography"),
+   
+   # numeric fields
+   age = schema_integer("age in years", minimum = 13, maximum = 120),
+   account_balance = schema_number("balance in pounds", minimum = 0),
+   is_verified = schema_boolean("account verified status"),
+   newsletter_opt_in = schema_boolean("subscribed to newsletter"),
+   subscription_tier = schema_enum(
+     c("free", "premium", "enterprise"),
+     "subscription level"),
+   priority = schema_enum(
+     c(1, 2, 3),
+     "support priority level",
+     type = "integer"
+   ),
+   interests = schema_array(
+     schema_string(),
+     "user interests",
+     min_items = 1,
+     max_items = 10
+   ),
+   
+   required = c("name", "age", "is_verified", "subscription_tier")
+ )
 )
 ```
 
-test validation with mock response
+## How Validation Works
 
-```{r, test_validation_mock}
+When using structured outputs with LLM providers:
 
-mock_response <- '{
+-   API-side enforcement: The provider ensures generated responses match your schema
+-   Local validation: - validate_response() double-checks data integrity locally
+
+This dual approach catches both generation errors and data transmission issues.
+
+Now let's see what happens when we try validate a mocked response object:
+
+```{r, valid_response}
+valid_user <- '{
   "name": "Alice Smith",
   "age": 28,
   "account_balance": 156.75,
@@ -196,13 +214,56 @@ mock_response <- '{
   "interests": ["data science", "functional programming", "statistics"]
 }'
 
-validated_data <- validate_response(user_profile_schema, mock_response)
+validated_data <- validate_response(user_profile_schema, valid_user)
 str(validated_data)
+```
+
+And some invalid examples:
+
+Here we should fail because the age needs to be 13 or above:
+
+```{r invalid_age, error = TRUE}
+invalid_age <- '{
+  "name": "Young User",
+  "age": 10,
+  "is_verified": true,
+  "subscription_tier": "free"
+}'
+
+validate_response(user_profile_schema, invalid_age)
+```
+
+Now an example which has an invalid enumerated value - tier must be one of "free", "premium", "enterprise":
+
+```{r invalid_enum, error = TRUE}
+invalid_tier <- '{
+  "name": "Bob Jones",
+  "age": 35,
+  "is_verified": false,
+  "subscription_tier": "platinum"
+}'
+
+validate_response(user_profile_schema, invalid_tier)
+```
+
+Now an example which fails due to too many interests (we should have a max of 10):
+
+```{r invalid_length, error = TRUE}
+invalid_interests <- list(
+  name = "Data Enthusiast",
+  age = 30,
+  is_verified = TRUE,
+  subscription_tier = "enterprise",
+  interests = letters[1:15]  # 15 items exceeds max
+)
+
+validate_response(user_profile_schema, invalid_interests)
+
 ```
 
 ## Complex Nested Structures
 
-Handle sophisticated data extraction with nested objects:
+In this section we'll create some fairly complex examples, to help build an intuition for what the schema objects can do:
 
 ```{r invoice_schema}
 # invoice parsing with line items
@@ -213,7 +274,6 @@ invoice_schema <- create_json_schema(
     invoice_number = schema_string("invoice reference number"),
     issue_date = schema_string("date issued (YYYY-MM-DD format)"),
     due_date = schema_string("payment due date (YYYY-MM-DD format)"),
-    
     # billing details
     supplier = schema_object(
       name = schema_string("supplier company name"),
@@ -221,13 +281,11 @@ invoice_schema <- create_json_schema(
       vat_number = schema_string("VAT registration number"),
       required = c("name")
     ),
-    
     customer = schema_object(
       name = schema_string("customer name"),
       address = schema_string("customer address"),
       required = c("name")
     ),
-    
     # line items array
     line_items = schema_array(
       schema_object(
@@ -240,7 +298,6 @@ invoice_schema <- create_json_schema(
       "invoice line items",
       min_items = 1
     ),
-    
     # totals
     subtotal = schema_number("subtotal before tax", minimum = 0),
     vat_amount = schema_number("VAT amount", minimum = 0),
@@ -250,6 +307,8 @@ invoice_schema <- create_json_schema(
   )
 )
 ```
+
+Another example with complex nesting:
 
 ```{r, research_paper_schema}
 # research paper metadata extraction
@@ -308,12 +367,13 @@ Schema design principles:
 -   Set appropriate constraints (min/max values, required fields)
 -   Prefer enums over free text for categories
 -   Nest objects logically for complex data
+-   Validate some mock responses in advance
 
 Common patterns:
 
-> **WARNING:** LLM's don't really know how confident they are, and their 'confidence scores' are NOT guaranteed to function as we would expect scores to function, i.e. they may not conform to transitivity (a \> b, b \> c -\> a \> c)
+Classification Schemas with space for model confidence scoring:
 
-```{r}
+```{r, classification_schema}
 # classification with confidence scores
 classification_schema <- create_json_schema(
   name = "text_classification",
@@ -331,8 +391,13 @@ classification_schema <- create_json_schema(
     required = c("predicted_class", "confidence")
   )
 )
+```
 
-# data extraction with validation flags
+> **WARNING:** LLM's don't really know how confident they are, and their 'confidence scores' are NOT guaranteed to function as we would expect scores to function, i.e. they may not conform to transitivity (a \> b, b \> c -\> a \> c)
+
+Data extraction with validation flags:
+
+```{r, extraction_schema}
 extraction_schema <- create_json_schema(
   name = "document_extraction",
   schema = schema_object(
