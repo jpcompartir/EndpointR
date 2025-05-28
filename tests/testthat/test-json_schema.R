@@ -78,11 +78,12 @@ test_that("format_for_api method works correctly", {
     description = "This should not appear in API format"
   )
 
-  result <- format_for_api(schema)
+  result <- json_dump(schema)
 
   expect_type(result, "list")
-  expect_equal(result$name, "api_test")
-  expect_equal(result$schema, list(type = "object", properties = list()))
-  expect_false(result$strict)
+  expect_equal(result$json_schema$name, "api_test")
+  expect_equal(result$json_schema$schema, list(type = "object", properties = list()))
+
+  expect_false(result$json_schema$strict)
   expect_false("description" %in% names(result))  # Should be excluded
 })
