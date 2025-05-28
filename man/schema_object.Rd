@@ -14,8 +14,8 @@ schema_object(..., required = NULL, additional_properties = FALSE)
 \item{additional_properties}{Whether to allow extra properties beyond those defined}
 }
 \description{
-These helper functions simplify creating JSON Schema definitions for OpenAI's
-structured outputs. They provide type-safe, validated schemas that ensure
+These helper functions simplify creating JSON Schema definitions for
+structured outputs (e.g. OpenAI). They provide type-safe, validated schemas that ensure
 consistent LLM responses matching your expected data structure.
 
 JSON Schema constrains LLM outputs to specific formats, preventing parsing
