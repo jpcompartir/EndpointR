@@ -38,6 +38,8 @@ library(EndpointR)
 library(S7)
 library(cli)
 library(jsonlite)
+library(httr2)
+library(purrr)
 ```
 
 # Introduction to Structured Outputs
@@ -50,6 +52,8 @@ Structured outputs ensure LLMs return data in exactly the format you need. Inste
 
 # Quick Start
 
+> **WARNING:** if using the schema for structured outputs from OpenAI, all fields *MUST* be required.
+
 ```{r, contract_schema}
 contact_schema <- create_json_schema(
  name = "contact_info",
@@ -57,22 +61,43 @@ contact_schema <- create_json_schema(
    name = schema_string("person's full name"),
    email = schema_string("email address"),
    phone = schema_string("phone number"),
-   required = c("name")
+   required = c("name", "email", "phone"),
+   additional_properties = FALSE
  )
 )
-
-api_format <- json_dump(contact_schema)
 ```
 
-Now view the schema:
+This schema is an S7 object, defined specifically for use in EndpointR - this means that many S3 methods you are accustomed to may not work. For example, you cannot call: `jsonlite::toJSON(contact_schema)`
+
+If you try, you'll get this error: `Error: No method asJSON S3 class: S7_object`
+
+Instead, you should use the S7 method `json_dump` which has been defined for the json_schema class:
+
+```{r, contract_schema_dump}
+(contact_json_dump <- json_dump(contact_schema)
+)
+```
+
+You can convert the dumped schema to a JSON object using {jsonlite}'s `toJSON` function.
 
 ```{r, contract_schema_print}
-jsonlite::toJSON(api_format, 
+contact_json_schema <- 
+  toJSON(contact_json_dump, 
                  pretty = TRUE, 
                  auto_unbox = TRUE)
+
+class(contact_json_schema)
 ```
 
-Validate an object fits the schema:
+And we can convert out schema to a regular R list with {jsonlite}'s `fromJSON` function:
+
+```{r, contract_schema_print}
+from_contact_json_schema <- fromJSON(contact_json_schema)
+
+class(from_contact_json_schema)
+```
+
+Alongside `json_dump` the `EndpointR::json_schema` is given a `validate_response` method, this checks that the response object conforms with the schema. If it does, it's straightforward to tidy the output into a tibble:
 
 ```{r}
 mock_contact <- list(
@@ -84,6 +109,29 @@ mock_contact <- list(
 mock_contact_json <- jsonlite::toJSON(mock_contact, auto_unbox = TRUE)
 
 validate_response(contact_schema, mock_contact_json) |> 
+  tibble::as_tibble()
+```
+
+Now let's do it for real - we'll create a request with the Chat Completions API, add our schema
+
+```{r}
+req <- oai_build_completions_request(
+  input = "Am I speaking with Margaret Phillips? Yes, ok, and your email is mphil@hotmail.co.uk. Ok perfect, and your phone number? Was that 07564 789789? Ok great. Just a second please Margaret, you're verified",
+  schema = contact_schema
+)
+
+oai_build_completions_request(
+  input = "Am I speaking with Margaret Phillips? Yes, ok, and your email is mphil@hotmail.co.uk. Ok perfect, and your phone number? Was that 07564 789789? Ok great. Just a second please Margaret, you're verified"
+)
+
+resp <- req_perform(req) 
+```
+
+```{r}
+resp |>
+  resp_body_json() |> 
+  pluck("choices", 1, "message", "content") |> 
+  validate_response(schema = contact_schema) |> 
   tibble::as_tibble()
 ```
 
@@ -427,3 +475,4 @@ extraction_schema <- create_json_schema(
 -   start simple and add complexity incrementally
 -   check enum values match expected model outputs
 -   validate required fields cover essential data
+

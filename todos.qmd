@@ -128,9 +128,9 @@ Headliners:
     -   [ ] Refactor this to get the API just right...
     -   [ ] Data Frame of Reqs
 -   [ ] Responses
--   [ ] Structured Outputs
--   [ ] JSON Schema
--   [ ] S7 Objects (Like Pydantic)
+-   [x] Structured Outputs
+-   [x] JSON Schema
+-   [x] S7 Objects (Like Pydantic)
 -   [ ] Dynamic Rate Limit Management (From info in response headers)
 
 ## Responses API
@@ -185,4 +185,3 @@ for the classifier use-case / just generally accessing the v powerful (but large
 -   [ ] Performance benchmarks for large schemas
 -   [ ] Vignettes with real-world examples
 -   [ ] CRAN submission preparation
-

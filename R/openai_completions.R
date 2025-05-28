@@ -81,24 +81,18 @@ oai_build_completions_request <- function(
     max_tokens = max_tokens
   )
 
-  if (!is.null(schema)) { # for structured outputs
-    if (inherits(schema, "json_schema")) {
-      schema_def <- format_for_api(schema) # defined in R/json_schema.R
-    } else {
-      schema_def <- schema
-    }
+  if (!is.null(schema)) {
+    if (inherits(schema, "EndpointR::json_schema") || inherits(schema, "json_schema") || inherits(schema, "S7_object")){
+      schema_dump <- json_dump(schema)
 
-    if (!is.null(schema_def$schema)) {
-      schema_def$schema$additionalProperties <- FALSE
-      if (is.null(schema_def$strict)) {
-        schema_def$strict <- TRUE
+      if (!is.null(schema_dump$json_schema$schema)) {
+        schema_dump$json_schema$schema$additionalProperties <- FALSE # must be the case for OAI structured outputs
       }
-    }
 
-    body$response_format <- list(
-      type = "json_schema",
-      json_schema = schema_def
-    )
+      body$response_format <- schema_dump
+    } else {
+      body$response_format <- schema
+    }
   }
 
   request <- base_request(endpoint_url = endpoint_url,
