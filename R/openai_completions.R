@@ -55,7 +55,7 @@ oai_build_completions_request <- function(
 
   api_key <- get_api_key(key_name)
 
-  messages <- list() # chat completions manage the chat with a list of messages, so we apend messages to this list with role and content.
+  messages <- list() # chat completions manage the chat with a list of messages, so we append messages to this list with role and content.
   if (!is.null(system_prompt)) { # append system prompt to empty messages
     if (!is.character(system_prompt) || length(system_prompt) != 1) {
       cli::cli_abort("system_prompt must be a single character string")
@@ -65,8 +65,8 @@ oai_build_completions_request <- function(
                        list(
                          list(role = "system",
                               content = system_prompt)
-                         )
                        )
+    )
   }
   # if we didn't have a system prompt then this will be the first message as is required
   messages <- append(messages,
@@ -81,24 +81,18 @@ oai_build_completions_request <- function(
     max_tokens = max_tokens
   )
 
-  if (!is.null(schema)) { # for structured outputs
-    if (inherits(schema, "json_schema")) {
-      schema_def <- format_for_api(schema) # defined in R/json_schema.R
-    } else {
-      schema_def <- schema
-    }
+  if (!is.null(schema)) {
+    if (inherits(schema, "EndpointR::json_schema") || inherits(schema, "json_schema") || inherits(schema, "S7_object")){
+      schema_dump <- json_dump(schema)
 
-    if (!is.null(schema_def$schema)) {
-      schema_def$schema$additionalProperties <- FALSE
-      if (is.null(schema_def$strict)) {
-        schema_def$strict <- TRUE
+      if (!is.null(schema_dump$json_schema$schema)) {
+        schema_dump$json_schema$schema$additionalProperties <- FALSE # must be the case for OAI structured outputs
       }
-    }
 
-    body$response_format <- list(
-      type = "json_schema",
-      json_schema = schema_def
-    )
+      body$response_format <- schema_dump
+    } else {
+      body$response_format <- schema
+    }
   }
 
   request <- base_request(endpoint_url = endpoint_url,
@@ -124,7 +118,7 @@ oai_build_completions_request <- function(
 #'
 #' @return List of httr2 request objects
 #' @export
-oai_build_request_batch <- function(
+oai_build_request_list <- function(
     inputs,
     model = "gpt-4.1-nano",
     temperature = 0,
@@ -155,6 +149,48 @@ oai_build_request_batch <- function(
     key_name = key_name,
     endpoint_url = endpoint_url
   ))
+
+  return(requests)
+}
+
+
+# start of complete_df func
+oai_complete_df <- function(df,
+                            text_var,
+                            id_var,
+                            model = "gpt-4.1-nano",
+                            system_prompt = NULL,
+                            schema = NULL,
+                            concurrent_requests = 1L,
+                            max_retries = 5L,
+                            temperature = 0,
+                            max_tokens = 500L,
+                            key_name = "OPENAI_API_KEY",
+                            endpoint_url = "https://api.openai.com/v1/chat/completions"
+) {
+  text_sym <- rlang::ensym(text_var)
+  id_sym <- rlang::ensym(id_var)
+
+  stopifnot(
+    "df must be a data frame" = is.data.frame(df),
+    "df must not be empty" = nrow(df) > 0,
+    "text_var must exist in df" = rlang::as_name(text_sym) %in% names(df),
+    "id_var must exist in df" = rlang::as_name(id_sym) %in% names(df)
+  )
+
+  inputs <- dplyr::pull(df, !!text_sym)
+  ids <- dplyr::pull(df, !!id_sym)
+
+  requests <- oai_build_request_list(
+    inputs = inputs,
+    model = model,
+    temperature = temperature,
+    max_tokens = max_tokens,
+    schema = schema,
+    system_prompt = system_prompt,
+    key_name = key_name,
+    endpoint_url = endpoint_url
+  )
 
   return(requests)
 }

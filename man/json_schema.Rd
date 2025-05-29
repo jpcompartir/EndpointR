@@ -11,15 +11,6 @@ json_schema(
   description = ""
 )
 }
-\arguments{
-\item{name}{Name of the schema}
-
-\item{schema}{The JSON schema definition as a list}
-
-\item{strict}{Whether to enforce strict mode (default TRUE)}
-
-\item{description}{Optional description of the schema}
-}
 \description{
-S7 class for JSON Schema definitions used in OpenAI structured outputs
+S7 class for JSON Schema definitions used in, e.g. OpenAI structured outputs
 }

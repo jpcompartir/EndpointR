@@ -39,3 +39,5 @@ EndpointR.Rproj
 
 *.html
 *_dev_files*
+
+dev_docs/project_test_run.qmd

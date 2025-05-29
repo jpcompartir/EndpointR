@@ -128,9 +128,9 @@ Headliners:
     -   [ ] Refactor this to get the API just right...
     -   [ ] Data Frame of Reqs
 -   [ ] Responses
--   [ ] Structured Outputs
--   [ ] JSON Schema
--   [ ] S7 Objects (Like Pydantic)
+-   [x] Structured Outputs
+-   [x] JSON Schema
+-   [x] S7 Objects (Like Pydantic)
 -   [ ] Dynamic Rate Limit Management (From info in response headers)
 
 ## Responses API
@@ -138,3 +138,52 @@ Headliners:
 ## Embeddings API
 
 for the classifier use-case / just generally accessing the v powerful (but large) embeddings OAI offer.
+
+# JSON Schema
+
+## Core S7 Class Architecture
+
+-   [x] Define `json_schema` S7 class
+-   [x] Add validator for class constraints/type checking
+-   [x] Implement constructor function `create_json_schema()`
+
+## Generic Methods System
+
+-   [x] Create S7 generics for schema operations
+-   [x] Implement `json_dump()` method for API serialisation
+-   [x] Build `validate_response()` method with jsonvalidate integration
+
+## Schema Builder Functions
+
+-   [x] Core object schema with `schema_object()`
+-   [x] Primitive type helpers:
+-   [x] `schema_string()` with enum support
+-   [x] `schema_number()` with min/max constraints
+-   [x] `schema_integer()` with range validation
+-   [x] `schema_boolean()` for binary fields
+-   [x] Advanced type helpers:
+-   [x] `schema_enum()` with mixed type support
+-   [x] `schema_array()` with item constraints
+-   [x] Documentation with practical examples
+
+Schema -\> Type relationship? e.g. schema_number has its own method which coerces to numeric, or let user?
+
+## Validation & Error Handling
+
+-   [x] JSON response validation against schema
+-   [x] Informative error messages via cli package
+-   [x] Support for both list and JSON string inputs Check out [convert](https://rconsortium.github.io/S7/reference/convert.html) for type conversion Check out the various S7 types
+
+## API Integration
+
+-   [x] Format output for OpenAI structured outputs
+-   [x] Handle optional description fields
+-   [x] Strict mode configuration
+
+## Testing & Polish
+
+-   [ ] Unit tests for all schema builders
+-   [ ] Integration tests with actual LLM APIs
+-   [ ] Performance benchmarks for large schemas
+-   [ ] Vignettes with real-world examples
+-   [ ] Optional Fields and Schemas

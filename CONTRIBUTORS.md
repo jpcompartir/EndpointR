@@ -2,7 +2,7 @@
 
 ## Commands
 
--   Run all tests: `testthat::test_check("EndpointR")`
+-   Run all tests: `testthat::test()`
 -   Run single test: `testthat::test_file("tests/testthat/test-tmp.R")`
 -   Run specific test: `testthat::test_that("test description", { test code })`
 -   Check package: `devtools::check()` or `R CMD check`
@@ -32,4 +32,15 @@
 ## Comment Guidelines
 
 -   Write comments that explain *why* you made the new choice, not stuff like 'Check required parameters' - Let obvious code speak for itself
--   Use lowercase for comments
+-   Use lowercase for comments and British English (let AI use uppercase to distinguish - helpful to know whether it's a human or AI comment)
+
+## API Consistency
+
+-   Functions in R/core.R are intended to be 'quite' general - i.e. they form the foundations of the rest of the package
+-   Generally we want to deal with single text, batch text, df of texts consistently, or at least predictably differently, across providers and tasks
+
+## AI Usage
+
+-   Don't commit code you don't understand
+-   If AI writes the code, you better write the tests. If AI writes the tests, you better write the code.
+-   Let AI help you with docs, but make sure you keep them up-to-date. You will only be able to do this if you know what's in the code, and the docs.
