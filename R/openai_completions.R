@@ -55,7 +55,7 @@ oai_build_completions_request <- function(
 
   api_key <- get_api_key(key_name)
 
-  messages <- list() # chat completions manage the chat with a list of messages, so we apend messages to this list with role and content.
+  messages <- list() # chat completions manage the chat with a list of messages, so we append messages to this list with role and content.
   if (!is.null(system_prompt)) { # append system prompt to empty messages
     if (!is.character(system_prompt) || length(system_prompt) != 1) {
       cli::cli_abort("system_prompt must be a single character string")
@@ -65,8 +65,8 @@ oai_build_completions_request <- function(
                        list(
                          list(role = "system",
                               content = system_prompt)
-                         )
                        )
+    )
   }
   # if we didn't have a system prompt then this will be the first message as is required
   messages <- append(messages,
@@ -118,7 +118,7 @@ oai_build_completions_request <- function(
 #'
 #' @return List of httr2 request objects
 #' @export
-oai_build_request_batch <- function(
+oai_build_request_list <- function(
     inputs,
     model = "gpt-4.1-nano",
     temperature = 0,
@@ -149,6 +149,48 @@ oai_build_request_batch <- function(
     key_name = key_name,
     endpoint_url = endpoint_url
   ))
+
+  return(requests)
+}
+
+
+# start of complete_df func
+oai_complete_df <- function(df,
+                            text_var,
+                            id_var,
+                            model = "gpt-4.1-nano",
+                            system_prompt = NULL,
+                            schema = NULL,
+                            concurrent_requests = 1L,
+                            max_retries = 5L,
+                            temperature = 0,
+                            max_tokens = 500L,
+                            key_name = "OPENAI_API_KEY",
+                            endpoint_url = "https://api.openai.com/v1/chat/completions"
+) {
+  text_sym <- rlang::ensym(text_var)
+  id_sym <- rlang::ensym(id_var)
+
+  stopifnot(
+    "df must be a data frame" = is.data.frame(df),
+    "df must not be empty" = nrow(df) > 0,
+    "text_var must exist in df" = rlang::as_name(text_sym) %in% names(df),
+    "id_var must exist in df" = rlang::as_name(id_sym) %in% names(df)
+  )
+
+  inputs <- dplyr::pull(df, !!text_sym)
+  ids <- dplyr::pull(df, !!id_sym)
+
+  requests <- oai_build_request_list(
+    inputs = inputs,
+    model = model,
+    temperature = temperature,
+    max_tokens = max_tokens,
+    schema = schema,
+    system_prompt = system_prompt,
+    key_name = key_name,
+    endpoint_url = endpoint_url
+  )
 
   return(requests)
 }

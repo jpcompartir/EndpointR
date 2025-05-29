@@ -61,7 +61,7 @@ contact_schema <- create_json_schema(
    name = schema_string("person's full name"),
    email = schema_string("email address"),
    phone = schema_string("phone number"),
-   required = c("name", "email", "phone"),
+   required = list("name", "email", "phone"),
    additional_properties = FALSE
  )
 )

@@ -172,7 +172,7 @@ Schema -\> Type relationship? e.g. schema_number has its own method which coerce
 
 -   [x] JSON response validation against schema
 -   [x] Informative error messages via cli package
--   [x] Support for both list and JSON string inputs
+-   [x] Support for both list and JSON string inputs Check out [convert](https://rconsortium.github.io/S7/reference/convert.html) for type conversion Check out the various S7 types
 
 ## API Integration
 
