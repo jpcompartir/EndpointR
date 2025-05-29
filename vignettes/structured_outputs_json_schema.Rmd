@@ -48,7 +48,7 @@ Structured outputs ensure LLMs return data in exactly the format you need. Inste
 
 **Why use structured outputs?** - eliminates parsing errors and inconsistent formats - guarantees data types (numbers vs strings, booleans vs text) - enables reliable data extraction pipelines - reduces prompt engineering overhead
 
-**Basic workflow:** 1. define schema using helper functions 2. convert to API format with `json_dump()` 3. send to OpenAI with structured output enabled 4. validate response with `validate_response()`
+**Basic workflow:** 1. define schema using helper functions 2. send requests to OpenAI with scehma passed in 3. validate response with `validate_response()`
 
 # Quick Start
 
@@ -65,69 +65,14 @@ contact_schema <- create_json_schema(
    additional_properties = FALSE
  )
 )
-```
 
-This schema is an S7 object, defined specifically for use in EndpointR - this means that many S3 methods you are accustomed to may not work. For example, you cannot call: `jsonlite::toJSON(contact_schema)`
-
-If you try, you'll get this error: `Error: No method asJSON S3 class: S7_object`
-
-Instead, you should use the S7 method `json_dump` which has been defined for the json_schema class:
-
-```{r, contract_schema_dump}
-(contact_json_dump <- json_dump(contact_schema)
-)
-```
-
-You can convert the dumped schema to a JSON object using {jsonlite}'s `toJSON` function.
-
-```{r, contract_schema_print}
-contact_json_schema <- 
-  toJSON(contact_json_dump, 
-                 pretty = TRUE, 
-                 auto_unbox = TRUE)
-
-class(contact_json_schema)
-```
-
-And we can convert out schema to a regular R list with {jsonlite}'s `fromJSON` function:
-
-```{r, contract_schema_print}
-from_contact_json_schema <- fromJSON(contact_json_schema)
-
-class(from_contact_json_schema)
-```
-
-Alongside `json_dump` the `EndpointR::json_schema` is given a `validate_response` method, this checks that the response object conforms with the schema. If it does, it's straightforward to tidy the output into a tibble:
-
-```{r}
-mock_contact <- list(
- name = "Jane Doe",
- email = "jane.doe@example.com",
- phone = "07123 456789"
-)
-
-mock_contact_json <- jsonlite::toJSON(mock_contact, auto_unbox = TRUE)
-
-validate_response(contact_schema, mock_contact_json) |> 
-  tibble::as_tibble()
-```
-
-Now let's do it for real - we'll create a request with the Chat Completions API, add our schema
-
-```{r}
 req <- oai_build_completions_request(
   input = "Am I speaking with Margaret Phillips? Yes, ok, and your email is mphil@hotmail.co.uk. Ok perfect, and your phone number? Was that 07564 789789? Ok great. Just a second please Margaret, you're verified",
   schema = contact_schema
 )
 
-oai_build_completions_request(
-  input = "Am I speaking with Margaret Phillips? Yes, ok, and your email is mphil@hotmail.co.uk. Ok perfect, and your phone number? Was that 07564 789789? Ok great. Just a second please Margaret, you're verified"
-)
+resp <- req_perform(req)
 
-resp <- req_perform(req) 
-```
-
-```{r}
 resp |>
   resp_body_json() |> 
   pluck("choices", 1, "message", "content") |> 
@@ -135,7 +80,11 @@ resp |>
   tibble::as_tibble()
 ```
 
-## Basic Schema Creation
+> **NOTE:** The first time you send a request with a schema, it will take longer than usual. "Typical schemas take under 10 seconds to process on the first request, but more complex schemas may take up to a minute." [^1]
+
+[^1]: [OAI Docs](https://openai.com/index/introducing-structured-outputs-in-the-api/)
+
+# Schema Types
 
 Core schema types handle most data extraction needs.
 
@@ -159,14 +108,14 @@ sentiment_schema <- create_json_schema(
 )
 ```
 
-Now view the schema:
+You can inspect the schema then print it in a human-readable form with `json_dump()` and `jsonlite::toJSON()`
 
 ```{r, sentiment_schema_print}
 json_dump(sentiment_schema) |> 
   jsonlite::toJSON(pretty = TRUE, auto_unbox = TRUE)
 ```
 
-Another, more complicated, schema for product review extraction:
+Another, more complicated, schema for product review extraction, where we introduce the `schema_array`:
 
 ```{r, customer_rating_schema}
 rating_schema <- create_json_schema(
@@ -188,127 +137,9 @@ rating_schema <- create_json_schema(
 )
 ```
 
-view the schema structure:
+# Complex Nested Structures
 
-```{r, customer_rating_schema_dump}
-json_dump(rating_schema) |> 
-  jsonlite::toJSON(pretty = TRUE, auto_unbox = TRUE)
-```
-
-## Schema Types and Validation
-
-Each schema type enforces specific constraints. We have a method for validating whether specific responses meet the schema's constraints.
-
-Here's a comprehensive example:
-
-```{r, user_profile_schema}
-user_profile_schema <- create_json_schema(
- name = "user_profile",
- schema = schema_object(
-   # string fields
-   name = schema_string("full name"),
-   bio = schema_string("user biography"),
-   
-   # numeric fields
-   age = schema_integer("age in years", minimum = 13, maximum = 120),
-   account_balance = schema_number("balance in pounds", minimum = 0),
-   is_verified = schema_boolean("account verified status"),
-   newsletter_opt_in = schema_boolean("subscribed to newsletter"),
-   subscription_tier = schema_enum(
-     c("free", "premium", "enterprise"),
-     "subscription level"),
-   priority = schema_enum(
-     c(1, 2, 3),
-     "support priority level",
-     type = "integer"
-   ),
-   interests = schema_array(
-     schema_string(),
-     "user interests",
-     min_items = 1,
-     max_items = 10
-   ),
-   
-   required = c("name", "age", "is_verified", "subscription_tier")
- )
-)
-```
-
-> **QUESTION:** what's wrong with this schema if we want to use it with the OpenAI API?
-
-## How Validation Works
-
-When using structured outputs with LLM providers:
-
--   API-side enforcement: The provider ensures generated responses match your schema
--   Local validation: - validate_response() double-checks data integrity locally
-
-This dual approach catches both generation errors and data transmission issues.
-
-Now let's see what happens when we try validate a mocked response object:
-
-```{r, valid_response}
-valid_user <- '{
-  "name": "Alice Smith",
-  "age": 28,
-  "account_balance": 156.75,
-  "is_verified": true,
-  "newsletter_opt_in": false,
-  "subscription_tier": "premium",
-  "priority": 2,
-  "interests": ["data science", "functional programming", "statistics"]
-}'
-
-validated_data <- validate_response(user_profile_schema, valid_user)
-str(validated_data)
-```
-
-And some invalid examples:
-
-Here we should fail because the age needs to be 13 or above:
-
-```{r invalid_age, error = TRUE}
-invalid_age <- '{
-  "name": "Young User",
-  "age": 10,
-  "is_verified": true,
-  "subscription_tier": "free"
-}'
-
-validate_response(user_profile_schema, invalid_age)
-```
-
-Now an example which has an invalid enumerated value - tier must be one of "free", "premium", "enterprise":
-
-```{r invalid_enum, error = TRUE}
-invalid_tier <- '{
-  "name": "Bob Jones",
-  "age": 35,
-  "is_verified": false,
-  "subscription_tier": "platinum"
-}'
-
-validate_response(user_profile_schema, invalid_tier)
-```
-
-Now an example which fails due to too many interests (we should have a max of 10):
-
-```{r invalid_length, error = TRUE}
-invalid_interests <- list(
-  name = "Data Enthusiast",
-  age = 30,
-  is_verified = TRUE,
-  subscription_tier = "enterprise",
-  interests = letters[1:15]  # 15 items exceeds max
-)
-
-validate_response(user_profile_schema, invalid_interests)
-
-```
-
-## Complex Nested Structures
-
-In this section we'll create some fairly complex examples, to help build an intuition for what the schema objects can do:
+Finally we have a fairly complex schema - the supplier is a schema_object within a schema_object, and line_items sits within a schema_object, has a schema_array, with its own schema_object, and multiple schema\_\* objects.
 
 ```{r invoice_schema}
 # invoice parsing with line items
@@ -350,12 +181,181 @@ invoice_schema <- create_json_schema(
   )
 )
 
-invoice_schema@schema$required <-  names(invoice_schema@schema$properties)
+invoice_schema@schema$required <-  names(invoice_schema@schema$properties) # this line ensures that *all* properties are added to the required field.
 ```
 
-Another example with complex nesting:
+# Validation
 
-## Best Practices and Troubleshooting
+Each schema type enforces specific constraints. We have a method for validating whether specific responses meet the schema's constraints.
+
+### How Validation Works
+
+When using structured outputs with LLM providers:
+
+-   API-side enforcement: The provider ensures generated responses match your schema
+-   Local validation: - validate_response() double-checks data integrity locally
+
+This dual approach catches both generation errors and data transmission issues.
+
+Here's a comprehensive example:
+
+```{r, user_profile_schema}
+user_profile_schema <- create_json_schema(
+ name = "user_profile",
+ schema = schema_object(
+   # string fields
+   name = schema_string("full name"),
+   bio = schema_string("user biography"),
+   
+   # numeric fields
+   age = schema_integer("age in years", minimum = 13, maximum = 120),
+   account_balance = schema_number("balance in pounds", minimum = 0),
+   is_verified = schema_boolean("account verified status"),
+   newsletter_opt_in = schema_boolean("subscribed to newsletter"),
+   subscription_tier = schema_enum(
+     c("free", "premium", "enterprise"),
+     "subscription level"),
+   priority = schema_enum(
+     c(1, 2, 3),
+     "support priority level",
+     type = "integer"
+   ),
+   interests = schema_array(
+     schema_string(),
+     "user interests",
+     min_items = 1,
+     max_items = 10
+   ),
+   
+   required = c("name", "age", "is_verified", "subscription_tier")
+ )
+)
+```
+
+> **QUESTION:** what's wrong with this schema if we want to use it with the OpenAI API?
+
+<details>
+
+<summary>Click to view answer</summary>
+
+Not all properties are set as required fields, meaning we cannot use this schema for OpenAI's structured outputs.
+
+</details>
+
+Now let's see what happens when we try validate a mocked response object which conforms to the schema:
+
+```{r, valid_response}
+valid_user <- '{
+  "name": "Alice Smith",
+  "age": 28,
+  "account_balance": 156.75,
+  "is_verified": true,
+  "newsletter_opt_in": false,
+  "subscription_tier": "premium",
+  "priority": 2,
+  "interests": ["data science", "functional programming", "statistics"]
+}'
+
+validated_data <- validate_response(user_profile_schema, valid_user)
+str(validated_data)
+```
+
+And when we try to validate a mocked response object which does not conform to the schema
+
+```{r invalid_age, error = TRUE}
+invalid_age <- '{
+  "name": "Young User",
+  "age": 10,
+  "is_verified": true,
+  "subscription_tier": "free"
+}'
+
+validate_response(user_profile_schema, invalid_age)
+```
+
+# Working with S7 Objects
+
+This schema is an S7 object, defined specifically for use in EndpointR - this means that many S3 methods you are accustomed to may not work. For example, you cannot call: `jsonlite::toJSON(contact_schema)`. If you try, you'll get this error: `Error: No method asJSON S3 class: S7_object`
+
+Instead, you should use the S7 method `json_dump` which has been defined for the json_schema class. This converts the schema into an R list which is ready to be converted into JSON. I won't print the list as-is because it is long and ugly, instead we can check out the structure:
+
+```{r, contract_schema_dump}
+contact_json_dump <- json_dump(contact_schema)
+str(contact_json_dump)
+```
+
+Alongside `json_dump` the `EndpointR::json_schema` is given a `validate_response` method, this uses the {jsonvalidate} package to check the response object conforms with the schema. If it does, it's straightforward to tidy the output into a tibble or a data frame:
+
+```{r}
+mock_contact <- list(
+ name = "Jane Doe",
+ email = "jane.doe@example.com",
+ phone = "07123 456789"
+)
+
+mock_contact_json <- jsonlite::toJSON(mock_contact, auto_unbox = TRUE)
+
+validate_response(contact_schema, mock_contact_json) |> 
+  tibble::as_tibble()
+```
+
+## Converting Schema Objects to JSON
+
+You can convert the dumped schema to a JSON object using {jsonlite}'s `toJSON` function. This object will now be of the class 'json'.
+
+```{r, contract_schema_print}
+contact_json_schema <- 
+  toJSON(contact_json_dump, 
+                 pretty = TRUE, 
+                 auto_unbox = TRUE)
+
+class(contact_json_schema)
+```
+
+<details>
+
+<summary>View pretty-printed Schema in JSON form</summary>
+
+```{json}
+{
+  "type": "json_schema",
+  "json_schema": {
+    "name": "contact_info",
+    "schema": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "person's full name"
+        },
+        "email": {
+          "type": "string",
+          "description": "email address"
+        },
+        "phone": {
+          "type": "string",
+          "description": "phone number"
+        }
+      },
+      "additionalProperties": false,
+      "required": ["name", "email", "phone"]
+    },
+    "strict": true
+  }
+} 
+```
+
+</details>
+
+And we can convert our schema back to a regular R list with {jsonlite}'s `fromJSON` function:
+
+```{r, contract_schema_class}
+from_contact_json_schema <- fromJSON(contact_json_schema)
+
+class(from_contact_json_schema)
+```
+
+# Best Practices
 
 Schema design principles:
 
@@ -365,11 +365,13 @@ Schema design principles:
 -   Nest objects logically for complex data
 -   Validate some mock responses in advance
 
-## Troubleshooting tips:
+# Troubleshooting tips:
 
--   use json_dump() to inspect final schema structure
--   test schemas with mock data using validate_response()
--   start simple and add complexity incrementally
--   check enum values match expected model outputs
--   validate required fields cover essential data
--   make sure all properties are required if using OpenAI API for structured outputs
+-   Use json_dump() to inspect final schema structure
+-   use `jsonlite::toJSON(x, pretty = TRUE)` to view the schema in a human-readable form
+-   Test schemas with mock data using validate_response()
+-   Start simple and add complexity incrementally
+-   Check enum values match expected model outputs
+-   Validate required fields cover essential data
+-   Make sure all properties are required if using OpenAI API for structured outputs
+

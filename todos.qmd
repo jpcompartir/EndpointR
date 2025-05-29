@@ -166,6 +166,8 @@ for the classifier use-case / just generally accessing the v powerful (but large
 -   [x] `schema_array()` with item constraints
 -   [x] Documentation with practical examples
 
+Schema -\> Type relationship? e.g. schema_number has its own method which coerces to numeric, or let user?
+
 ## Validation & Error Handling
 
 -   [x] JSON response validation against schema
@@ -184,4 +186,4 @@ for the classifier use-case / just generally accessing the v powerful (but large
 -   [ ] Integration tests with actual LLM APIs
 -   [ ] Performance benchmarks for large schemas
 -   [ ] Vignettes with real-world examples
--   [ ] CRAN submission preparation
+-   [ ] Optional Fields and Schemas
