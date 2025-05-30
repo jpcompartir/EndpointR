@@ -118,13 +118,15 @@ oai_build_completions_request <- function(
 #'
 #' @return List of httr2 request objects
 #' @export
-oai_build_request_list <- function(
+oai_build_completions_request_list <- function(
     inputs,
     model = "gpt-4.1-nano",
     temperature = 0,
     max_tokens = 500L,
     schema = NULL,
     system_prompt = NULL,
+    max_retries = 5L,
+    timeout = 30,
     key_name = "OPENAI_API_KEY",
     endpoint_url = "https://api.openai.com/v1/chat/completions") {
 
@@ -147,14 +149,16 @@ oai_build_request_list <- function(
     schema = schema,
     system_prompt = system_prompt,
     key_name = key_name,
-    endpoint_url = endpoint_url
+    endpoint_url = endpoint_url,
+    max_retries = max_retries,
+    timeout = timeout
   ))
 
   return(requests)
 }
 
 
-# start of complete_df func
+# start of complete_df func ----
 oai_complete_df <- function(df,
                             text_var,
                             id_var,
@@ -163,8 +167,10 @@ oai_complete_df <- function(df,
                             schema = NULL,
                             concurrent_requests = 1L,
                             max_retries = 5L,
+                            timeout = 30,
                             temperature = 0,
                             max_tokens = 500L,
+                            progress = TRUE,
                             key_name = "OPENAI_API_KEY",
                             endpoint_url = "https://api.openai.com/v1/chat/completions"
 ) {

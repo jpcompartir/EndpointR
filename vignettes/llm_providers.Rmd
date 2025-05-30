@@ -13,7 +13,7 @@ output:
     code_folding: show
     anchor_sections: true
 vignette: >
-  %\VignetteIndexEntry{Using Hugging Face Inference Endpoints}
+  %\VignetteIndexEntry{Connecting to Major Model Providers}
   %\VignetteEngine{knitr::rmarkdown}
   %\VignetteEncoding{UTF-8}
 ---
@@ -42,7 +42,7 @@ This vignette details how we can use EndpointR to interact with services hosted 
 
 ## OpenAI - Quick Start - Responses API
 
-## OpenAI - The Basics
+# OpenAI - The Basics
 
 Before we get started, we need to make sure we have a couple of things in place:
 
@@ -52,7 +52,7 @@ Before we get started, we need to make sure we have a couple of things in place:
 
 > **Information:** if you are unsure whether you should prefer the Completions API or the Responses API, checkout [this webpage](https://platform.openai.com/docs/guides/responses-vs-chat-completions)
 
-## OpenAI - Completions API
+## Completions API
 
 "The Chat Completions API endpoint will generate a model response from a list of messages comprising a conversation."
 
@@ -66,7 +66,7 @@ So what type of tasks might we use the Completions API for?
 -   Translation
 -   Structured data extraction
 
-### OpenAI - Example - Sentiment Analysis
+### Sentiment Analysis
 
 Whilst we would generally not recommend using OpenAI's models for sentiment analysis, [^1] it is a task most people are familiar with.
 
@@ -96,7 +96,7 @@ sentiment_request |>
 
 Your generated HTTP request should look something like this:
 
-``` http
+```{http}
 POST /v1/chat/completions HTTP/1.1
 accept: */*
 accept-encoding: deflate, gzip
@@ -177,13 +177,13 @@ ambiguous_sentiment <- oai_build_completions_request(
 
 The model is smart enough to recognise that the sentiment does not fit neatly into 'positive', 'negative', 'neutral' but once again the output is not formatted in a nice way for downstream use.
 
-### OpenAI - Multiple Texts
+### Multiple Texts
 
 Individual requests will be useful for some applications but EndpointR was built to handle more, whilst taking care of implementation details like concurrent requests, retries, and failing gracefully.
 
 Let's experiment with a better system prompt and a list of texts:
 
-```{r}
+```{r, updated_sentiment_prompt}
 updated_sentiment_prompt <- "Classify the text into sentiment categories.
 The accepted categories are 'positive', 'negative', 'neutral', and 'mixed'.
 A 'mixed' text contains elements of positive and negative.
@@ -206,7 +206,7 @@ classical_texts <- c(
 ```
 
 ```{r, classical_requests}
-classical_requests <- oai_build_request_batch(
+classical_requests <- oai_build_completions_request_list(
   classical_texts,
   system_prompt = updated_sentiment_prompt
 )
@@ -214,7 +214,7 @@ classical_requests <- oai_build_request_batch(
 
 When running this in testing, it took 8.5 seconds for the 10 requests if we send one at a time.
 
-```{r}
+```{r, seq_test}
 start_seq <- Sys.time()
 classical_responses  <- classical_requests |> 
   perform_requests_with_strategy()
@@ -223,7 +223,7 @@ end_seq <- Sys.time() - start_seq
 
 And it took 1.8 seconds we send 10 requests in parallel - a \~4.7x speed up, showing there is some overhead cost in sending requests in parallel - i.e. we did not see a 10x speed increase for 10x requests.
 
-```{r}
+```{r, par_test}
 start_par <- Sys.time()
 classical_responses  <- classical_requests |> 
   perform_requests_with_strategy(concurrent_requests = 10)
@@ -244,7 +244,7 @@ classical_responses |>
   mutate(text = classical_texts, .before = 1)
 ```
 
-### OpenAI - Data Frame of Texts
+### Data Frame of Texts
 
 ```{r}
 mapped_responses <- tibble(
@@ -265,6 +265,10 @@ mapped_responses |>
 ```
 
 ## OpenAI Structured Outputs {#openai-structured-outputs}
+
+The textual responses we get from LLM providers are difficult to deal with programmatically, because they make no guarantees on the form of the response. For example, if we ask the LLM to classify documents, sometimes it will give just the classification - 'positive', sometimes it will add some pre-amble 'the document is positive', and sometimes it will do something else entirely.
+
+For detailed information on creating JSON schemas for structured outputs, see `vignette("structured_outputs_json_schema")`.
 
 # Anthropic
 
