@@ -202,7 +202,6 @@ oai_complete_df <- function(df,
     timeout = timeout
   )
 
-
   # keep track of valid/invalid requests and IDs explicitly separately
   is_httr2_request <- purrr::map_lgl(requests, ~class(.x) == "httr2_request")
   invalid_indices <- ids[which(!is_httr2_request)]
@@ -213,55 +212,27 @@ oai_complete_df <- function(df,
 
   requests <- requests[which(is_httr2_request)] # changes the shape if we have an errored request, so need to be careful later with the inputs and ids -> data frame
 
-
   responses <- perform_requests_with_strategy(
     requests,
     concurrent_requests = concurrent_requests,
     progress = progress
   )
 
-  num_requests <- length(requests)
-  num_responses <- length(responses)
+  # browser()
 
-  if(!length(responses) == length(requests)) {
-    cli::cli_alert_warning("Number of requests differs from number of responses:")
-    cli::cli_bullets(text = c(
-      "Number of requests: {num_requests}",
-      "Number of responses: {num_responses}"))
-  }
+  responses_df <- tibble::tibble(
+    !!id_sym := valid_indices,
+    response = responses
+  ) |>
+    dplyr::mutate(
+      is_resp = purrr::map_lgl(response, ~inherits(.x, "httr2_response"))
+    )
 
+  # preferring the separate dfs for success/failures, but may hurt with memory for long lists..
+  failures_df <- dplyr::filter(responses_df, !is_resp)
+  successes_df <- dplyr::filter(responses_df, is_resp) |>
+    dplyr::mutate(status_code = purrr::map(response, resp_status))
 
-
-  return(requests)
+  return(responses_df)
 }
 
-
-requests <- data |>
-  slice(1:2) |>
-  oai_complete_df(text_var = message,
-                  id_var = .id,
-                  schema = ms_product_schema,
-                  system_prompt = system_prompt,
-                  concurrent_requests = 1
-  )
-
-requests <- append(requests, "hello") # add one that isn't a httr2_request to handle failures
-
-test_data <-
-  data |>
-    slice(1:4)
-
-test_data <- test_data |>
-  add_row(.id = 5, message = "")
-
-
-test_data |>
-  oai_complete_df(
-    text_var = message,
-    id_var = .id,
-    schema = ms_product_schema,
-    system_prompt = system_prompt,
-    concurrent_requests = 1,
-    max_retries = 5,
-    timeout = 50
-  )
