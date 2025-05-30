@@ -176,7 +176,7 @@ list_responses[[1]] |>
 
 # Completions API
 
-To send requests to OpenAI's completions API, we need to ut a few things in place:
+To send requests to OpenAI's completions API, we need to put a few things in place:
 
 -   [ ] Store an "OPENAI_API_KEY" with `set_api_key()`
 -   [ ] Build a completions request with `oai_build_completions_request()`, with one mandatory parameter - input =, which is where we place the input (usually text) we want a response from.
@@ -331,15 +331,13 @@ s7_sentiment_schema <- create_json_schema(
   sentiment_schema,
   strict = TRUE
 )
-
-api_sentiment_schema <- format_for_api(s7_sentiment_schema)
 ```
 
 ```{r}
 sent_req <-oai_build_completions_request(
   input = "this product was awful, really bad.",
   model = model,
-  schema = api_sentiment_schema
+  schema = s7_sentiment_schema
 ) 
 
 sent_resp <- httr2::req_perform(sent_req)
@@ -353,78 +351,6 @@ sent_resp |>
   pluck('choices', 1, 'message','content') |> 
   jsonlite::fromJSON() |> 
   as.data.frame()
-```
-
-Or we can go to the schema and grab the possible enum values for a field of choice (in this case it can only be sentiment)
-
-```{r, parsing_responses_from_schema}
-get_enum_values <- function(schema, field_name) {
-  schema$schema$properties[[field_name]]$enum
-}
-
-extract_structured_response <- function(response, schema, input_text, input_id = NULL) {
-  
-  valid_sentiments <- get_enum_values(schema, "sentiment")
-  
-  safe_extract <- purrr::safely(function(resp) {
-    resp |> 
-      httr2::resp_body_json() |> 
-      purrr::pluck('choices', 1, 'message', 'content') |> 
-      jsonlite::fromJSON()
-  })
-  
-  result <- safe_extract(response)
-  
-  if (!is.null(result$error)) {
-    return(tibble::tibble(
-      id = input_id %||% NA_character_,
-      text = input_text,
-      sentiment = NA_character_,
-      status = "json_parse_error",
-      error = as.character(result$error)
-    ))
-  }
-  
-  parsed <- result$result
-  
-  if (!is.list(parsed) || !"sentiment" %in% names(parsed)) {
-    return(tibble::tibble(
-      id = input_id %||% NA_character_,
-      text = input_text,
-      sentiment = NA_character_,
-      status = "missing_field",
-      error = "Response missing required 'sentiment' field"
-    ))
-  }
-  
-  if (!parsed$sentiment %in% valid_sentiments) {
-    return(tibble::tibble(
-      id = input_id %||% NA_character_,
-      text = input_text,
-      sentiment = NA_character_,
-      status = "invalid_value",
-      error = paste("Invalid sentiment:", parsed$sentiment, 
-                   "Valid values:", paste(valid_sentiments, collapse = ", "))
-    ))
-  }
-  
-  tibble::tibble(
-    id = input_id %||% NA_character_,
-    text = input_text,
-    sentiment = parsed$sentiment,
-    status = "success",
-    error = NA_character_
-  )
-}
-```
-
-```{r}
-result <- extract_structured_response(
-  sent_resp, 
-  api_sentiment_schema, 
-  "this product was awful, really bad.", 
-  "review_001"
-)
 ```
 
 We *can* introduce optional fields into structured outputs,
@@ -444,7 +370,7 @@ texts <- c(
   "It's okay, nothing special but does the job."
 )
 
-requests <- oai_build_request_batch(
+requests <- oai_build_request_list(
   inputs = texts,
   schema = api_sentiment_schema,
   temperature = 0
@@ -575,4 +501,74 @@ extraction_body <- list(
   temperature = 0,
   max_output_tokens = 500L
 )
+```
+
+```{r}
+num_requests <- 5
+num_responses <- 4
+if(!length(responses) == length(requests)) {
+    cli::cli_alert_warning("Number of requests differs from number of responses:")
+    cli::cli_bullets( text = c(
+      "- Number of requests: {num_requests}",
+      "- Number of responses: {num_responses}"))
+}
+```
+
+```{r}
+requests <- append(requests, "hello")
+```
+
+```{r}
+separate_valid_requests <- function(requests) {
+  stopifnot("requests should be a vector of requests" = is_vector(requests))
+  # keep track of valid/invalid requests and IDs explicitly separately
+  is_httr2_request <- purrr::map_lgl(requests, ~class(.x) == "httr2_request")
+  invalid_indices <- which(!is_httr2_request)
+
+  valid_indices <- which(is_httr2_request)
+
+  
+  return(list(valid_indices = valid_indices, invalid_indices = invalid_indices))
+  
+  # requests <- requests[which(is_httr2_request)] # changes the shape if we have an errored request, so need to be careful later with the inputs and ids -> data frame
+  
+  
+}
+```
+
+```{r}
+separate_valid_requests(requests)
+```
+
+```{r}
+requests <- data |>
+  slice(1:2) |>
+  oai_complete_df(text_var = message,
+                  id_var = .id,
+                  schema = ms_product_schema,
+                  system_prompt = system_prompt,
+                  concurrent_requests = 1
+  )
+
+requests <- append(requests, "hello") # add one that isn't a httr2_request to handle failures
+
+test_data <-
+  data |>
+    slice(1:4)
+
+test_data <- test_data |>
+  add_row(.id = 5, message = "")
+
+
+test_data |>
+  oai_complete_df(
+    text_var = message,
+    id_var = .id,
+    schema = ms_product_schema,
+    system_prompt = system_prompt,
+    concurrent_requests = 1,
+    max_retries = 5,
+    timeout = 50
+  )
+
 ```

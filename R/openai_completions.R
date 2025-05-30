@@ -105,6 +105,7 @@ oai_build_completions_request <- function(
 
   return(request)
 }
+
 #' Build OpenAI requests for batch processing
 #'
 #' @param inputs Character vector of text inputs
@@ -184,10 +185,11 @@ oai_complete_df <- function(df,
     "id_var must exist in df" = rlang::as_name(id_sym) %in% names(df)
   )
 
+  # pull inputs and ids into vectors for later concurrency
   inputs <- dplyr::pull(df, !!text_sym)
   ids <- dplyr::pull(df, !!id_sym)
 
-  requests <- oai_build_request_list(
+  requests <- oai_build_completions_request_list(
     inputs = inputs,
     model = model,
     temperature = temperature,
@@ -195,8 +197,71 @@ oai_complete_df <- function(df,
     schema = schema,
     system_prompt = system_prompt,
     key_name = key_name,
-    endpoint_url = endpoint_url
+    endpoint_url = endpoint_url,
+    max_retries = max_retries,
+    timeout = timeout
   )
+
+
+  # keep track of valid/invalid requests and IDs explicitly separately
+  is_httr2_request <- purrr::map_lgl(requests, ~class(.x) == "httr2_request")
+  invalid_indices <- ids[which(!is_httr2_request)]
+  invalid_df <- tibble::tibble(!!id_sym := invalid_indices)
+
+  valid_indices <- ids[which(is_httr2_request)]
+  valid_df <- tibble::tibble(!!id_sym := valid_indices)
+
+  requests <- requests[which(is_httr2_request)] # changes the shape if we have an errored request, so need to be careful later with the inputs and ids -> data frame
+
+
+  responses <- perform_requests_with_strategy(
+    requests,
+    concurrent_requests = concurrent_requests,
+    progress = progress
+  )
+
+  num_requests <- length(requests)
+  num_responses <- length(responses)
+
+  if(!length(responses) == length(requests)) {
+    cli::cli_alert_warning("Number of requests differs from number of responses:")
+    cli::cli_bullets(text = c(
+      "Number of requests: {num_requests}",
+      "Number of responses: {num_responses}"))
+  }
+
+
 
   return(requests)
 }
+
+
+requests <- data |>
+  slice(1:2) |>
+  oai_complete_df(text_var = message,
+                  id_var = .id,
+                  schema = ms_product_schema,
+                  system_prompt = system_prompt,
+                  concurrent_requests = 1
+  )
+
+requests <- append(requests, "hello") # add one that isn't a httr2_request to handle failures
+
+test_data <-
+  data |>
+    slice(1:4)
+
+test_data <- test_data |>
+  add_row(.id = 5, message = "")
+
+
+test_data |>
+  oai_complete_df(
+    text_var = message,
+    id_var = .id,
+    schema = ms_product_schema,
+    system_prompt = system_prompt,
+    concurrent_requests = 1,
+    max_retries = 5,
+    timeout = 50
+  )
