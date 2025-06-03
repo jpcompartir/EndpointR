@@ -17,47 +17,127 @@ knitr::opts_chunk$set(
 
 <!-- badges: end -->
 
-EndpointR is a 'batteries included', open-source R package for connecting to various Application Programming Interfaces ([APIs](https://en.wikipedia.org/wiki/API){target="_blank"}) for Machine Learning model predictions. EndpointR is built for company-specific use cases at SHARE Creative, so may not be useful to a wide audience. It is built in the Tidyverse style - functions expect a data frame as an input and return a data frame as an output.
+EndpointR is a 'batteries included', open-source R package for connecting to various Application Programming Interfaces ([APIs](https://en.wikipedia.org/wiki/API){target="_blank"}) for Machine Learning model predictions.
 
-EndpointR provides access to endpoints via individual functions: one function - or multiple functions - per endpoint. If you are experienced with hitting APIs or you need to do something that EndpointR doesn't cover, consider going directly to [httr2](https://httr2.r-lib.org/reference/index.html)
+> **TIP:** If you are an experienced programmer, or have experience with hitting APIs, consider going directly to [httr2](https://httr2.r-lib.org/reference/index.html)
 
 # Installation
 
-EndpointR will not be put on CRAN, so you can download and install it with the following code:
+EndpointR will not be put on CRAN, so you can download and install the latest development version with the following code:
 
 ```{r, eval=FALSE}
+library(EndpointR)
 remotes::install_github("jpcompartir/EndpointR")
 ```
 
-# Quick Start
+# Quick Starts
+
+## Hugging Face - embeddings
+
+Securely set your API key:
+
+```{r, eval = FALSE}
+set_api_key("HF_API_KEY")
+
+endpoint_url <- httr2::secret_decrypt("kcZCsc92Ty7PuAk7_FdCcdOU_dlDpvWdDyfpwCWg-wW80eJxJPdQ68nz4V_0922SzSwM5_dYfpTOqsZ-GodUpLN4PQbwE73wlZkBCWIaIXc15g", "ENDPOINTR_KEY") # encrypted - for demo purposes
+
+```
+
+Embed a single text:
+
+```{r, eval = FALSE}
+embeddings <- hf_embed_text(
+  text = "Convert this text to embeddings",
+  endpoint_url = endpoint_url,
+  key_name = "HF_API_KEY"
+)
+```
+
+Embed a list of texts in batches:
+
+```{r, eval = FALSE}
+results <- hf_embed_batch(
+  texts = c("Text one", "Text two", "Text three"),
+  endpoint_url = endpoint_url,
+  key_name = "HF_API_KEY",
+  batch_size = 10,
+  concurrent_requests = 5
+)
+```
+
+Embed a data frame of texts:
+
+```{r, eval = FALSE}
+df_with_embeddings <- hf_embed_df(
+  df = your_data,
+  text_var = review_text,
+  id_var = review_id,
+  endpoint_url = endpoint_url,
+  key_name = "HF_API_KEY"
+)
+```
+
+## Hugging Face - Classification
+
+Classify a single text:
+
+```{r, eval = FALSE}
+classification <- hf_classify_text(
+  text = "This restaurant has terrible service",
+  endpoint_url = your_classification_endpoint,
+  key_name = "HF_API_KEY"
+)
+```
+
+Classify a data frame:
+
+```{r, eval = FALSE}
+
+classified_df <- hf_classify_df(
+  df = customer_reviews,
+  text_var = review_text,
+  id_var = review_id,
+  endpoint_url = your_classification_endpoint,
+  key_name = "HF_API_KEY",
+  batch_size = 8,
+  concurrent_requests = 3
+)
+```
+
+Read the [Hugging Face Inference Vignette](vignettes/hugging_face_inference.Rmd) for more infromation on embedding and classifying using Dedicated Inference Endpoints and the Inference API from Hugging Face.
+
+## OpenAI - Chat Completions API
+
+Complete a single text:
 
 ```{r, eval = FALSE}
 library(EndpointR)
-set_api_key("TEST_API_KEY")
 
-endpoint_url <- httr2::secret_decrypt("kcZCsc92Ty7PuAk7_FdCcdOU_dlDpvWdDyfpwCWg-wW80eJxJPdQ68nz4V_0922SzSwM5_dYfpTOqsZ-GodUpLN4PQbwE73wlZkBCWIaIXc15g", "ENDPOINTR_KEY")
+set_api_key("OPENAI_API_KEY")
 
-hf_embed_text(
-  "Embed this text for me",
-  endpoint_url = endpoint_url,
-  key_name = "TEST_API_KEY",
-  max_retries = 5
+oai_complete_text(input = "Oh man, that's absolutely terrible.",
+                  system_prompt = "Classify the sentiment of the following text: ")
+```
+
+Complete a Data Frame of texts:
+
+```{r, eval = FALSE}
+oai_complete_df(
+  df = customer_reviews,
+  text_var = review_text,
+  id_var = review_id,
+  system_prompt = "Classify the following review:",
+  key_name = "OPENAI_API_KEY",
+  concurrent_requests = 5 # send 5 rows of data simultaneously
 )
 ```
+
+Read the [LLM Providers Vignette](vignettes/llm_providers.Rmd), and the [Structured Outputs Vignette](vignettes/structured_outputs_json_schema.Rmd) for more information on common workflows with the OpenAI Chat Completions API [^1]
+
+[^1]: Content pending implementation for Anthroic Messages API, Gemini API, and OpenAI Responses API
 
 # API Key Security
 
 -   Read the [httr2 vignette](https://httr2.r-lib.org/articles/wrapping-apis.html#basics){target="_blank"} on managing your API keys securely and encrypting them.
 
 -   Read the [EndpointR API Keys](vignettes/api_keys.Rmd) vignette for information on which API keys you need for wach endpoint we support, and how to securely import those API keys into your .Renvironfile.
-
-# Provider-specific functions
-
-We have some provider-specific functions which handle requests specifically for providers that need them. These functions will:
-
--   belong to a provider
--   perform a task (embedding, classification)
--   build a request or perform a request
--   do so with a strategy (chunked, batch, parallel)
-
-I am still working on how to name these and how to design the API around them.
