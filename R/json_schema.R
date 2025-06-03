@@ -1,7 +1,14 @@
+#' @importFrom jsonvalidate json_validator
+NULL
+
 #' Create JSON Schema S7 class for structured outputs
 #'
 #' @description
 #' S7 class for JSON Schema definitions used in, e.g. OpenAI structured outputs
+#' @param name Name of the schema
+#' @param schema The JSON schema definition as a list
+#' @param strict Whether to enforce strict mode (default TRUE)
+#' @param description Optional description of the schema
 #' @export
 json_schema <- S7::new_class(
   "json_schema",

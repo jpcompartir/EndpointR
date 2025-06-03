@@ -114,6 +114,8 @@ oai_build_completions_request <- function(
 #' @param max_tokens Maximum tokens per response
 #' @param schema Optional JSON schema for structured output
 #' @param system_prompt Optional system prompt
+#' @param max_retries Integer; maximum retry attempts (default: 5)
+#' @param timeout Numeric; request timeout in seconds (default: 30)
 #' @param key_name Environment variable name for API key
 #' @param endpoint_url OpenAI API endpoint URL
 #'
@@ -159,7 +161,88 @@ oai_build_completions_request_list <- function(
 }
 
 
-# start of complete_df func ----
+#' Process a data frame through OpenAI's Chat Completions API
+#'
+#' This function takes a data frame with text inputs and processes each row through
+#' OpenAI's Chat Completions API, returning results in a tidy format. It handles
+#' concurrent requests, retries, and structured output validation automatically.
+#'
+#' @details This function streamlines processing of data through OpenAI's API.
+#' It extracts the specified text column from your data frame, sends each text as a
+#' separate API request, and returns the results joined back to your original data.
+#'
+#' The function preserves row identity through the `id_var` parameter, ensuring results
+#' can be matched back to source data even if some requests fail. Failed requests are
+#' marked with `.error = TRUE` and include error messages.
+#'
+#' When using structured outputs with a `schema`, the function automatically validates
+#' and unnests (to the top level) the JSON responses into separate columns. This makes it ideal for
+#' tasks like entity extraction, classification, or structured data generation.
+#'
+#' For best performance, adjust `concurrent_requests` based on your API rate limits.
+#' Higher values speed up processing but may hit rate limits more frequently.
+#'
+#' @param df Data frame containing text to process
+#' @param text_var Column name (unquoted) containing text inputs
+#' @param id_var Column name (unquoted) for unique row identifiers
+#' @param model OpenAI model to use (default: "gpt-4.1-nano")
+#' @param system_prompt Optional system prompt applied to all requests
+#' @param schema Optional JSON schema for structured output (json_schema object or list)
+#' @param concurrent_requests Number of simultaneous API requests (default: 1)
+#' @param max_retries Maximum retry attempts per request (default: 5)
+#' @param timeout Request timeout in seconds (default: 30)
+#' @param temperature Sampling temperature (0-2), lower = more deterministic (default: 0)
+#' @param max_tokens Maximum tokens per response (default: 500)
+#' @param progress Show progress bar (default: TRUE)
+#' @param key_name Environment variable name for API key (default: "OPENAI_API_KEY")
+#' @param endpoint_url OpenAI API endpoint URL
+#'
+#' @return A tibble
+#' @examples
+#' \dontrun{
+#'
+#' sample_texts <- rep("sample_text", 100)
+#' # Parallel requests without schema:
+#' large_df <- data.frame(
+#'   doc_id = 1:100,
+#'   text = sample_texts
+#' )
+#'
+#' results <- oai_complete_df(
+#'   large_df,
+#'   text_var = text,
+#'   id_var = doc_id,
+#'   concurrent_requests = 5,  # process 5 at a time
+#'   max_retries = 3
+#' )
+#'
+#' # Structured outputs with a schema:
+#' contact_schema <- create_json_schema(
+#'  name = "contact_info",
+#'  schema = schema_object(
+#'   name = schema_string("person's full name"),
+#'   email = schema_string("email address"),
+#'   phone = schema_string("phone number"),
+#'   required = list("name", "email", "phone"),
+#'   additional_properties = FALSE
+#' ))
+#'
+#' text <- "Am I speaking with Margaret Phillips?
+#' Yes, ok, and your email is mphil@hotmail.co.uk.
+#' Ok perfect, and your phone number? Was that 07564789789? Ok great.
+#' Just a second please Margaret, you're verified"
+#'
+#' schema_df <- data.frame(id = 1, text = text)
+#'
+#' results <- oai_complete_df(
+#'   schema_df,
+#'   text_var = text,
+#'   id_var = id,
+#'   schema = contact_schema,
+#'   temperature = 0  # recommended for structured outputs
+#' )
+#'
+#' }
 oai_complete_df <- function(df,
                             text_var,
                             id_var,
@@ -228,7 +311,25 @@ oai_complete_df <- function(df,
       extracted = purrr::map(response, ~.extract_response_fields(.x, schema = schema))
     ) |>
     tidyr::unnest_wider(extracted) |>
-    dplyr::select(-response)  # drop heavy response objects (GC should pick up they're deleted..)
+    dplyr::select(-response)
+
+  # if a schema was provided, validate and unnest the JSON content directly
+  if (!is.null(schema)) {
+    results_df <- results_df |>
+      dplyr::mutate(
+        content = purrr::map(content, ~{
+          if (!is.na(.x)) {
+            tryCatch(
+              validate_response(schema, .x),
+              error = function(e) .x  # if validation fails, return original content
+            )
+          } else {
+            .x
+          }
+        })
+      ) |>
+      tidyr::unnest_wider(content)
+  }
 
   # add invalid requests back ----
   if (any(!is_valid_request)) {
@@ -249,7 +350,8 @@ oai_complete_df <- function(df,
       !!text_sym := inputs[match(!!id_sym, ids)]  # add original text back
     ) |>
     dplyr::arrange(!!id_sym) |>
-    dplyr::select(!!id_sym, !!text_sym, content, parsed, .error, error_msg, status)
+    dplyr::select(!!id_sym, !!text_sym, dplyr::everything())
+
 
   n_success <- sum(!results_df$.error)
   n_failed <- sum(results_df$.error)
@@ -314,6 +416,3 @@ oai_complete_df <- function(df,
     httr2::resp_body_json() |>
     purrr::pluck("choices", 1, "message", "content")
 }
-
-
-
