@@ -1,0 +1,13 @@
+pandoc: 3.1.11
+pkgdown: 2.1.3
+pkgdown_sha: ~
+articles:
+  api_keys: api_keys.html
+  embeddings_providers: embeddings_providers.html
+  hugging_face_inference: hugging_face_inference.html
+  llm_providers: llm_providers.html
+  structured_outputs_json_schema: structured_outputs_json_schema.html
+last_built: 2025-06-03T14:32Z
+urls:
+  reference: https://jpcompartir.github.io/EndpointR/reference
+  article: https://jpcompartir.github.io/EndpointR/articles
