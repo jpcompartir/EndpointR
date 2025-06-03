@@ -11,6 +11,8 @@ oai_build_completions_request_list(
   max_tokens = 500L,
   schema = NULL,
   system_prompt = NULL,
+  max_retries = 5L,
+  timeout = 30,
   key_name = "OPENAI_API_KEY",
   endpoint_url = "https://api.openai.com/v1/chat/completions"
 )
@@ -27,6 +29,10 @@ oai_build_completions_request_list(
 \item{schema}{Optional JSON schema for structured output}
 
 \item{system_prompt}{Optional system prompt}
+
+\item{max_retries}{Integer; maximum retry attempts (default: 5)}
+
+\item{timeout}{Numeric; request timeout in seconds (default: 30)}
 
 \item{key_name}{Environment variable name for API key}
 

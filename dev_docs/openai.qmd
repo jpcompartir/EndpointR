@@ -404,105 +404,6 @@ results <- responses |>
 -   [OpenAI Structured Outputs Documentation](https://platform.openai.com/docs/guides/structured-outputs)
 -   [S7 Package Documentation](https://rconsortium.github.io/S7/)
 
-## S7 Implementation for Structured Outputs
-
-Using S7, we can create a more robust system for working with JSON schemas:
-
-```{r, eval = FALSE}
-library(S7)
-
-json_schema <- new_class(
-  "json_schema",
-  properties = list(
-    name = class_character,
-    schema = class_list,
-    strict = class_logical,
-    description = class_character
-  ),
-  validator = function(self) {
-    if (length(self@name) != 1 || nchar(self@name) == 0) {
-      "@name must be a non-empty string"
-    } else if (!is.list(self@schema)) {
-      "@schema must be a list"
-    } else if (length(self@strict) != 1) {
-      "@strict must be a single logical value"
-    }
-  }
-)
-
-create_json_schema <- function(name, schema, strict = TRUE, description = "") {
-  json_schema(
-    name = name,
-    schema = schema, 
-    strict = strict,
-    description = description
-  )
-}
-
-method(format_for_api, json_schema) <- function(x) {
-  list(
-    name = x@name,
-    schema = x@schema,
-    strict = x@strict
-  )
-}
-```
-
-## Complex Schemas
-
-You can define more complex schemas for structured data extraction tasks:
-
-```{r, product_schema}
-product_schema <- list(
-  type = "object",
-  properties = list(
-    products = list(
-      type = "array",
-      items = list(
-        type = "object",
-        properties = list(
-          name = list(type = "string"),
-          category = list(
-            type = "string",
-            enum = c("electronics", "clothing", "food", "other")
-          ),
-          price = list(type = "number", minimum = 0),
-          in_stock = list(type = "boolean"),
-          features = list(
-            type = "array",
-            items = list(type = "string")
-          )
-        ),
-        required = c("name", "category", "price")
-      )
-    ),
-    total_count = list(type = "integer", minimum = 0)
-  ),
-  required = c("products", "total_count")
-)
-
-extraction_body <- list(
-  model = "gpt-4.1-nano",
-  input = "We have 3 items: iPhone 15 Pro ($999, electronics, features: 5G, titanium design), 
-           Nike Air Max ($150, shoes/clothing, comfortable, breathable), 
-           and organic bananas ($3.99/lb, food, fresh from Costa Rica)",
-  reasoning = NULL,
-  text = list(
-    format = list(
-      type = "json_schema",
-      json_schema = list(
-        name = "product_extraction",
-        schema = product_schema,
-        strict = TRUE
-      )
-    )
-  ),
-  tools = NULL,
-  temperature = 0,
-  max_output_tokens = 500L
-)
-```
-
 ```{r}
 num_requests <- 5
 num_responses <- 4
@@ -512,10 +413,6 @@ if(!length(responses) == length(requests)) {
       "- Number of requests: {num_requests}",
       "- Number of responses: {num_responses}"))
 }
-```
-
-```{r}
-requests <- append(requests, "hello")
 ```
 
 ```{r}
@@ -570,5 +467,99 @@ test_data |>
     max_retries = 5,
     timeout = 50
   )
+
+```
+
+```{r}
+num_requests <- length(requests)
+  num_responses <- length(responses)
+
+  if(!length(responses) == length(requests)) {
+    cli::cli_alert_warning("Number of requests differs from number of responses:")
+    cli::cli_bullets(text = c(
+      "Number of requests: {num_requests}",
+      "Number of responses: {num_responses}"))
+  }
+
+  # get the response bodies from valid responses - iterating through indices and responses together.
+  extracted_responses <- purrr::map2(.x = valid_indices, .y = responses, ~ {
+
+    if(!inherits(.y, "httr2_response")) {
+      invalid_responses <- list2(!!(id_sym) := .x,
+                                .error = TRUE,
+                                .error_message = "Invalid response object",
+                                response = list(NULL))
+    }
+
+    status_code <- httr2::resp_status(.y)
+
+  })
+```
+
+# Informal testing oai_complete_df function:
+
+```{r, test_complete}
+test_df <- tibble::tibble(
+  text = c(
+    "What is the capital of France?",
+    "Explain photosynthesis in simple terms",
+    "Write a haiku about rain",
+    "What are the benefits of exercise?",
+    "How do computers work?",
+    "Describe the water cycle",
+    "What is machine learning?",
+    "Explain gravity to a child",
+    "What causes seasons?",
+    "How do birds fly?"
+  )
+) |> 
+  dplyr::mutate(id = dplyr::row_number(), .before = 1)
+
+results <- oai_complete_df(
+  df = test_df,
+  text_var = text,
+  id_var = id,
+  model = "gpt-4.1-nano",
+  system_prompt = "You are a helpful assistant. Provide clear, concise answers.",
+  temperature = 0,
+  max_tokens = 100,
+  concurrent_requests = 2L,
+  progress = TRUE
+)
+
+
+results |>
+  dplyr::select(content, parsed)
+```
+
+```{r, test_complete_with_schema}
+sentiment_schema <- create_json_schema(
+  name = "sentiment_analysis",
+  schema = schema_object(
+    sentiment = schema_enum(
+      c("positive", "negative", "neutral"),
+      "overall sentiment of text"
+    ),
+    confidence = schema_number(
+      "confidence score", 
+      minimum = 0, 
+      maximum = 1
+    ),
+    is_spam = schema_boolean("contains spam content"),
+    required = c("sentiment", "confidence", "is_spam")
+  )
+)
+
+results_with_schema <- oai_complete_df(
+  df = test_df,
+  text_var = text,
+  id_var = id,
+  schema = sentiment_schema, 
+  system_prompt = "Classify the sentiment of the documents"
+)
+
+results_with_schema |> 
+  # dplyr::pull(parsed) |> 
+  tidyr::unnest_wider(parsed)
 
 ```

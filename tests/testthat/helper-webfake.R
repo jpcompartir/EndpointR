@@ -89,6 +89,48 @@ withr::local_envvar(HF_TEST_API_KEY = "fake-key")
 })
 
 
+.app$post("/test_oai_schemaless", function(req, res) {
+  response_data <- list(
+    choices = list(
+      list(
+        message = list(
+          content = "This is a helpful response to your question."
+        )
+      )
+    )
+  )
+
+  res$
+    set_status(200L)$
+    set_header("Content-Type", "application/json")$
+    send_json(response_data)
+})
+
+
+.app$post("/test_oai_sentiment", function(req, res) {
+  sentiment_response <- list(
+    sentiment = "positive",
+    confidence = 0.85,
+    is_spam = FALSE
+  )
+
+  response_data <- list(
+    choices = list(
+      list(
+        message = list(
+          content = jsonlite::toJSON(sentiment_response, auto_unbox = TRUE)
+        )
+      )
+    )
+  )
+
+  res$
+    set_status(200L)$
+    set_header("Content-Type", "application/json")$
+    send_json(response_data)
+})
+
+
 
 
 server <- webfakes::local_app_process(.app)
