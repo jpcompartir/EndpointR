@@ -271,5 +271,10 @@ oai_complete_df <- function(df,
     ))
   }
 }
+#' @keywords internal
+.extract_oai_completion_content <- function(resp) {
+  resp |>
+    httr2::resp_body_json() |>
+    purrr::pluck("choices", 1, "message", "content")
 }
 
