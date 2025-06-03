@@ -175,6 +175,7 @@ oai_complete_df <- function(df,
                             key_name = "OPENAI_API_KEY",
                             endpoint_url = "https://api.openai.com/v1/chat/completions"
 ) {
+  # Input validation ----
   text_sym <- rlang::ensym(text_var)
   id_sym <- rlang::ensym(id_var)
 
@@ -185,7 +186,7 @@ oai_complete_df <- function(df,
     "id_var must exist in df" = rlang::as_name(id_sym) %in% names(df)
   )
 
-  # pull inputs and ids into vectors for later concurrency
+  # build requests ----
   inputs <- dplyr::pull(df, !!text_sym)
   ids <- dplyr::pull(df, !!id_sym)
 
@@ -202,30 +203,64 @@ oai_complete_df <- function(df,
     timeout = timeout
   )
 
-  # keep track of valid/invalid requests and IDs explicitly separately
-  is_httr2_request <- purrr::map_lgl(requests, ~class(.x) == "httr2_request")
-  invalid_indices <- ids[which(!is_httr2_request)]
-  invalid_df <- tibble::tibble(!!id_sym := invalid_indices)
+  # track valid requests ----
+  is_valid_request <- purrr::map_lgl(requests, ~inherits(.x, "httr2_request"))
+  valid_indices <- ids[is_valid_request]
+  valid_requests <- requests[is_valid_request]
 
-  valid_indices <- ids[which(is_httr2_request)]
-  valid_df <- tibble::tibble(!!id_sym := valid_indices)
+  if (length(valid_requests) == 0) {
+    cli::cli_abort("No valid requests could be created")
+  }
 
-  requests <- requests[which(is_httr2_request)] # changes the shape if we have an errored request, so need to be careful later with the inputs and ids -> data frame
-
+  # perform requests ----
   responses <- perform_requests_with_strategy(
-    requests,
+    valid_requests,
     concurrent_requests = concurrent_requests,
     progress = progress
   )
 
-  # browser()
-
-  responses_df <- tibble::tibble(
+  # process responses ----
+  results_df <- tibble::tibble(
     !!id_sym := valid_indices,
     response = responses
   ) |>
     dplyr::mutate(
-      is_resp = purrr::map_lgl(response, ~inherits(.x, "httr2_response"))
+      extracted = purrr::map(response, ~.extract_response_fields(.x, schema = schema))
+    ) |>
+    tidyr::unnest_wider(extracted) |>
+    dplyr::select(-response)  # drop heavy response objects (GC should pick up they're deleted..)
+
+  # add invalid requests back ----
+  if (any(!is_valid_request)) {
+    invalid_df <- tibble::tibble(
+      !!id_sym := ids[!is_valid_request],
+      status = NA_integer_,
+      content = NA_character_,
+      error_msg = "Failed to create valid request"
+    )
+
+    results_df <- dplyr::bind_rows(results_df, invalid_df)
+  }
+
+  # final cleanup ----
+  results_df <- results_df |>
+    dplyr::mutate(
+      .error = !is.na(error_msg),
+      !!text_sym := inputs[match(!!id_sym, ids)]  # add original text back
+    ) |>
+    dplyr::arrange(!!id_sym) |>
+    dplyr::select(!!id_sym, !!text_sym, content, parsed, .error, error_msg, status)
+
+  n_success <- sum(!results_df$.error)
+  n_failed <- sum(results_df$.error)
+
+  cli::cli_alert_success("Completed: {n_success} successful, {n_failed} failed")
+
+  return(results_df)
+}
+
+
+
 # helper function for oai_complete_df()
 # extract all needed fields from a response object
 # check if response is valid httr2_response
@@ -271,10 +306,14 @@ oai_complete_df <- function(df,
     ))
   }
 }
+
+
 #' @keywords internal
 .extract_oai_completion_content <- function(resp) {
   resp |>
     httr2::resp_body_json() |>
     purrr::pluck("choices", 1, "message", "content")
 }
+
+
 
