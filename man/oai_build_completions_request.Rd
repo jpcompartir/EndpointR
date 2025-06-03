@@ -12,7 +12,9 @@ oai_build_completions_request(
   schema = NULL,
   system_prompt = NULL,
   key_name = "OPENAI_API_KEY",
-  endpoint_url = "https://api.openai.com/v1/chat/completions"
+  endpoint_url = "https://api.openai.com/v1/chat/completions",
+  timeout = 20,
+  max_retries = 5
 )
 }
 \arguments{
@@ -31,6 +33,10 @@ oai_build_completions_request(
 \item{key_name}{Environment variable name for API key}
 
 \item{endpoint_url}{OpenAI API endpoint URL}
+
+\item{timeout}{Request timeout in seconds}
+
+\item{max_retries}{Maximum number of retry attempts for failed requests}
 }
 \value{
 An httr2 request object

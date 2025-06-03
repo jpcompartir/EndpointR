@@ -97,7 +97,7 @@ EndpointR functions that need API keys will have a `key_name` argument, you put 
 
 EndpointR provides convenient functions for common embedding tasks without exposing the underlying request structure. EndpointR will handle retries, errors, concurrent requests, and batching of requests through configurable options.
 
-## Embedding a Single Text - Dedicated Inference API
+## Dedicated Inference Endpoints - Embedding a Single text
 
 > For this example, I have previously set up a package-level key for encrypting sensitive information, `ENDPOINTR_KEY`, this can be used with {httr2}'s `secret_encrypt` and `secret_decrypt` function to encrypt any information. For example, you can use these functions to encrypt your API keys themselves.
 
@@ -125,7 +125,7 @@ The output is tidied into a tibble with 1 row and 384 columns. Each column is an
 embeddings
 ```
 
-## Embedding a Single Text - Inference API
+##Inference API - Embedding a Single Text
 
 If we switch the URL that we send to our EndpointR functions, we can get predictions from the Hugging Face Inference API instead of Dedicated Inference Endpoints.
 

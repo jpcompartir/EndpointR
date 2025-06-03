@@ -81,7 +81,7 @@ The function does not currently handle \code{list(return_all_scores = FALSE)}.
   results <- hf_classify_batch(
     texts = texts,
     endpoint_url = "redacted",
-    key_name = "API_KEY".
+    key_name = "API_KEY",
     batch_size = 3
   )
 }

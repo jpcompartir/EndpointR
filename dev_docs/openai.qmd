@@ -176,7 +176,7 @@ list_responses[[1]] |>
 
 # Completions API
 
-To send requests to OpenAI's completions API, we need to ut a few things in place:
+To send requests to OpenAI's completions API, we need to put a few things in place:
 
 -   [ ] Store an "OPENAI_API_KEY" with `set_api_key()`
 -   [ ] Build a completions request with `oai_build_completions_request()`, with one mandatory parameter - input =, which is where we place the input (usually text) we want a response from.
@@ -331,15 +331,13 @@ s7_sentiment_schema <- create_json_schema(
   sentiment_schema,
   strict = TRUE
 )
-
-api_sentiment_schema <- format_for_api(s7_sentiment_schema)
 ```
 
 ```{r}
 sent_req <-oai_build_completions_request(
   input = "this product was awful, really bad.",
   model = model,
-  schema = api_sentiment_schema
+  schema = s7_sentiment_schema
 ) 
 
 sent_resp <- httr2::req_perform(sent_req)
@@ -353,78 +351,6 @@ sent_resp |>
   pluck('choices', 1, 'message','content') |> 
   jsonlite::fromJSON() |> 
   as.data.frame()
-```
-
-Or we can go to the schema and grab the possible enum values for a field of choice (in this case it can only be sentiment)
-
-```{r, parsing_responses_from_schema}
-get_enum_values <- function(schema, field_name) {
-  schema$schema$properties[[field_name]]$enum
-}
-
-extract_structured_response <- function(response, schema, input_text, input_id = NULL) {
-  
-  valid_sentiments <- get_enum_values(schema, "sentiment")
-  
-  safe_extract <- purrr::safely(function(resp) {
-    resp |> 
-      httr2::resp_body_json() |> 
-      purrr::pluck('choices', 1, 'message', 'content') |> 
-      jsonlite::fromJSON()
-  })
-  
-  result <- safe_extract(response)
-  
-  if (!is.null(result$error)) {
-    return(tibble::tibble(
-      id = input_id %||% NA_character_,
-      text = input_text,
-      sentiment = NA_character_,
-      status = "json_parse_error",
-      error = as.character(result$error)
-    ))
-  }
-  
-  parsed <- result$result
-  
-  if (!is.list(parsed) || !"sentiment" %in% names(parsed)) {
-    return(tibble::tibble(
-      id = input_id %||% NA_character_,
-      text = input_text,
-      sentiment = NA_character_,
-      status = "missing_field",
-      error = "Response missing required 'sentiment' field"
-    ))
-  }
-  
-  if (!parsed$sentiment %in% valid_sentiments) {
-    return(tibble::tibble(
-      id = input_id %||% NA_character_,
-      text = input_text,
-      sentiment = NA_character_,
-      status = "invalid_value",
-      error = paste("Invalid sentiment:", parsed$sentiment, 
-                   "Valid values:", paste(valid_sentiments, collapse = ", "))
-    ))
-  }
-  
-  tibble::tibble(
-    id = input_id %||% NA_character_,
-    text = input_text,
-    sentiment = parsed$sentiment,
-    status = "success",
-    error = NA_character_
-  )
-}
-```
-
-```{r}
-result <- extract_structured_response(
-  sent_resp, 
-  api_sentiment_schema, 
-  "this product was awful, really bad.", 
-  "review_001"
-)
 ```
 
 We *can* introduce optional fields into structured outputs,
@@ -444,7 +370,7 @@ texts <- c(
   "It's okay, nothing special but does the job."
 )
 
-requests <- oai_build_request_batch(
+requests <- oai_build_request_list(
   inputs = texts,
   schema = api_sentiment_schema,
   temperature = 0
@@ -478,101 +404,162 @@ results <- responses |>
 -   [OpenAI Structured Outputs Documentation](https://platform.openai.com/docs/guides/structured-outputs)
 -   [S7 Package Documentation](https://rconsortium.github.io/S7/)
 
-## S7 Implementation for Structured Outputs
-
-Using S7, we can create a more robust system for working with JSON schemas:
-
-```{r, eval = FALSE}
-library(S7)
-
-json_schema <- new_class(
-  "json_schema",
-  properties = list(
-    name = class_character,
-    schema = class_list,
-    strict = class_logical,
-    description = class_character
-  ),
-  validator = function(self) {
-    if (length(self@name) != 1 || nchar(self@name) == 0) {
-      "@name must be a non-empty string"
-    } else if (!is.list(self@schema)) {
-      "@schema must be a list"
-    } else if (length(self@strict) != 1) {
-      "@strict must be a single logical value"
-    }
-  }
-)
-
-create_json_schema <- function(name, schema, strict = TRUE, description = "") {
-  json_schema(
-    name = name,
-    schema = schema, 
-    strict = strict,
-    description = description
-  )
-}
-
-method(format_for_api, json_schema) <- function(x) {
-  list(
-    name = x@name,
-    schema = x@schema,
-    strict = x@strict
-  )
+```{r}
+num_requests <- 5
+num_responses <- 4
+if(!length(responses) == length(requests)) {
+    cli::cli_alert_warning("Number of requests differs from number of responses:")
+    cli::cli_bullets( text = c(
+      "- Number of requests: {num_requests}",
+      "- Number of responses: {num_responses}"))
 }
 ```
 
-## Complex Schemas
+```{r}
+separate_valid_requests <- function(requests) {
+  stopifnot("requests should be a vector of requests" = is_vector(requests))
+  # keep track of valid/invalid requests and IDs explicitly separately
+  is_httr2_request <- purrr::map_lgl(requests, ~class(.x) == "httr2_request")
+  invalid_indices <- which(!is_httr2_request)
 
-You can define more complex schemas for structured data extraction tasks:
+  valid_indices <- which(is_httr2_request)
 
-```{r, product_schema}
-product_schema <- list(
-  type = "object",
-  properties = list(
-    products = list(
-      type = "array",
-      items = list(
-        type = "object",
-        properties = list(
-          name = list(type = "string"),
-          category = list(
-            type = "string",
-            enum = c("electronics", "clothing", "food", "other")
-          ),
-          price = list(type = "number", minimum = 0),
-          in_stock = list(type = "boolean"),
-          features = list(
-            type = "array",
-            items = list(type = "string")
-          )
-        ),
-        required = c("name", "category", "price")
-      )
-    ),
-    total_count = list(type = "integer", minimum = 0)
-  ),
-  required = c("products", "total_count")
-)
+  
+  return(list(valid_indices = valid_indices, invalid_indices = invalid_indices))
+  
+  # requests <- requests[which(is_httr2_request)] # changes the shape if we have an errored request, so need to be careful later with the inputs and ids -> data frame
+  
+  
+}
+```
 
-extraction_body <- list(
+```{r}
+separate_valid_requests(requests)
+```
+
+```{r}
+requests <- data |>
+  slice(1:2) |>
+  oai_complete_df(text_var = message,
+                  id_var = .id,
+                  schema = ms_product_schema,
+                  system_prompt = system_prompt,
+                  concurrent_requests = 1
+  )
+
+requests <- append(requests, "hello") # add one that isn't a httr2_request to handle failures
+
+test_data <-
+  data |>
+    slice(1:4)
+
+test_data <- test_data |>
+  add_row(.id = 5, message = "")
+
+
+test_data |>
+  oai_complete_df(
+    text_var = message,
+    id_var = .id,
+    schema = ms_product_schema,
+    system_prompt = system_prompt,
+    concurrent_requests = 1,
+    max_retries = 5,
+    timeout = 50
+  )
+
+```
+
+```{r}
+num_requests <- length(requests)
+  num_responses <- length(responses)
+
+  if(!length(responses) == length(requests)) {
+    cli::cli_alert_warning("Number of requests differs from number of responses:")
+    cli::cli_bullets(text = c(
+      "Number of requests: {num_requests}",
+      "Number of responses: {num_responses}"))
+  }
+
+  # get the response bodies from valid responses - iterating through indices and responses together.
+  extracted_responses <- purrr::map2(.x = valid_indices, .y = responses, ~ {
+
+    if(!inherits(.y, "httr2_response")) {
+      invalid_responses <- list2(!!(id_sym) := .x,
+                                .error = TRUE,
+                                .error_message = "Invalid response object",
+                                response = list(NULL))
+    }
+
+    status_code <- httr2::resp_status(.y)
+
+  })
+```
+
+# Informal testing oai_complete_df function:
+
+```{r, test_complete}
+test_df <- tibble::tibble(
+  text = c(
+    "What is the capital of France?",
+    "Explain photosynthesis in simple terms",
+    "Write a haiku about rain",
+    "What are the benefits of exercise?",
+    "How do computers work?",
+    "Describe the water cycle",
+    "What is machine learning?",
+    "Explain gravity to a child",
+    "What causes seasons?",
+    "How do birds fly?"
+  )
+) |> 
+  dplyr::mutate(id = dplyr::row_number(), .before = 1)
+
+results <- oai_complete_df(
+  df = test_df,
+  text_var = text,
+  id_var = id,
   model = "gpt-4.1-nano",
-  input = "We have 3 items: iPhone 15 Pro ($999, electronics, features: 5G, titanium design), 
-           Nike Air Max ($150, shoes/clothing, comfortable, breathable), 
-           and organic bananas ($3.99/lb, food, fresh from Costa Rica)",
-  reasoning = NULL,
-  text = list(
-    format = list(
-      type = "json_schema",
-      json_schema = list(
-        name = "product_extraction",
-        schema = product_schema,
-        strict = TRUE
-      )
-    )
-  ),
-  tools = NULL,
+  system_prompt = "You are a helpful assistant. Provide clear, concise answers.",
   temperature = 0,
-  max_output_tokens = 500L
+  max_tokens = 100,
+  concurrent_requests = 2L,
+  progress = TRUE
 )
+
+
+results |>
+  dplyr::select(content, parsed)
+```
+
+```{r, test_complete_with_schema}
+sentiment_schema <- create_json_schema(
+  name = "sentiment_analysis",
+  schema = schema_object(
+    sentiment = schema_enum(
+      c("positive", "negative", "neutral"),
+      "overall sentiment of text"
+    ),
+    confidence = schema_number(
+      "confidence score", 
+      minimum = 0, 
+      maximum = 1
+    ),
+    is_spam = schema_boolean("contains spam content"),
+    required = c("sentiment", "confidence", "is_spam")
+  )
+)
+
+results_with_schema <- oai_complete_df(
+  df = test_df,
+  text_var = text,
+  id_var = id,
+  schema = sentiment_schema, 
+  system_prompt = "Classify the sentiment of the documents"
+)
+
+results_with_schema |> 
+  # dplyr::pull(parsed) |> 
+  tidyr::unnest_wider(parsed)
+
 ```
