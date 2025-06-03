@@ -226,13 +226,50 @@ oai_complete_df <- function(df,
   ) |>
     dplyr::mutate(
       is_resp = purrr::map_lgl(response, ~inherits(.x, "httr2_response"))
+# helper function for oai_complete_df()
+# extract all needed fields from a response object
+# check if response is valid httr2_response
+# if not valid, return NA values with error message
+# if valid, extract status code
+# if status is 200, try to extract content
+# if status is not 200, extract error message from response body
+# if schema provided and content exists, try to parse as json
+# return a list with all extracted fields
+#' @keywords internal
+.extract_response_fields <- function(response, schema = NULL) {
+  if (!inherits(response, "httr2_response")) {
+    return(list(
+      status = NA_integer_,
+      content = NA_character_,
+      error_msg = "Invalid response object"
+    ))
+  }
+
+  status <- httr2::resp_status(response)
+
+  if (status == 200) {
+    content <- tryCatch(
+      .extract_oai_completion_content(response),
+      error = function(e) NA_character_
     )
 
-  # preferring the separate dfs for success/failures, but may hurt with memory for long lists..
-  failures_df <- dplyr::filter(responses_df, !is_resp)
-  successes_df <- dplyr::filter(responses_df, is_resp) |>
-    dplyr::mutate(status_code = purrr::map(response, resp_status))
+    return(list(
+      status = status,
+      content = content,
+      error_msg = NA_character_
+    ))
+  } else {
+    error_msg <- tryCatch(
+      httr2::resp_body_json(response)$error$message,
+      error = function(e) paste("HTTP", status)
+    )
 
-  return(responses_df)
+    return(list(
+      status = status,
+      content = NA_character_,
+      error_msg = error_msg
+    ))
+  }
+}
 }
 
