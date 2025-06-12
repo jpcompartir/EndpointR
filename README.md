@@ -100,7 +100,7 @@ classified_df <- hf_classify_df(
 ```
 
 Read the [Hugging Face Inference
-Vignette](vignettes/hugging_face_inference.Rmd) for more infromation on
+Vignette](articles/hugging_face_inference.html) for more infromation on
 embedding and classifying using Dedicated Inference Endpoints and the
 Inference API from Hugging Face.
 
@@ -130,7 +130,7 @@ oai_complete_df(
 )
 ```
 
-Read the [LLM Providers Vignette](vignettes/llm_providers.Rmd), and the
+Read the [LLM Providers Vignette](articles/llm_providers.html), and the
 [Structured Outputs
 Vignette](vignettes/structured_outputs_json_schema.Rmd) for more
 information on common workflows with the OpenAI Chat Completions API
@@ -143,7 +143,7 @@ information on common workflows with the OpenAI Chat Completions API
   target="_blank">httr2 vignette</a> on managing your API keys securely
   and encrypting them.
 
-- Read the [EndpointR API Keys](vignettes/api_keys.Rmd) vignette for
+- Read the [EndpointR API Keys](articles/api_keys.html) vignette for
   information on which API keys you need for wach endpoint we support,
   and how to securely import those API keys into your .Renvironfile.
 

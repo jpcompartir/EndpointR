@@ -79,7 +79,7 @@ This can lead to wait times which are unknowable in advance, for production use-
 
 ## API Key Management
 
-First read the [EndpointR API Keys](vignettes/api_keys.Rmd) vignette.
+First read the [EndpointR API Keys](articles/api_keys.html) vignette.
 
 Assuming the endpoint has been set up, you'll need to retrieve your API key from Hugging Face (or from the team/department responsible for providing API keys) and store it securely in an environment variable.
 
