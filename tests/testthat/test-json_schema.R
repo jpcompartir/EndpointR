@@ -211,8 +211,8 @@ test_that("schema_object creates valid object schemas", {
   # Test additionalProperties defaults to FALSE
 
   object_schema <- expect_no_error(schema_object(
-    city = "London",
-    borough = "Islington",
+    city = schema_string(),
+    borough = schema_string(),
     required = list("city", "borough")
   ))
 
@@ -224,7 +224,35 @@ test_that("schema_object creates valid object schemas", {
 
 test_that("schema_string handles enum constraint", {
   # Test enum values included in schema
-  # Test description included when provided
+  enum_schema <-
+    json_schema(
+      name = "enum_schema",
+      schema =schema_object(
+        city = schema_enum(values = c("London", "New York", "Tokyo")),
+        rating = schema_enum(values = c(1, 2, 3, 4, 5), type = "integer")
+      )
+    )
+
+  invalid_city_val <- list(city = "Londin", rating = 5)
+
+  expect_error(
+    validate_response(enum_schema, invalid_city_val),
+    "Field 'city':")
+
+
+  invalid_rating_type <- list(city = "London", rating = "five")
+
+  expect_error(
+    validate_response(enum_schema, invalid_rating_type), "Field 'rating'")
+
+  invalid_rating_val <- list(city = "London", rating = 6)
+  expect_error(
+    validate_response(enum_schema, invalid_rating_val),
+    "Field 'rating': must be equal")
+
+  valid_response <- list(city = "London", rating = 5)
+  expect_no_error(validate_response(enum_schema, valid_response))
+
 })
 
 test_that("schema_number/integer handle range constraints", {
