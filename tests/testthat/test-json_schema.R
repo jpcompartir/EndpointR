@@ -70,7 +70,7 @@ test_that("create_json_schema function works with correct inputs", {
   expect_equal(schema@description, "Person schema")
 })
 
-test_that("format_for_api method works correctly", {
+test_that("json_dump method works correctly", {
   schema <- json_schema(
     name = "api_test",
     schema = list(type = "object", properties = list()),
@@ -88,38 +88,138 @@ test_that("format_for_api method works correctly", {
   expect_false("description" %in% names(result))  # Should be excluded
 })
 
-# Validator edge cases
 test_that("json_schema validator catches invalid strict value", {
-  # Test non-logical values
-  # Test multiple logical values
+  expect_error(create_json_schema(
+    name = "logical test",
+    schema = schema_object(
+      person = "Olga",
+      required = list("person")
+    ),
+    strict = "character"
+  ))
+
+  expect_no_error(
+    schema <- create_json_schema(
+      name = "logical test",
+      schema = schema_object(
+        person = "Olga",
+        required = list("person")
+      ),
+      strict = TRUE
+    )
+  )
+
 })
 
-# json_dump method
 test_that("json_dump includes description when provided", {
-  # Test that non-empty description appears in correct location
+  json_dump_non_empty <- create_json_schema(
+    name = "json_dump non-empty?",
+    schema = schema_object(
+      valid = schema_boolean("empty")
+    ),
+    description = "non-empty description"
+  )
+
+  dumped_description <- json_dump(json_dump_non_empty)$json_schema$description
+
+  expect_equal(nchar(dumped_description), 21)
+
 })
 
 test_that("json_dump has correct structure for API", {
   # Test 'type' field is "json_schema"
+  # Test nested type of `schema_object` is 'object'
   # Test nested structure matches API requirements
+  dump_api_schema <- create_json_schema(
+    name = "dump test",
+    schema = schema_object(
+      player = schema_string("name of player"),
+      club = schema_string("name of club")
+    ),
+    strict = TRUE
+  )
+
+  dumped_api_schema <- json_dump(dump_api_schema)
+  expect_equal(dumped_api_schema$type, "json_schema")
+  expect_setequal(names(dumped_api_schema), c("type", "json_schema"))
+
+  expect_equal(dumped_api_schema$json_schema$schema$type, "object")
 })
 
 # validate_response method
 test_that("validate_response handles JSON string input", {
   # Test valid JSON string parsing
   # Test invalid JSON string error
+
+  string_test <- json_schema(
+    name = "string test",
+    schema = schema_object(
+      surname = schema_string(),
+      forename = schema_string(),
+      status = schema_string()
+    )
+  )
+
+  invalid_response = list(surname = "Burno",
+                          forname = "Fernandes",
+                          stauts = 2)
+
+  expect_error(validate_response(string_test,
+                      invalid_response),
+    regexp = "Response data does not")
+
+  valid_response = list(surname = "Bruno",
+                  forename = "Fernandes",
+                  status = "not good enough")
+
+  expect_no_error(validate_response(string_test, valid_response))
+
 })
 
 test_that("validate_response rejects non-list, non-string input", {
-  # Test numeric input fails
-  # Test other invalid types fail
+  schema <- json_schema(
+    name = "string test",
+    schema = schema_object(
+      surname = schema_string(),
+      forename = schema_string(),
+      status = schema_string()
+    )
+  )
+
+  non_list_obj <- c(
+    surname = "Carrick",
+    forename = "Michael",
+    status = "Better than Xabi Alonso"
+  )
+
+  # fails due to vector in place of list.
+  expect_error(validate_response(schema, non_list_obj))
+
+  list_obj <- list(
+    surname = "Carrick",
+    forename = "Michael",
+    status = "Better than Xabi Alonso"
+  )
+
+  expect_no_error(validate_response(schema, list_obj))
+
 })
 
 # Schema helper functions
 test_that("schema_object creates valid object schemas", {
-  # Test basic object with properties
   # Test required fields included correctly
   # Test additionalProperties defaults to FALSE
+
+  object_schema <- expect_no_error(schema_object(
+    city = "London",
+    borough = "Islington",
+    required = list("city", "borough")
+  ))
+
+  expect_false(object_schema$additionalProperties)
+  expect_length(object_schema$required, 2)
+  expect_setequal(names(object_schema$properties), c("city", "borough"))
+
 })
 
 test_that("schema_string handles enum constraint", {
