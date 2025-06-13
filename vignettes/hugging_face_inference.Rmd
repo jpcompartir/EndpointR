@@ -30,6 +30,8 @@ knitr::opts_chunk$set(
 
 # Introduction
 
+This vignette shows you how to use EndpointR to embed and classify text using Hugging Face's inference services.
+
 ```{r setup, eval = TRUE}
 library(EndpointR)
 library(dplyr)
@@ -40,17 +42,136 @@ library(tidyr)
 library(ggplot2)
 ```
 
-## Who is this vignette for?
-
-This vignette is for people who want to embed or classify data using pre-configured, dedicated Hugging Face Endpoints, assuming you have received your API key and the endpoint URL/details.
-
-Experienced users looking for fine-grained control over their API requests will be better served by heading directly to the {[httr2](https://httr2.r-lib.org/index.html)} package.
-
 ## What is Hugging Face?
 
-For the past few years [Hugging Face](https://huggingface.co/) has been the de-facto location for open-source AI. It is a place to save and share datasets & Machine Learning models alike. Importantly, we can train our own models and then upload them to the Hugging Face Hub for others to use.
+[Hugging Face](https://huggingface.co/) is the primary hub for open-source AI models. You can find, use, and share thousands of pre-trained models for tasks like text embedding, classification, generation, and more.
 
-## What are Dedicated Inference Endpoints?
+## Inference Options - Hugging Face
+
+| Feature | Inference API | Dedicated Inference Endpoints |
+|----|----|----|
+| **Accessibility** | Public, shared service | Private, dedicated hardware |
+| **Cost** | Free (with paid tiers) | Paid service - rent specific hardware |
+| **Hardware** | Shared computing resources | Dedicated hardware allocation |
+| **Wait Times** | Variable, unknowable in advance | Predictable, minimal queuing |
+| **Production Ready** | Not recommended for production | Recommended for production use |
+| **Use Case** | Casual usage, testing, prototyping | Production applications, consistent performance |
+| **Scalability** | Limited by shared resources | Scales with dedicated allocation |
+| **Availability** | Subject to shared infrastructure limits | Guaranteed availability during rental period |
+
+EndpointR works with both - you just need to change the URL!
+
+# Getting Started
+
+We'll use the Hugging Face Inference API to classify and embed some data.
+
+## Storing Your API Key
+
+Follow Hugging Face's [docs](https://huggingface.co/docs/hub/security-tokens) to generate a Hugging Face token.
+
+```{r}
+set_api_key("HF_TEST_API_KEY") # I'm using a test API key for this vignette
+```
+
+# Getting Started - Embeddings
+
+Fetch the Inference API's URL for the model you want to embed your data with.
+
+```{r}
+embedding_url <-"https://router.huggingface.co/hf-inference/models/sentence-transformers/all-mpnet-base-v2/pipeline/feature-extraction"
+```
+
+## Embed a Single Text
+
+```{r}
+embedding <- hf_embed_text(
+  text = "This is a sample text to embed",
+  endpoint_url = embedding_url,
+  key_name = "HF_TEST_API_KEY",
+  max_retries = 5
+)
+```
+
+```{r, echo = FALSE, eval = TRUE}
+data("single_embedding_hf")
+single_embedding_hf
+```
+
+## Embed a Data Frame of Texts
+
+```{r}
+my_data <- tibble(
+  id = 1:3,
+  text = c(
+    "Machine learning is fascinating",
+    "I love working with embeddings", 
+    "Natural language processing is powerful"
+  ),
+  category = c("ML", "embeddings", "NLP")
+)
+
+embeddings_df <- hf_embed_df(
+  df = my_data,
+  text_var = text,      # Column containing text
+  id_var = id,          # Column with unique IDs
+  key_name = "HF_TEST_API_KEY",
+  endpoint_url = embedding_url,
+  progress = FALSE,     # Set TRUE for progress bar with large datasets
+  max_retries = 5
+)
+
+
+```
+
+```{r, echo = FALSE, eval = TRUE}
+data("df_embeddings_hf")
+df_embeddings_hf
+```
+
+# Getting Started - Classification
+
+We need to switch our URL to a model which classifies text. For demonstrative purposes we'll use 'distilbert-base-uncase-fintuned-sst-2-english'.
+
+> **NOTE**: Not all models are deployed on the Inference API, for models which are not we need to deploy Dedicated Inference Endpoints
+
+## Classify a Single Text
+
+```{r}
+sentiment_url <- "https://router.huggingface.co/hf-inference/models/distilbert/distilbert-base-uncased-finetuned-sst-2-english"
+
+sentiment <- hf_classify_text(
+  "this is a *terrible* post to classify",
+  endpoint_url = sentiment_url,
+  key_name = "HF_TEST_API_KEY",
+  tidy = TRUE
+)
+```
+
+```{r, echo = FALSE, eval = TRUE}
+data("sentiment_classification_example")
+sentiment_classification_example
+```
+
+## Classify a Data Frame of Texts
+
+```{r}
+classification_df <- hf_classify_df(
+  df = my_data,
+  text_var = text,      # Column containing text
+  id_var = id,          # Column with unique IDs
+  key_name = "HF_TEST_API_KEY",
+  endpoint_url = sentiment_url,
+  progress = TRUE,     # Set TRUE for progress bar with large datasets
+  max_retries = 5
+)
+```
+
+```{r}
+use_data(df_sentiment_classification_example)
+df_sentiment_classification_example
+```
+
+# Dedicated Inference Endpoints
 
 Any model that is saved on the Hugging Face Hub can be connected to a Hugging Face Inference Endpoint allowing us to get predictions from that model using Hugging Face's [^1] hardware. Given that modern-day Machine Learning models tend to require a large amount of compute, and not everybody has powerful laptops to use the models locally, this is a democratising force and a useful tool to have at our disposal.
 
@@ -64,16 +185,6 @@ Any model that is saved on the Hugging Face Hub can be connected to a Hugging Fa
 -   Image recognition
 -   Question answering
 -   Text generation
-
-This vignette focuses on using Hugging Face endpoints for text embeddings.
-
-## What is the Hugging Face Inference API?
-
-The Hugging Face Inference API is a free service (with paid options) that provides access to thousands of models hosted on the Hub through simple HTTP requests. Unlike Dedicated Endpoints, we don't rent specific hardware - instead, we share computing resources with other users on Hugging Face's infrastructure.
-
-This can lead to wait times which are unknowable in advance, for production use-cases it's generally recommended to use Dedicated Inference Endpoints. However, for casual usage and testing purposes, the Inference API should suffice.
-
-> **TIP:** EndpointR's Hugging Face code should work with both Dedicated Inference Endpoints and the Inference API simply by changing the URL.
 
 # Getting Started - Dedicated Inference Endpoints
 
@@ -125,7 +236,7 @@ The output is tidied into a tibble with 1 row and 384 columns. Each column is an
 embeddings
 ```
 
-##Inference API - Embedding a Single Text
+## Inference API - Embedding a Single Text
 
 If we switch the URL that we send to our EndpointR functions, we can get predictions from the Hugging Face Inference API instead of Dedicated Inference Endpoints.
 
