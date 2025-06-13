@@ -51,7 +51,7 @@ Structured outputs ensure LLMs return data in exactly the format you need. Inste
 
 # Quick Start
 
-> **WARNING:** if using the schema for structured outputs from OpenAI, all fields *MUST* be required: All fields must be `required` To use Structured Outputs, all fields or function parameters must be specified as `required`
+> **WARNING:** if using the schema for structured outputs from OpenAI, all fields *MUST* be required:
 
 ```{r, contract_schema}
 contact_schema <- create_json_schema(
