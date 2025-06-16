@@ -257,7 +257,7 @@ hf_classify_text <- function(text,
 #'   results <- hf_classify_batch(
 #'     texts = texts,
 #'     endpoint_url = "redacted",
-#'     key_name = "API_KEY".
+#'     key_name = "API_KEY",
 #'     batch_size = 3
 #'   )
 #' }
@@ -479,3 +479,5 @@ hf_classify_df <- function(df,
   }
 
 }
+
+

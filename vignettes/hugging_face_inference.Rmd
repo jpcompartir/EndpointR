@@ -30,7 +30,7 @@ knitr::opts_chunk$set(
 
 # Introduction
 
-This vignette shows you how to use EndpointR to embed and classify text using Hugging Face's inference services.
+This vignette details how to use EndpointR to embed and classify text using Hugging Face's inference services.
 
 ```{r setup, eval = TRUE}
 library(EndpointR)
@@ -53,14 +53,14 @@ library(ggplot2)
 | **Accessibility** | Public, shared service | Private, dedicated hardware |
 | **Cost** | Free (with paid tiers) | Paid service - rent specific hardware |
 | **Hardware** | Shared computing resources | Dedicated hardware allocation |
-| **Wait Times** | Variable, unknowable in advance | Predictable, minimal queuing |
+| **Wait Times** | Variable, unknowable in advance | Predictable, minimal queuing, \~30s for first request |
 | **Production Ready** | Not recommended for production | Recommended for production use |
 | **Use Case** | Casual usage, testing, prototyping | Production applications, consistent performance |
 | **Scalability** | Limited by shared resources | Scales with dedicated allocation |
 | **Availability** | Subject to shared infrastructure limits | Guaranteed availability during rental period |
-| **Model Coverage** | Selection of the commonly-used models | Virtually all mdoels on the Hub are available |
+| **Model Coverage** | Commonly-used models, models selected by Hugging Face | Virtually all models on the Hub are available |
 
-EndpointR works with both - you just need to change the URL!
+EndpointR's Hugging Face functions work with the Inference API and Dedicated Inference Endpoints - you just need to change the URL in the `endpoint_url =` argument!
 
 # Getting Started
 
@@ -68,7 +68,7 @@ We'll use the Hugging Face Inference API to classify and embed some data.
 
 ## Storing Your API Key
 
-Follow Hugging Face's [docs](https://huggingface.co/docs/hub/security-tokens) to generate a Hugging Face token.
+Follow Hugging Face's [docs](https://huggingface.co/docs/hub/security-tokens) to generate a Hugging Face token, and then register it with EndpointR:
 
 ```{r}
 set_api_key("HF_TEST_API_KEY") # I'm using a test API key for this vignette
@@ -120,8 +120,6 @@ embeddings_df <- hf_embed_df(
   progress = FALSE,     # Set TRUE for progress bar with large datasets
   max_retries = 5
 )
-
-
 ```
 
 ```{r, echo = FALSE, eval = TRUE}
@@ -133,7 +131,7 @@ df_embeddings_hf
 
 We need to switch our URL to a model which classifies text. For demonstrative purposes we'll use 'distilbert-base-uncase-fintuned-sst-2-english'.
 
-> **NOTE**: Not all models are deployed on the Inference API, for models which are not we need to deploy Dedicated Inference Endpoints
+> **NOTE**: Not all models are deployed on the Inference API; for models which are not deployed by Hugging Face, we need to deploy Dedicated Inference Endpoints.
 
 ## Classify a Single Text
 
@@ -172,46 +170,41 @@ use_data(df_sentiment_classification_example)
 df_sentiment_classification_example
 ```
 
-# Dedicated Inference Endpoints
+# Going Deeper
 
-Any model that is saved on the Hugging Face Hub can be connected to a Hugging Face Inference Endpoint allowing us to get predictions from that model using Hugging Face's [^1] hardware. Given that modern-day Machine Learning models tend to require a large amount of compute, and not everybody has powerful laptops to use the models locally, this is a democratising force and a useful tool to have at our disposal.
+In this section we'll look into Dedicated Inference Endpoints, and how to squeeze out performance from EndpointR.
 
-[^1]: or another inference provider's
+# Going Deeper - Dedicated Inference Endpoints
 
-### Common Use-cases
-
--   Text embeddings via Sentence Transformers
--   Sentiment analysis
--   Text classification
--   Image recognition
--   Question answering
--   Text generation
-
-# Getting Started - Dedicated Inference Endpoints
-
-## API Key Management
-
-First read the [EndpointR API Keys](articles/api_keys.html) vignette.
-
-Assuming the endpoint has been set up, you'll need to retrieve your API key from Hugging Face (or from the team/department responsible for providing API keys) and store it securely in an environment variable.
-
-`set_api_key` will ask you to input the value for your API key using {askpass}, this reduces [^2] the likelihood of your API key ending up in your code somewhere.
-
-[^2]: but never reduces to zero, so always be vigilant!
-
-```{r}
-set_api_key("HF_TEST_API_KEY")
-```
-
-EndpointR functions that need API keys will have a `key_name` argument, you put the same name as you entered into `set_api_key` and EndpointR will retrieve it, without printing the contents to the console.
+The Hugging Face Inference API is a great place to begin experimenting with Hugging Face's inference services. However, it is best used as a casual service, rather than for production-grade applications. When we want cast-iron guarantees about response time, availability, and model selection, we need to move to production-ready inference services, such as Dedicated Inference Endpoints.
 
 # Quick Start - Embeddings
 
 EndpointR provides convenient functions for common embedding tasks without exposing the underlying request structure. EndpointR will handle retries, errors, concurrent requests, and batching of requests through configurable options.
 
-## Dedicated Inference Endpoints - Embedding a Single text
+### Embedding a Single text
 
-> For this example, I have previously set up a package-level key for encrypting sensitive information, `ENDPOINTR_KEY`, this can be used with {httr2}'s `secret_encrypt` and `secret_decrypt` function to encrypt any information. For example, you can use these functions to encrypt your API keys themselves.
+From a user's perspective, Dedicated Inference Endpoints are very similar to the Inference API. In fact, we just need to change the value of `endpoint_url =`.
+
+> For this example, I have previously set up a package-level encryption key (`ENDPOINTR_KEY`) for protecting sensitive information, like private endpoint URLs, and API keys. To follow this vignette you will need to supply your own Dedicated Infernece API URL.
+
+<details>
+
+<summary>Creating and using a package-level encryption key</summary>
+
+Why? It's good practice to avoid exposing the locations of private API endpoints, as well as API keys.
+
+How?
+
+1.  Create a key with `httr2::secret_make_key()`
+2.  Add it to your .Renviron file
+3.  Encrypt the information with `httr2::secret_encrypt(info, ENDPOINTR_KEY)`
+4.  Paste the encrypted information wherever you need it
+5.  Decrypt with `httr2::secret_decrypt(encrypted_info, ENDPOINTRL_KEY)`
+
+Note, the name `ENDPOINTR_KEY` is just what I chose, you can choose whatever you like. If you try to use `set_api_key()` you'll need to make sure it endsw with `API_KEY`. You can encrypt and decrypt *any* information you like using your key and the {httr2} functions above.
+
+</details>
 
 1.  Get your endpoint's URL
 2.  Make sure the key_name points to the correct API key for your endpoint
@@ -565,6 +558,10 @@ hf_classify_df(
 ```
 
 # Appendix
+
+## Appendix - API Key Management
+
+EndpointR functions that need API keys will have a `key_name` argument, you put the same name as you entered into `set_api_key` and EndpointR will retrieve it, without printing the contents to the console. Read the [EndpointR API Keys](articles/api_keys.html) vignette for more information
 
 ## Appendix - Embeddings
 
