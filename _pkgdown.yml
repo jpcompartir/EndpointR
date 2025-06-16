@@ -32,6 +32,8 @@ navbar:
         href: articles/structured_outputs_json_schema.html
       - text: "---"
       - text: Advanced Topics
+      - text: Improving Performance
+        href: articles/improving_performance.html
       - text: Embeddings Providers
         href: articles/embeddings_providers.html
 

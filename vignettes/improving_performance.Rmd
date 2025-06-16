@@ -1,0 +1,213 @@
+---
+title: "Improving Performance"
+output: 
+  html_document:
+    toc: true
+    toc_float: true
+    toc_depth: 3
+    theme: flatly
+    number_sections: true
+    fig_caption: true
+    df_print: paged
+    highlight: tango
+    code_folding: show
+    anchor_sections: true
+vignette: >
+  %\VignetteIndexEntry{Improving Performance}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>",
+  eval = FALSE,
+  message = FALSE,
+  warning = FALSE
+)
+```
+
+# Introduction
+
+In this vignette we'll look at strategies for improving the throughput and performance of EndpointR's functions. Our goal will be to move from sending single requests to sending multiple batches simultaneously.
+
+> This vignette will focus mainly on the `hf_embed_df()` function and the options we have for improving throughput of requests. The same ideas apply to the `hf_classify_df()` function, and some ideas transfer to the `oai_*()` functions.
+
+Before we get into how, let's go a bit further into why.
+
+For each row of our data frame, we need to create a request which we will then perform. We then need to perform the request by sending our information over the internet to the endpoint. The endpoint accepts our request, performs any computation, and sends a successful response or an error. Each of these steps has an associated cost in time, and the cost for each step is not equal - some steps are more costly than others.
+
+Creating each request is almost instant, but if we have a larger data frame - e.g. with 100,000 rows: creating 100,000 requests simultaneously will take $\approx$ 30s-90s. If we process them all at once, we'll have to wait the full amount of time before we send any requests and receive any responses. Clearly this is wasteful - if we had created the first request and sent it, we wouldn't be waiting 90s just to start sending requests.
+
+Sending each request to the endpoint and waiting for it to process will usually take a lot longer than preparing the request. Therefore, if we can find ways to reduce the time we spend waiting here, we should be able to reduce the overall time it takes to prepare and send our requests significantly.
+
+# Set Up
+
+```{r setup, eval = TRUE}
+library(tibble)
+library(tidyr)
+library(EndpointR)
+library(ggplot2)
+library(httr2)
+library(dplyr)
+```
+
+TODO: Copied from hugging_face_inference.Rmd, need to re-order and edit
+
+We'll need some data, so we'll grab the same sentences and data frame from the [introductory vignette](articles/hugging_face_inference) on Hugging Face Inference:
+
+```{r, setup_data}
+embedding_sentences <- c(
+  "Text embedding models compress your rambling prose into compact vectors, much like how British commuters squeeze themselves into tube carriages during rush hour.",
+  "Setting up an inference endpoint without proper documentation is akin to attempting to navigate London using a map of Birmingham.",
+  "When your embedding model starts hallucinating, it's rather like watching Parliament during Question Time—entertaining but utterly unpredictable.",
+  "Optimising your inference endpoint is essential unless you fancy your users growing old whilst waiting for a response, perhaps even ageing enough to collect their pension.",
+  "The distance between word embeddings reveals semantic relationships, though sadly not the distance between what your client requested and what they actually wanted.",
+  "Creating multilingual embeddings is a bit like attempting to order tea properly across Europe—technically possible but fraught with cultural misunderstandings.",
+  "Batch processing through inference endpoints saves computing resources, much like how the British save conversation topics by discussing the weather exclusively.",
+  "Token limits on embedding APIs are the digital equivalent of a queue at a British post office—inevitably, you'll reach the front just as they close for lunch.",
+  "Fine-tuning embedding models on domain-specific corpora is rather like training a British child to apologise—it requires repetition, patience, and considerable examples.",
+  "When your inference endpoint crashes under load, it maintains that quintessentially British trait of breaking down precisely when most inconvenient."
+)
+
+embedding_ids <- 1:10
+
+embedding_df <-
+  tibble(
+    id = embedding_ids,
+    sentence = embedding_sentences
+  )
+```
+
+**WARNING**" To follow along you will need to set your own endpoint_url and set your own API key. I am using an encrypted URL for security purposes.
+
+```{r, set_endpoint}
+endpoint_url <- httr2::secret_decrypt("kcZCsc92Ty7PuAk7_FdCcdOU_dlDpvWdDyfpwCWg-wW80eJxJPdQ68nz4V_0922SzSwM5_dYfpTOqsZ-GodUpLN4PQbwE73wlZkBCWIaIXc15g", "ENDPOINTR_KEY")
+```
+
+# Improving Performance - Throughput
+
+For the `hf_embed_df` function, our main options are to increase the number of requests we send simultaneously, and the number of texts we send within each request.
+
+-   `concurrent_requests` lets EndpointR know how many requests to send at the same time. This should be a number between 1 and \~20-50 (in extreme cases you may be ok with 100, but most endpoints will not accept this)
+-   `batch_size` lets EndpointR know whether to send requests with individual texts, or with a number of texts 'batched up' together.
+
+## Solution 1: Concurrent Requests
+
+Hugging Face' Inference Endpoints can handle multiple request arriving at the same time - and if configured they will 'autoscale' to provide higher throughput when there is a backlog of requests. As a rule, start with \~5 concurrent requests, and work up to \~20. If you start hitting rate limits go back down to \~10 and find the sweetspot. If endpoint is handling 20 requests then you could continue increasing gradually but it's not recommended unless you are sure the endpoint can handle it.
+
+Here we send 5 concurrent requests - this will iterate through the data frame 5 rows at a time, and send new requests when responses are returned, until we run out of data to embed.
+
+```{r}
+hf_embed_df(
+  df = embedding_df,
+  text_var = sentence,
+  endpoint_url = endpoint_url,
+  key_name = "HF_TEST_API_KEY",
+  id_var= id,
+  concurrent_requests = 5,
+  progress = TRUE
+)
+```
+
+Let's benchmark performance (see appendix for code) - there is some overhead associated with generating parallel requests, so we'll need a bigger data frame to understand what type of speed up we can get.
+
+```{r}
+id_1000 <- 1:1000
+sentences_1000 <- rep(embedding_df$sentence, 100)
+embedding_df_1000 <- tibble(id = id_1000, sentence = sentences_1000)
+```
+
+Recording the results: we can see a \~40% reduction in processing time when going from 5-\> 10 concurrent requests and a \~15% reduction when going from 10 -\> 20 concurrent requests.
+
+| concurrent_requests | processing_time_secs | success |
+|--------------------:|---------------------:|:--------|
+|                   5 |                 19.8 | TRUE    |
+|                  10 |                 11.9 | TRUE    |
+|                  20 |                 10.2 | TRUE    |
+
+\*Exact times will fluctuate, so take these as approximates.
+
+## Solution 2: Batching Requests
+
+If our endpoint does not allow for multiple concurrent requests, or it's being overloaded by other users, we can still gain some efficiency by sending batches of the data frame in each request. Under the hood this looks quite similar to the [section](#embedding-a-list-of-texts) on embedding a list of texts in a batch.
+
+> **TIP**: experiment with batch sizes to find the sweetspot - usually starting around 8-16, and capping out at \~64. You'll know when you've gone too high because you'll start seeing the retry bar, and/or your responses will contain errors.
+
+```{r}
+hf_embed_df(
+  df = embedding_df_1000,
+  text_var = sentence,
+  endpoint_url = endpoint_url,
+  key_name = "HF_TEST_API_KEY",
+  id_var= id,
+  concurrent_requests = 5,
+  batch_size = 20,
+  progress = TRUE
+)
+```
+
+## Solution 3: Combining Concurrency and Batching
+
+For maximum speed up, we can also send batches of multiple concurrent requests. If our endpoint is able to handle them, 10 concurrent requests of `batch_size = 10` will be marginally faster than 10 concurrent requests of `batch_size = 5`.
+
+# Benchmarking Solutions
+
+In a separate session we did some benchmarking to understand the relationship between batch size, concurrent requests, and throughput, where throughput is the number of rows processed per second. We looked at combinations of:
+
+-   **batch_size = c(1, 4, 8, 16, 32)**
+-   **concurrent_requests = c(1, 5, 10, 15, 20)**
+
+```{r, eval = TRUE}
+data(batch_concurrent_benchmark, package = "EndpointR")
+
+knitr::kable(batch_concurrent_benchmark |> mutate_if(is.numeric, ~ round(.x, 2)))
+```
+
+To embed $\approx$ 2,000 documents sending them 1 text and 1 request at a time, we get a throughput of $approx$ 2.16 texts per second, and it takes over 15 minutes! At the other end, 20 concurrent requests of batch size 8, and 20 concurrent requests of batch size 32 have a throughout of 195, which is close to 200x quicker. And we get our results back in 10 seconds!
+
+> **NOTE**: If we needed to, we could re-run the benchmarking code multiple times but the general trend is very clear.
+
+```{r, eval = TRUE}
+batch_concurrent_benchmark |> 
+  mutate(batch_size = factor(batch_size), concurrent_requests= factor(concurrent_requests)) |>
+  ggplot(aes(x= batch_size, y = throughput, group = concurrent_requests)) +
+  geom_point(aes(colour = concurrent_requests)) +
+  geom_line(aes(colour = concurrent_requests)) +
+  labs(y = "Throughput", x = "Batch Size", title = "Increasing `batch_size` and `concurrent_requests` increases throughput") +
+  scale_colour_viridis_d() +
+  theme_minimal() +
+  theme(legend.position = "bottom") 
+```
+
+```{r, eval = TRUE}
+batch_concurrent_benchmark |> 
+    mutate(batch_size = factor(batch_size), 
+           concurrent_requests = factor(concurrent_requests)) |>  
+    ggplot(aes(x = batch_size, y = concurrent_requests, fill = throughput)) + 
+    geom_tile() +
+    geom_text(aes(label = round(throughput, 1)), colour = "white") +
+    scale_fill_viridis_c(name = "Throughput") +
+    theme_minimal() +
+    labs(x = "Batch Size", y = "Concurrent Requests",
+         title = "Throughput by Batch Size and Concurrent Requests") +
+    theme(legend.position = "none")
+```
+
+Which parameter is more important for speed, `batch_size =` or `concurrent_requests =`? By eye it looks like concurrent_requests has the bigger effect, but it's clear that both parameters have a positive effect, and within the boundaries of our parameters, there is an approximately linear relationship between them and throughput.
+
+Putting together a quick linear model confirms that everything else equal, increasing `concurrent_requests` increases throughput more than `batch_size`
+
+```{r, eval = TRUE}
+model <- lm(throughput ~ batch_size + concurrent_requests, data = batch_concurrent_benchmark)
+
+broom::tidy(model) |>  
+  mutate(across(c(estimate, std.error, statistic), ~round(.x, 2)))
+```
+
+> **QUESTION**: What might happen if we keep increasing `batch_size` and `concurrent_requests`? Will the relationship hold or not?
+
+# Improving Performance - Memory
+
+TODO:
