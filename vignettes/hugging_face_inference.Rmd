@@ -28,14 +28,198 @@ knitr::opts_chunk$set(
 )
 ```
 
-This vignette shows how to embed and classify text with EndpointR using two Hugging Face services:
+This vignette shows how to embed and classify text with EndpointR using Hugging Face's inference services.
 
--   **Inference API**: Free, shared service for testing
--   **Dedicated Inference Endpoints**: Private, production-ready service
+# Setup
 
-<details>
+```{r setup, eval = TRUE}
+library(EndpointR)
+library(dplyr)
+library(httr2)
+library(tibble)
 
-<summary>Do I need the Inference API or a Dedicated Inference Endpoint?</summary>
+my_data <- tibble(
+  id = 1:3,
+  text = c(
+    "Machine learning is fascinating",
+    "I love working with embeddings", 
+    "Natural language processing is powerful"
+  ),
+  category = c("ML", "embeddings", "NLP")
+)
+```
+
+Follow Hugging Face's [docs](https://huggingface.co/docs/hub/security-tokens) to generate a Hugging Face token, and then register it with EndpointR:
+
+```{r, keys_and_urls}
+set_api_key("HF_TEST_API_KEY") 
+```
+
+# Choosing Your Service
+
+Hugging Face offers two inference options:
+
+-   **Inference API**: Free, good for testing
+-   **Dedicated Endpoints**: Paid, reliable, fast
+
+For this vignette, we'll use the Inference API. To switch to dedicated endpoints, just change the URL.
+
+```{r, Inference Endpoints}
+# Option 1: Inference API (free, for testing)
+embed_url <-"https://router.huggingface.co/hf-inference/models/sentence-transformers/all-mpnet-base-v2/pipeline/feature-extraction"
+
+# Option 2: Dedicated Endpoint (production)
+dedicated_url <- "https://your-endpoint-name.endpoints.huggingface.cloud"
+```
+
+# Getting Started
+
+Go to [Hugging Face's models hub](https://huggingface.co/models) and fetch the Inference API's URL for the model you want to embed your data with. Not all models are available via the Hugging Face Inference API, if you need to use a model that is not available you may need to deploy a [Dedicated Inference Endpoint](https://huggingface.co/inference-endpoints/dedicated).
+
+# Embeddings
+
+## Single Text
+
+Embed one piece of text:
+
+```{r}
+# inference api url for embeddings
+embed_url <- "https://router.huggingface.co/hf-inference/models/sentence-transformers/all-mpnet-base-v2/pipeline/feature-extraction"
+
+result <- hf_embed_text(
+  text = "This is a sample text to embed",
+  endpoint_url = embed_url,
+  key_name = "HF_API_KEY"
+)
+```
+
+The result is a tibble with one row and 384 columns (V1 to V384). Each column is an embedding dimension.
+
+> **Note**: The number of columns depends on your model. Check the model's Hugging Face page for its embedding size.
+
+## List of Texts
+
+Embed multiple texts at once using batching:
+
+```{r}
+texts <- c(
+  "First text to embed",
+  "Second text to embed",
+  "Third text to embed"
+)
+
+batch_result <- hf_embed_batch(
+  texts,
+  endpoint_url = embed_url,
+  key_name = "HF_API_KEY",
+  batch_size = 3  # process 3 texts per request
+)
+```
+
+The result includes: - `text`: your original text - `.error`: TRUE if something went wrong - `.error_message`: what went wrong (if anything) - `V1` to `V384`: the embedding values
+
+## Data Frame
+
+Most commonly, you'll want to embed a column in a data frame:
+
+```{r}
+embedding_result <- hf_embed_df(
+  df = my_data,
+  text_var = text,      # column with your text
+  id_var = id,          # column with unique ids
+  endpoint_url = embed_url,
+  key_name = "HF_API_KEY"
+)
+```
+
+Check for errors:
+
+```{r}
+embedding_result |> count(.error)
+```
+
+Extract just the embeddings:
+
+```{r}
+embeddings_only <- embedding_result |> select(V1:V384)
+```
+
+# Classification
+
+Classification works the same way as embeddings, just with a different URL and output format. If neceessary, you can also provide a custom function for tidying the output.
+
+## Single Text
+
+```{r}
+classify_url <- "https://router.huggingface.co/hf-inference/models/distilbert/distilbert-base-uncased-finetuned-sst-2-english"
+
+sentiment <- hf_classify_text(
+  text = "I love this package!",
+  endpoint_url = classify_url,
+  key_name = "HF_API_KEY"
+)
+```
+
+## Data Frame
+
+```{r}
+classification_result <- hf_classify_df(
+  df = my_data,
+  text_var = text,
+  id_var = id,
+  endpoint_url = classify_url,
+  key_name = "HF_API_KEY"
+)
+```
+
+The result includes: - Your original `id` column - Classification labels (e.g., POSITIVE, NEGATIVE) - Confidence scores - Error tracking columns.
+
+> **NOTE**: Classification labels are model specific.
+
+# Using Dedicated Endpoints
+
+To use dedicated endpoints instead of the Inference API:
+
+1.  Deploy your model to a dedicated endpoint (see Hugging Face docs)
+2.  Get your endpoint URL
+3.  Replace the URL in any function:
+
+```{r}
+# just change this line
+dedicated_url <- "https://your-endpoint-name.endpoints.huggingface.cloud"
+
+# everything else stays the same
+result <- hf_embed_text(
+  text = "Sample text",
+  endpoint_url = dedicated_url,  # <- only change
+  key_name = "HF_API_KEY"
+)
+```
+
+> **Note**: Dedicated endpoints take 20-30 seconds to start if they're idle. Set `max_retries = 5` to give them time to wake up.
+
+# Tips
+
+-   Start with small batch sizes (3-5) and increase gradually
+-   The Inference API has rate limits - dedicated endpoints have hardware constraints, increase hardware for higher limits
+-   For production use, choose dedicated endpoints
+-   Check the [Improving Performance](articles/improving_performance.html) vignette for speed tips
+
+# Common Issues
+
+**Rate limits**: Reduce batch size or add delays between requests
+
+**Model not available**: Not all models work with the Inference API. Check the model page or use dedicated endpoints.
+
+**Timeouts**: Increase `max_retries` or reduce batch size
+
+# Improving Performance
+
+EndpointR's functions come with knobs and dials and you can turn to improve throughput and performance. Visit the [Improving Performance](articles/improving_performance.html) vignette for more information.
+
+# Appendix
+
+## Comparison of Inference API vs Dedicated Inference Endpoints
 
 | Feature | Inference API | Dedicated Inference Endpoints |
 |----|----|----|
@@ -48,184 +232,3 @@ This vignette shows how to embed and classify text with EndpointR using two Hugg
 | **Scalability** | Limited by shared resources | Scales with dedicated allocation |
 | **Availability** | Subject to shared infrastructure limits | Guaranteed availability during rental period |
 | **Model Coverage** | Commonly-used models, models selected by Hugging Face | Virtually all models on the Hub are available |
-
-</details>
-
-# Getting Started
-
-> **TIP**: EndpointR's Hugging Face functions work with the Inference API and Dedicated Inference Endpoints - you just need to change the URL in the `endpoint_url =` argument!
-
-```{r setup, eval = TRUE}
-library(EndpointR)
-library(dplyr)
-library(tibble)
-library(httr2)
-library(purrr)
-library(tidyr)
-```
-
-Follow Hugging Face's [docs](https://huggingface.co/docs/hub/security-tokens) to generate a Hugging Face token, and then register it with EndpointR:
-
-```{r, keys_and_urls}
-set_api_key("HF_TEST_API_KEY") # I'm using a test API key for this vignette
-
-# Option 1: Inference API (free, for testing)
-inference_api_url <-"https://router.huggingface.co/hf-inference/models/sentence-transformers/all-mpnet-base-v2/pipeline/feature-extraction"
-
-# Option 2: Dedicated Endpoint (production)
-dedicated_url <- "https://your-endpoint-name.endpoints.huggingface.cloud"
-```
-
-# Getting Started
-
-Go to [Hugging Face's models hub](https://huggingface.co/models) and fetch the Inference API's URL for the model you want to embed your data with. Not all models are available via the Hugging Face Inference API, if you need to use a model that is not available you may need to deploy a [Dedicated Inference Endpoint](https://huggingface.co/inference-endpoints/dedicated).
-
-```{r, my_data}
-my_data <- tibble(
-  id = 1:3,
-  text = c(
-    "Machine learning is fascinating",
-    "I love working with embeddings", 
-    "Natural language processing is powerful"
-  ),
-  category = c("ML", "embeddings", "NLP")
-)
-```
-
-## Core Functions
-
-The two core functions for inference via Hugging Face services are used for embedding and classifying a data frame of texts.
-
-To embed:
-
-```{r}
-embedding_result <- hf_embed_df(
-  df = my_data,
-  text_var = text,      # column containing text
-  id_var = id,          # column with unique IDs
-  key_name = "HF_TEST_API_KEY",
-  endpoint_url = inference_api_url, # or dedicated_url
-  progress = FALSE,     
-  max_retries = 5
-)
-```
-
-```{r, echo = FALSE, eval = TRUE}
-data("df_embeddings_hf")
-df_embeddings_hf
-```
-
-> **note**: The number of embedding columns (V1:V384) depends on your model. Check the model's documentation on Hugging Face for its embedding size
-
-To classify:
-
-```{r}
-classification_url = "https://router.huggingface.co/hf-inference/models/distilbert/distilbert-base-uncased-finetuned-sst-2-english"
-
-# Classify a data frame of texts
-classification_result <- hf_classify_df(
-  df = my_data,
-  text_var = text,
-  id_var = id,
-  endpoint_url = classification_url,  # works with dedicated url also
-  key_name = "HF_TEST_API_KEY"
-)
-```
-
-```{r, echo = FALSE, eval = TRUE}
-data("sentiment_classification_example")
-sentiment_classification_example
-```
-
-# Additional Features
-
-We can also classify and embed single texts, and lists (or batches) of text as we'll see below:
-
-If the endpoint is not already active, it will take some time to initialise - the model's weights will be loaded onto a server. This process tends to take $\approx$ 20-30 seconds. Setting `max_retries = 5` will usually give the endpoint enough time to initialise, receive our request and return its response.
-
-```{r}
-embeddings <- hf_embed_text(
-  text = "This is a sample text to embed",
-  endpoint_url = inference_api_url,
-  key_name = "HF_TEST_API_KEY",
-  max_retries = 5
-)
-```
-
-The output is tidied into a tibble with 1 row and 384 columns. Each column is an embedding dimension, and the 'all-minilm-l6-v2' model used by this endpoint has 384 dimensions.
-
-```{r}
-embeddings
-```
-
-## Embedding a List of Texts {#embedding-a-list-of-texts}
-
-The `hf_embed_batch()` function handles a list of texts, and turns them into batches, with each batch according to `batch_size =`. The default value is 8, we'll change it to 3 and send all of our texts in 1 request.
-
-```{r}
-hf_embed_batch(
-  my_data$text,
-  inference_api_url,
-  "HF_TEST_API_KEY",
-  batch_size = 5,
-)
-```
-
-The `hf_embed_batch` function will return our texts in a single data frame, with the text itself, two columns related to errors, and columns for each embedding dimension.
-
-The `.error` and `.error_message` are introduced because we need to know whether errors occur at the individual post level. For example, if a batch of 10 requests has 2 errors, we want to see which individual post had errors, and keep the embeddings for the rest.
-
-Batching is generally a good idea, and we'll see in the [Improving Performance Vignette](articles/improving_performance.html) that holding everything else equal, it does lead to a speed up over non-batched. However, if you try to set the batch_size too high, you are more likely to hit rate limits, or have your request rejected due to the payload being too large.
-
-> **TIP**: Experiment to find the correct batch size for your data and the endpoint. Start small and work upwards in small incremeents.
-
-## Embedding a Data Frame of Texts
-
-As data professionals, we are more likely to work with data frames than any other data structure. We will usually have the texts we want to embed, their unique identifiers, and a selection of other columns to work with. EndpointR has a function - `hf_embed_df()` - built just for this use case.
-
-The function requires an input to:
-
--   `text_var =` this should be the column in your data frame with the text data you need to embed.
--   `id_var =` this should be the column in your data frame which identifies each piece of text - this makes sure we can link our embeddings to the correct text.
--   `key_name` we've seen this before
--   `endpoint_url` we've seen this before
-
-And then we have some optional arguments - these are optional because there is a default value for when we don't set them. We'll look at some of the other optional arguments in a later section. The key optional arguments for `hf_embed_df()` are:
-
--   `progress` lets EndpointR know whether to provide a progress bar, this is only really we're worth it if we're embedding a lot of data. For now we'll set it to `FALSE`
--   `max_retries` tells EndpointR how many times it should try to repeat the request before moving on to the next item.
-
-> **NOTE**: For performance-related arguments, check out the [Improving Performance Vignette](articles/improving_performance.html)
-
-```{r}
-(
-  result_df <- hf_embed_df(
-  df = my_data,
-  text_var = text,
-  id_var = id,
-  key_name = "HF_TEST_API_KEY",
-  endpoint_url = inference_api_url,
-  progress = FALSE,
-  max_retries = 5)
-)
-```
-
-We now have a data frame with our original ID column, the text column, the same '`.error` columns as in the batching case, and a number of columns with a 'V' followed by some digits. Each digit represents an 'embedding dimension', you should have as many 'VXX' columns as there are embedding dimensions for the model you are using.
-
-You can check whether you had any errors a number of ways, I like to use `dplyr::count()` or `dplyr::filter()`, here's the count way:
-
-```{r}
-count(result_df, .error)
-```
-
-If you need to select only the columns that contain embeddings - for example if you want to feed these embeddings into a clustering, or dimensionality reduction model, you can select a range of columns using `dplyr::select()` - here I'll select V1:V384, which gives me all of the embeddings.
-
-```{r}
-result_df |> select(V1:V384)
-```
-
-If I had 768 embedding dimensions, I would input `V1:V768`, and similarly for 1024 dimensions, `V1:V1024`, you get the idea.
-
-# Improving Performance
-
-EndpointR's functions come with knobs and dials and you can turn to improve throughput and performance. Visit the [Improving Performance](articles/improving_performance.html) vignette for more information.
