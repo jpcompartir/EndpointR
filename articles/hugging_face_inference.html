@@ -39,11 +39,12 @@
     <li><h6 class="dropdown-header" data-toc-skip>Hugging Face</h6></li>
     <li><a class="dropdown-item" href="../articles/hugging_face_inference.html">Hugging Face Inference Endpoints</a></li>
     <li><hr class="dropdown-divider"></li>
-    <li><h6 class="dropdown-header" data-toc-skip>LLM Providers</h6></li>
+    <li><h6 class="dropdown-header" data-toc-skip>LLM Providers (OpenAI, Anthropic)</h6></li>
     <li><a class="dropdown-item" href="../articles/llm_providers.html">Working with Major LLM Providers</a></li>
     <li><a class="dropdown-item" href="../articles/structured_outputs_json_schema.html">Structured Outputs with JSON Schema</a></li>
     <li><hr class="dropdown-divider"></li>
     <li><h6 class="dropdown-header" data-toc-skip>Advanced Topics</h6></li>
+    <li><a class="dropdown-item" href="../articles/improving_performance.html">Improving Performance</a></li>
     <li><a class="dropdown-item" href="../articles/embeddings_providers.html">Embeddings Providers</a></li>
   </ul>
 </li>
@@ -83,920 +84,278 @@
 
     
     
+<p>This vignette shows how to embed and classify text with EndpointR
+using Hugging Face’s inference services.</p>
 <div class="section level2">
-<h2 id="introduction">Introduction<a class="anchor" aria-label="anchor" href="#introduction"></a>
+<h2 id="setup">Setup<a class="anchor" aria-label="anchor" href="#setup"></a>
 </h2>
 <div class="sourceCode" id="cb1"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://jpcompartir.github.io/EndpointR/">EndpointR</a></span><span class="op">)</span></span>
 <span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://dplyr.tidyverse.org" class="external-link">dplyr</a></span><span class="op">)</span></span>
-<span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://tibble.tidyverse.org/" class="external-link">tibble</a></span><span class="op">)</span></span>
 <span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://httr2.r-lib.org" class="external-link">httr2</a></span><span class="op">)</span></span>
-<span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://purrr.tidyverse.org/" class="external-link">purrr</a></span><span class="op">)</span></span>
-<span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://tidyr.tidyverse.org" class="external-link">tidyr</a></span><span class="op">)</span></span>
-<span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://ggplot2.tidyverse.org" class="external-link">ggplot2</a></span><span class="op">)</span></span></code></pre></div>
-<div class="section level3">
-<h3 id="who-is-this-vignette-for">Who is this vignette for?<a class="anchor" aria-label="anchor" href="#who-is-this-vignette-for"></a>
-</h3>
-<p>This vignette is for people who want to embed or classify data using
-pre-configured, dedicated Hugging Face Endpoints, assuming you have
-received your API key and the endpoint URL/details.</p>
-<p>Experienced users looking for fine-grained control over their API
-requests will be better served by heading directly to the {<a href="https://httr2.r-lib.org/index.html" class="external-link">httr2</a>} package.</p>
-</div>
-<div class="section level3">
-<h3 id="what-is-hugging-face">What is Hugging Face?<a class="anchor" aria-label="anchor" href="#what-is-hugging-face"></a>
-</h3>
-<p>For the past few years <a href="https://huggingface.co/" class="external-link">Hugging
-Face</a> has been the de-facto location for open-source AI. It is a
-place to save and share datasets &amp; Machine Learning models alike.
-Importantly, we can train our own models and then upload them to the
-Hugging Face Hub for others to use.</p>
-</div>
-<div class="section level3">
-<h3 id="what-are-dedicated-inference-endpoints">What are Dedicated Inference Endpoints?<a class="anchor" aria-label="anchor" href="#what-are-dedicated-inference-endpoints"></a>
-</h3>
-<p>Any model that is saved on the Hugging Face Hub can be connected to a
-Hugging Face Inference Endpoint allowing us to get predictions from that
-model using Hugging Face’s <a class="footnote-ref" tabindex="0" data-bs-toggle="popover" data-bs-content="&lt;p&gt;or another inference provider’s&lt;/p&gt;"><sup>1</sup></a> hardware. Given that modern-day Machine
-Learning models tend to require a large amount of compute, and not
-everybody has powerful laptops to use the models locally, this is a
-democratising force and a useful tool to have at our disposal.</p>
-<div class="section level4">
-<h4 id="common-use-cases">Common Use-cases<a class="anchor" aria-label="anchor" href="#common-use-cases"></a>
-</h4>
-<ul>
-<li>Text embeddings via Sentence Transformers</li>
-<li>Sentiment analysis</li>
-<li>Text classification</li>
-<li>Image recognition</li>
-<li>Question answering</li>
-<li>Text generation</li>
-</ul>
-<p>This vignette focuses on using Hugging Face endpoints for text
-embeddings.</p>
-</div>
-</div>
-<div class="section level3">
-<h3 id="what-is-the-hugging-face-inference-api">What is the Hugging Face Inference API?<a class="anchor" aria-label="anchor" href="#what-is-the-hugging-face-inference-api"></a>
-</h3>
-<p>The Hugging Face Inference API is a free service (with paid options)
-that provides access to thousands of models hosted on the Hub through
-simple HTTP requests. Unlike Dedicated Endpoints, we don’t rent specific
-hardware - instead, we share computing resources with other users on
-Hugging Face’s infrastructure.</p>
-<p>This can lead to wait times which are unknowable in advance, for
-production use-cases it’s generally recommended to use Dedicated
-Inference Endpoints. However, for casual usage and testing purposes, the
-Inference API should suffice.</p>
-<blockquote>
-<p><strong>TIP:</strong> EndpointR’s Hugging Face code should work with
-both Dedicated Inference Endpoints and the Inference API simply by
-changing the URL.</p>
-</blockquote>
-</div>
-</div>
-<div class="section level2">
-<h2 id="getting-started---dedicated-inference-endpoints">Getting Started - Dedicated Inference Endpoints<a class="anchor" aria-label="anchor" href="#getting-started---dedicated-inference-endpoints"></a>
-</h2>
-<div class="section level3">
-<h3 id="api-key-management">API Key Management<a class="anchor" aria-label="anchor" href="#api-key-management"></a>
-</h3>
-<p>First read the <a href="vignettes/api_keys.Rmd">EndpointR API
-Keys</a> vignette.</p>
-<p>Assuming the endpoint has been set up, you’ll need to retrieve your
-API key from Hugging Face (or from the team/department responsible for
-providing API keys) and store it securely in an environment
-variable.</p>
-<p><code>set_api_key</code> will ask you to input the value for your API
-key using {askpass}, this reduces <a class="footnote-ref" tabindex="0" data-bs-toggle="popover" data-bs-content="&lt;p&gt;but never reduces to zero, so always be vigilant!&lt;/p&gt;"><sup>2</sup></a> the likelihood of your API key ending up in
-your code somewhere.</p>
+<span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://tibble.tidyverse.org/" class="external-link">tibble</a></span><span class="op">)</span></span>
+<span></span>
+<span><span class="va">my_data</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://tibble.tidyverse.org/reference/tibble.html" class="external-link">tibble</a></span><span class="op">(</span></span>
+<span>  id <span class="op">=</span> <span class="fl">1</span><span class="op">:</span><span class="fl">3</span>,</span>
+<span>  text <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span></span>
+<span>    <span class="st">"Machine learning is fascinating"</span>,</span>
+<span>    <span class="st">"I love working with embeddings"</span>, </span>
+<span>    <span class="st">"Natural language processing is powerful"</span></span>
+<span>  <span class="op">)</span>,</span>
+<span>  category <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"ML"</span>, <span class="st">"embeddings"</span>, <span class="st">"NLP"</span><span class="op">)</span></span>
+<span><span class="op">)</span></span></code></pre></div>
+<p>Follow Hugging Face’s <a href="https://huggingface.co/docs/hub/security-tokens" class="external-link">docs</a> to
+generate a Hugging Face token, and then register it with EndpointR:</p>
 <div class="sourceCode" id="cb2"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="fu"><a href="../reference/set_api_key.html">set_api_key</a></span><span class="op">(</span><span class="st">"HF_TEST_API_KEY"</span><span class="op">)</span></span></code></pre></div>
-<p>EndpointR functions that need API keys will have a
-<code>key_name</code> argument, you put the same name as you entered
-into <code>set_api_key</code> and EndpointR will retrieve it, without
-printing the contents to the console.</p>
-</div>
+<code class="sourceCode R"><span><span class="fu"><a href="../reference/set_api_key.html">set_api_key</a></span><span class="op">(</span><span class="st">"HF_TEST_API_KEY"</span><span class="op">)</span> </span></code></pre></div>
 </div>
 <div class="section level2">
-<h2 id="quick-start---embeddings">Quick Start - Embeddings<a class="anchor" aria-label="anchor" href="#quick-start---embeddings"></a>
+<h2 id="choosing-your-service">Choosing Your Service<a class="anchor" aria-label="anchor" href="#choosing-your-service"></a>
 </h2>
-<p>EndpointR provides convenient functions for common embedding tasks
-without exposing the underlying request structure. EndpointR will handle
-retries, errors, concurrent requests, and batching of requests through
-configurable options.</p>
+<p>Hugging Face offers two inference options:</p>
+<ul>
+<li>
+<strong>Inference API</strong>: Free, good for testing</li>
+<li>
+<strong>Dedicated Endpoints</strong>: Paid, reliable, fast</li>
+</ul>
+<p>For this vignette, we’ll use the Inference API. To switch to
+dedicated endpoints, just change the URL.</p>
+</div>
+<div class="section level2">
+<h2 id="getting-started">Getting Started<a class="anchor" aria-label="anchor" href="#getting-started"></a>
+</h2>
+<p>Go to <a href="https://huggingface.co/models" class="external-link">Hugging Face’s models
+hub</a> and fetch the Inference API’s URL for the model you want to
+embed your data with. Not all models are available via the Hugging Face
+Inference API, if you need to use a model that is not available you may
+need to deploy a <a href="https://huggingface.co/inference-endpoints/dedicated" class="external-link">Dedicated
+Inference Endpoint</a>.</p>
+</div>
+<div class="section level2">
+<h2 id="embeddings">Embeddings<a class="anchor" aria-label="anchor" href="#embeddings"></a>
+</h2>
 <div class="section level3">
-<h3 id="dedicated-inference-endpoints---embedding-a-single-text">Dedicated Inference Endpoints - Embedding a Single text<a class="anchor" aria-label="anchor" href="#dedicated-inference-endpoints---embedding-a-single-text"></a>
+<h3 id="single-text">Single Text<a class="anchor" aria-label="anchor" href="#single-text"></a>
 </h3>
-<blockquote>
-<p>For this example, I have previously set up a package-level key for
-encrypting sensitive information, <code>ENDPOINTR_KEY</code>, this can
-be used with {httr2}’s <code>secret_encrypt</code> and
-<code>secret_decrypt</code> function to encrypt any information. For
-example, you can use these functions to encrypt your API keys
-themselves.</p>
-</blockquote>
-<ol style="list-style-type: decimal">
-<li>Get your endpoint’s URL</li>
-<li>Make sure the key_name points to the correct API key for your
-endpoint</li>
-<li>Get a single piece of text you want to embed</li>
-<li>Call <code><a href="../reference/hf_embed_text.html">hf_embed_text()</a></code>
-</li>
-</ol>
-<p>If the endpoint is not already active, it will take some time to
-initialise - the model’s weights will be loaded onto a server. This
-process tends to take
-<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mo>≈</mo><annotation encoding="application/x-tex">\approx</annotation></semantics></math>
-20-30 seconds. Setting <code>max_retries = 5</code> will usually give
-the endpoint enough time to initialise, receive our request and return
-its response.</p>
+<p>Embed one piece of text:</p>
 <div class="sourceCode" id="cb3"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="va">endpoint_url</span> <span class="op">&lt;-</span> <span class="fu">httr2</span><span class="fu">::</span><span class="fu"><a href="https://httr2.r-lib.org/reference/secrets.html" class="external-link">secret_decrypt</a></span><span class="op">(</span><span class="st">"kcZCsc92Ty7PuAk7_FdCcdOU_dlDpvWdDyfpwCWg-wW80eJxJPdQ68nz4V_0922SzSwM5_dYfpTOqsZ-GodUpLN4PQbwE73wlZkBCWIaIXc15g"</span>, <span class="st">"ENDPOINTR_KEY"</span><span class="op">)</span></span>
+<code class="sourceCode R"><span><span class="co"># inference api url for embeddings</span></span>
+<span><span class="va">embed_url</span> <span class="op">&lt;-</span> <span class="st">"https://router.huggingface.co/hf-inference/models/sentence-transformers/all-mpnet-base-v2/pipeline/feature-extraction"</span></span>
 <span></span>
-<span><span class="va">embeddings</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/hf_embed_text.html">hf_embed_text</a></span><span class="op">(</span></span>
+<span><span class="va">result</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/hf_embed_text.html">hf_embed_text</a></span><span class="op">(</span></span>
 <span>  text <span class="op">=</span> <span class="st">"This is a sample text to embed"</span>,</span>
-<span>  endpoint_url <span class="op">=</span> <span class="va">endpoint_url</span>,</span>
-<span>  key_name <span class="op">=</span> <span class="st">"HF_TEST_API_KEY"</span>,</span>
-<span>  max_retries <span class="op">=</span> <span class="fl">5</span></span>
+<span>  endpoint_url <span class="op">=</span> <span class="va">embed_url</span>,</span>
+<span>  key_name <span class="op">=</span> <span class="st">"HF_API_KEY"</span></span>
 <span><span class="op">)</span></span></code></pre></div>
-<p>The output is tidied into a tibble with 1 row and 384 columns. Each
-column is an embedding dimension, and the ‘all-minilm-l6-v2’ model used
-by this endpoint has 384 dimensions.</p>
+<p>The result is a tibble with one row and 384 columns (V1 to V384).
+Each column is an embedding dimension.</p>
+<blockquote>
+<p><strong>Note</strong>: The number of columns depends on your model.
+Check the model’s Hugging Face page for its embedding size.</p>
+</blockquote>
+</div>
+<div class="section level3">
+<h3 id="list-of-texts">List of Texts<a class="anchor" aria-label="anchor" href="#list-of-texts"></a>
+</h3>
+<p>Embed multiple texts at once using batching:</p>
 <div class="sourceCode" id="cb4"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="va">embeddings</span></span></code></pre></div>
-<p>##Inference API - Embedding a Single Text</p>
-<p>If we switch the URL that we send to our EndpointR functions, we can
-get predictions from the Hugging Face Inference API instead of Dedicated
-Inference Endpoints.</p>
-<div class="sourceCode" id="cb5"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="va">url_inference_api</span> <span class="op">&lt;-</span><span class="st">"https://router.huggingface.co/hf-inference/models/sentence-transformers/all-mpnet-base-v2/pipeline/feature-extraction"</span></span>
-<span></span>
-<span><span class="va">embeddings</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/hf_embed_text.html">hf_embed_text</a></span><span class="op">(</span></span>
-<span>  text <span class="op">=</span> <span class="st">"This is a sample text to embed"</span>,</span>
-<span>  endpoint_url <span class="op">=</span> <span class="va">url_inference_api</span>,</span>
-<span>  key_name <span class="op">=</span> <span class="st">"HF_TEST_API_KEY"</span>,</span>
-<span>  max_retries <span class="op">=</span> <span class="fl">5</span></span>
-<span><span class="op">)</span></span></code></pre></div>
-</div>
-<div class="section level3">
-<h3 id="working-with-multiple-texts">Working with Multiple Texts<a class="anchor" aria-label="anchor" href="#working-with-multiple-texts"></a>
-</h3>
-<p>When working with multiple texts, it would be possible to create a
-<code>hf_embed_text</code> function call for each text, and save each
-result to its own variable:</p>
-<div class="sourceCode" id="cb6"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="va">text_1_embeddings</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/hf_embed_text.html">hf_embed_text</a></span><span class="op">(</span>text <span class="op">=</span> <span class="st">"This is a sample text to embed"</span>, endpoint_url <span class="op">=</span> <span class="va">endpoint_url</span>, key_name <span class="op">=</span> <span class="st">"HF_TEST_API_KEY"</span>, max_retries <span class="op">=</span> <span class="fl">5</span><span class="op">)</span></span>
-<span><span class="va">text_2_embeddings</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/hf_embed_text.html">hf_embed_text</a></span><span class="op">(</span>text <span class="op">=</span> <span class="st">"This is a sample text nunber 2 to embed"</span>, endpoint_url <span class="op">=</span> <span class="va">endpoint_url</span>, key_name <span class="op">=</span> <span class="st">"HF_TEST_API_KEY"</span>, max_retries <span class="op">=</span> <span class="fl">5</span><span class="op">)</span></span></code></pre></div>
-<p>And so on, for as many texts as we have. But this would get very
-boring, very quickly. Instead, it would be nice if we could embed
-multiple texts at the same time.</p>
-</div>
-<div class="section level3">
-<h3 id="embedding-a-list-of-texts">Embedding a List of Texts<a class="anchor" aria-label="anchor" href="#embedding-a-list-of-texts"></a>
-</h3>
-<p>Rather than send 10 requests and get 10 responses, we could batch our
-texts together so that each request has multiple texts. In the following
-example we’ll send a list of 10 texts in 2 separate requests.</p>
-<blockquote>
-<p><strong>DISCLAIMER</strong>: Claude was used to generate these
-sentences, instructed to write 10 sentences about embeddings, APIs,
-being British, and to add humour where it saw fit. The humour is ‘mixed’
-at best.</p>
-</blockquote>
-<div class="sourceCode" id="cb7"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="va">embedding_sentences</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span></span>
-<span>  <span class="st">"Text embedding models compress your rambling prose into compact vectors, much like how British commuters squeeze themselves into tube carriages during rush hour."</span>,</span>
-<span>  <span class="st">"Setting up an inference endpoint without proper documentation is akin to attempting to navigate London using a map of Birmingham."</span>,</span>
-<span>  <span class="st">"When your embedding model starts hallucinating, it's rather like watching Parliament during Question Time—entertaining but utterly unpredictable."</span>,</span>
-<span>  <span class="st">"Optimising your inference endpoint is essential unless you fancy your users growing old whilst waiting for a response, perhaps even ageing enough to collect their pension."</span>,</span>
-<span>  <span class="st">"The distance between word embeddings reveals semantic relationships, though sadly not the distance between what your client requested and what they actually wanted."</span>,</span>
-<span>  <span class="st">"Creating multilingual embeddings is a bit like attempting to order tea properly across Europe—technically possible but fraught with cultural misunderstandings."</span>,</span>
-<span>  <span class="st">"Batch processing through inference endpoints saves computing resources, much like how the British save conversation topics by discussing the weather exclusively."</span>,</span>
-<span>  <span class="st">"Token limits on embedding APIs are the digital equivalent of a queue at a British post office—inevitably, you'll reach the front just as they close for lunch."</span>,</span>
-<span>  <span class="st">"Fine-tuning embedding models on domain-specific corpora is rather like training a British child to apologise—it requires repetition, patience, and considerable examples."</span>,</span>
-<span>  <span class="st">"When your inference endpoint crashes under load, it maintains that quintessentially British trait of breaking down precisely when most inconvenient."</span></span>
-<span><span class="op">)</span></span></code></pre></div>
-<p>the <code><a href="../reference/hf_embed_batch.html">hf_embed_batch()</a></code> function handles a list of texts,
-and turns them into batches, sized according to what we enter into
-<code>batch_size =</code>. The default value is 8, we’ll change it to 5
-and send all of our texts in 2 requests.</p>
-<div class="sourceCode" id="cb8"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="fu"><a href="../reference/hf_embed_batch.html">hf_embed_batch</a></span><span class="op">(</span></span>
-<span>  <span class="va">embedding_sentences</span>,</span>
-<span>  <span class="va">endpoint_url</span>,</span>
-<span>  <span class="st">"HF_TEST_API_KEY"</span>,</span>
-<span>  batch_size <span class="op">=</span> <span class="fl">5</span>,</span>
-<span><span class="op">)</span></span></code></pre></div>
-<blockquote>
-<p><strong>TIP:</strong> Remember, you could change
-<code>endpoint_url</code> to <code>url_inference_api</code> to send
-requests to the Hugging Face Inference API instead of a Dedicated
-Inference Endpoint.</p>
-</blockquote>
-<p>The <code>hf_embed_batch</code> function will return our texts in a
-single data frame, with the text itself, two columns related to errors,
-and columns for each embedding dimension.</p>
-<p>The <code>.error</code> and <code>.error_message</code> are
-introduced because we need to know whether errors occur at the
-individual post level. For example, if a batch of 10 requests has 2
-errors, we want to see which individual post had errors, and keep the
-embeddings for the rest.</p>
-<p>Batching is generally a good idea, and we’ll see later that holding
-everything else equal, it does lead to a speed up over non-batched.
-However, if you try to set the batch_size too high, you are more likely
-to hit rate limits, or have your request rejected due to the payload
-being too large.</p>
-<blockquote>
-<p><strong>TIP</strong>: Experiment to find the correct batch size for
-your data and the endpoint. Start small and work upwards in small
-incremeents.</p>
-</blockquote>
-</div>
-<div class="section level3">
-<h3 id="embedding-a-data-frame-of-texts">Embedding a Data Frame of Texts<a class="anchor" aria-label="anchor" href="#embedding-a-data-frame-of-texts"></a>
-</h3>
-<p>As data professionals, we are more likely to work with data frames
-than any other data structure. We will usually have the texts we want to
-embed, their unique identifiers, and a selection of other columns to
-work with. EndpointR has a function - <code><a href="../reference/hf_embed_df.html">hf_embed_df()</a></code> - built
-just for this use case.</p>
-<p>For now, let’s create some IDs and build a data frame from the
-sentences we defined earlier:</p>
-<div class="sourceCode" id="cb9"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="va">embedding_ids</span> <span class="op">&lt;-</span> <span class="fl">1</span><span class="op">:</span><span class="fl">10</span></span>
-<span></span>
-<span><span class="va">embedding_df</span> <span class="op">&lt;-</span></span>
-<span>  <span class="fu"><a href="https://tibble.tidyverse.org/reference/tibble.html" class="external-link">tibble</a></span><span class="op">(</span></span>
-<span>    id <span class="op">=</span> <span class="va">embedding_ids</span>,</span>
-<span>    sentence <span class="op">=</span> <span class="va">embedding_sentences</span></span>
-<span>  <span class="op">)</span></span></code></pre></div>
-<p>The function requires an input to:</p>
-<ul>
-<li>
-<code>text_var =</code> this should be the column in your data frame
-with the text data you need to embed.</li>
-<li>
-<code>id_var =</code> this should be the column in your data frame
-which identifies each piece of text - this makes sure we can link our
-embeddings to the correct text.</li>
-<li>
-<code>key_name</code> we’ve seen this before</li>
-<li>
-<code>endpoint_url</code> we’ve seen this before</li>
-</ul>
-<p>And then we have some optional arguments - these are optional because
-there is a default value for when we don’t set them. We’ll look at some
-of the other optional arguments in a later section. The key optional
-arguments for <code><a href="../reference/hf_embed_df.html">hf_embed_df()</a></code> are:</p>
-<ul>
-<li>
-<code>progress</code> lets EndpointR know whether to provide a
-progress bar, this is only really we’re worth it if we’re embedding a
-lot of data. For now we’ll set it to <code>FALSE</code>
-</li>
-<li>
-<code>max_retries</code> tells EndpointR how many times it should
-try to repeat the request before moving on to the next item.</li>
-</ul>
-<blockquote>
-<p><strong>NOTE</strong>: We’ll look at some additional arguments, such
-as batch_size and concurrent_requests later in <a href="improving-performance">scaling performance</a></p>
-</blockquote>
-<div class="sourceCode" id="cb10"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="op">(</span></span>
-<span>  <span class="va">result_df</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/hf_embed_df.html">hf_embed_df</a></span><span class="op">(</span></span>
-<span>  df <span class="op">=</span> <span class="va">embedding_df</span>,</span>
-<span>  text_var <span class="op">=</span> <span class="va">sentence</span>,</span>
-<span>  id_var <span class="op">=</span> <span class="va">id</span>,</span>
-<span>  key_name <span class="op">=</span> <span class="st">"HF_TEST_API_KEY"</span>,</span>
-<span>  endpoint_url <span class="op">=</span> <span class="va">endpoint_url</span>,</span>
-<span>  progress <span class="op">=</span> <span class="cn">FALSE</span>,</span>
-<span>  max_retries <span class="op">=</span> <span class="fl">5</span><span class="op">)</span></span>
-<span><span class="op">)</span></span></code></pre></div>
-<p>We now have a data frame with our original ID column, the text
-column, the same ‘<code>.error</code> columns as in the batching case,
-and a number of columns with a ’V’ followed by some digits. Each digit
-represents an ‘embedding dimension’, you should have as many ‘VXX’
-columns as there are embedding dimensions for the model you are
-using.</p>
-<p>You can check whether you had any errors a number of ways, I like to
-use <code><a href="https://dplyr.tidyverse.org/reference/count.html" class="external-link">dplyr::count()</a></code> or <code><a href="https://dplyr.tidyverse.org/reference/filter.html" class="external-link">dplyr::filter()</a></code>, here’s
-the count way:</p>
-<div class="sourceCode" id="cb11"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="fu"><a href="https://dplyr.tidyverse.org/reference/count.html" class="external-link">count</a></span><span class="op">(</span><span class="va">result_df</span>, <span class="va">.error</span><span class="op">)</span></span></code></pre></div>
-<p>If you need to select only the columns that contain embeddings - for
-example if you want to feed these embeddings into a clustering, or
-dimensionality reduction model, you can select a range of columns using
-<code><a href="https://dplyr.tidyverse.org/reference/select.html" class="external-link">dplyr::select()</a></code> - here I’ll select V1:V384, which gives me
-all of the embeddings.</p>
-<div class="sourceCode" id="cb12"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="va">result_df</span> <span class="op">|&gt;</span> <span class="fu"><a href="https://dplyr.tidyverse.org/reference/select.html" class="external-link">select</a></span><span class="op">(</span><span class="va">V1</span><span class="op">:</span><span class="va">V384</span><span class="op">)</span></span></code></pre></div>
-<p>If I had 768 embedding dimensions, I would input
-<code>V1:V768</code>, and similarly for 1024 dimensions,
-<code>V1:V1024</code>, you get the idea.</p>
-</div>
-<div class="section level3">
-<h3 id="improving-performance">Improving Performance<a class="anchor" aria-label="anchor" href="#improving-performance"></a>
-</h3>
-<blockquote>
-<p>This section will focus mainly on the <code><a href="../reference/hf_embed_df.html">hf_embed_df()</a></code>
-function and the options we have for improving throughput of
-requests.</p>
-</blockquote>
-<p>So far we’ve looked at how to send a single piece of text, a list or
-batch of texts, and how to iterate through a data frame full of texts,
-sending one request at a time. Whilst these are key workflows, once
-you’re more comfortable with sending requests to APIs and receiving
-responses, you’ll probably need to send a bunch of requests quickly, or
-in a more memory-efficient manner.</p>
-<p>Before we get into how, let’s go a bit further into why.</p>
-<p>For each row of our data frame, we need to create a request which we
-will then perform. We then need to perform the request by sending our
-information over the internet to the endpoint. The endpoint accepts our
-request, performs any computation, and sends a successful response or an
-error. Each of these steps has an associated cost in time, and the cost
-for each step is not equal - some steps are more costly than others.</p>
-<p>Creating each request is almost instant, but if we have a larger data
-frame - e.g. with 100,000 rows: creating 100,000 requests simultaneously
-will take
-<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mo>≈</mo><annotation encoding="application/x-tex">\approx</annotation></semantics></math>
-30s-90s. If we process them all at once, we’ll have to wait the full
-amount of time before we send any requests and receive any responses.
-Clearly this is wasteful - if we had created the first request and sent
-it, we wouldn’t be waiting 90s just to start sending requests.</p>
-<p>Sending each request to the endpoint and waiting for it to process
-will usually take a lot longer than preparing the request. Therefore, if
-we can find ways to reduce the time we spend waiting here, we should be
-able to reduce the overall time it takes to prepare and send our
-requests significantly.</p>
-<p>For the <code>hf_embed_df</code> function, our main options are to
-increase the number of requests we send at at once, and the number of
-texts we send within each request.</p>
-<ul>
-<li>
-<code>concurrent_requests</code> lets EndpointR know how many
-requests to send at the same time. This should be a number between 1 and
-~20-50 (in extreme cases you may be ok with 100, but most endpoints will
-not accept this)</li>
-<li>
-<code>batch_size</code> lets EndpointR know whether to send requests
-with individual texts, or with a number of texts ‘batched up’
-together.</li>
-</ul>
-</div>
-<div class="section level3">
-<h3 id="concurrent-requests">Concurrent Requests<a class="anchor" aria-label="anchor" href="#concurrent-requests"></a>
-</h3>
-<p>Hugging Face’ Inference Endpoints can handle multiple request
-arriving at the same time - and if configured they will ‘autoscale’ to
-provide higher throughput when there is a backlog of requests. As a
-rule, start with ~5 concurrent requests, and work up to ~20. If you
-start hitting rate limits go back down to ~10 and find the sweetspot. If
-endpoint is handling 20 requests then you could continue increasing
-gradually but it’s not recommended unless you are sure the endpoint can
-handle it.</p>
-<p>Here we send 5 concurrent requests - this will iterate through the
-data frame 5 rows at a time, and send new requests when responses are
-returned, until we run out of data to embed.</p>
-<div class="sourceCode" id="cb13"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="fu"><a href="../reference/hf_embed_df.html">hf_embed_df</a></span><span class="op">(</span></span>
-<span>  df <span class="op">=</span> <span class="va">embedding_df</span>,</span>
-<span>  text_var <span class="op">=</span> <span class="va">sentence</span>,</span>
-<span>  endpoint_url <span class="op">=</span> <span class="va">endpoint_url</span>,</span>
-<span>  key_name <span class="op">=</span> <span class="st">"HF_TEST_API_KEY"</span>,</span>
-<span>  id_var<span class="op">=</span> <span class="va">id</span>,</span>
-<span>  concurrent_requests <span class="op">=</span> <span class="fl">5</span>,</span>
-<span>  progress <span class="op">=</span> <span class="cn">TRUE</span></span>
-<span><span class="op">)</span></span></code></pre></div>
-<p>Let’s benchmark performance (see appendix for code) - there is some
-overhead associated with generating parallel requests, so we’ll need a
-bigger data frame to understand what type of speed up we can get.</p>
-<div class="sourceCode" id="cb14"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="va">id_1000</span> <span class="op">&lt;-</span> <span class="fl">1</span><span class="op">:</span><span class="fl">1000</span></span>
-<span><span class="va">sentences_1000</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/rep.html" class="external-link">rep</a></span><span class="op">(</span><span class="va">embedding_df</span><span class="op">$</span><span class="va">sentence</span>, <span class="fl">100</span><span class="op">)</span></span>
-<span><span class="va">embedding_df_1000</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://tibble.tidyverse.org/reference/tibble.html" class="external-link">tibble</a></span><span class="op">(</span>id <span class="op">=</span> <span class="va">id_1000</span>, sentence <span class="op">=</span> <span class="va">sentences_1000</span><span class="op">)</span></span></code></pre></div>
-<p>Recording the results: we can see a ~40% reduction in processing time
-when going from 5-&gt; 10 concurrent requests and a ~15% reduction when
-going from 10 -&gt; 20 concurrent requests.</p>
-<table class="table">
-<thead><tr class="header">
-<th align="right">concurrent_requests</th>
-<th align="right">processing_time_secs</th>
-<th align="left">success</th>
-</tr></thead>
-<tbody>
-<tr class="odd">
-<td align="right">5</td>
-<td align="right">19.8</td>
-<td align="left">TRUE</td>
-</tr>
-<tr class="even">
-<td align="right">10</td>
-<td align="right">11.9</td>
-<td align="left">TRUE</td>
-</tr>
-<tr class="odd">
-<td align="right">20</td>
-<td align="right">10.2</td>
-<td align="left">TRUE</td>
-</tr>
-</tbody>
-</table>
-<p>*Exact times will fluctuate, so take these as approximates.</p>
-</div>
-<div class="section level3">
-<h3 id="batch-requests">Batch Requests<a class="anchor" aria-label="anchor" href="#batch-requests"></a>
-</h3>
-<p>If our endpoint does not allow for multiple concurrent requests, or
-it’s being overloaded by other users, we can still gain some efficiency
-by sending batches of the data frame in each request. Under the hood
-this looks quite similar to the <a href="#embedding-a-list-of-texts">section</a> on embedding a list of
-texts in a batch.</p>
-<blockquote>
-<p><strong>TIP</strong>: experiment with batch sizes to find the
-sweetspot - usually starting around 8-16, and capping out at ~64. You’ll
-know when you’ve gone too high because you’ll start seeing the retry
-bar, and/or your responses will contain errors.</p>
-</blockquote>
-<div class="sourceCode" id="cb15"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="fu"><a href="../reference/hf_embed_df.html">hf_embed_df</a></span><span class="op">(</span></span>
-<span>  df <span class="op">=</span> <span class="va">embedding_df_1000</span>,</span>
-<span>  text_var <span class="op">=</span> <span class="va">sentence</span>,</span>
-<span>  endpoint_url <span class="op">=</span> <span class="va">endpoint_url</span>,</span>
-<span>  key_name <span class="op">=</span> <span class="st">"HF_TEST_API_KEY"</span>,</span>
-<span>  id_var<span class="op">=</span> <span class="va">id</span>,</span>
-<span>  concurrent_requests <span class="op">=</span> <span class="fl">5</span>,</span>
-<span>  batch_size <span class="op">=</span> <span class="fl">20</span>,</span>
-<span>  progress <span class="op">=</span> <span class="cn">TRUE</span></span>
-<span><span class="op">)</span></span></code></pre></div>
-</div>
-<div class="section level3">
-<h3 id="batching-concurrent-requests">Batching Concurrent Requests<a class="anchor" aria-label="anchor" href="#batching-concurrent-requests"></a>
-</h3>
-<p>For maximum speed up, we can also send batches of multiple concurrent
-requests. If our endpoint is able to handle them, 10 concurrent requests
-of <code>batch_size = 10</code> will be marginally faster than 10
-concurrent requests of <code>batch_size = 5</code>.</p>
-<div class="section level4">
-<h4 id="benchmarking-batching-concurrent-requests">Benchmarking Batching &amp; Concurrent Requests<a class="anchor" aria-label="anchor" href="#benchmarking-batching-concurrent-requests"></a>
-</h4>
-<p>In a separate session we did some benchmarking to understand the
-relationship between batch size, concurrent requests, and throughput,
-where throughput is the number of rows processed per second. We looked
-at combinations of:</p>
-<ul>
-<li><strong>batch_size = c(1, 4, 8, 16, 32)</strong></li>
-<li><strong>concurrent_requests = c(1, 5, 10, 15, 20)</strong></li>
-</ul>
-<div class="sourceCode" id="cb16"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/utils/data.html" class="external-link">data</a></span><span class="op">(</span><span class="va">batch_concurrent_benchmark</span>, package <span class="op">=</span> <span class="st">"EndpointR"</span><span class="op">)</span></span>
-<span></span>
-<span><span class="fu">knitr</span><span class="fu">::</span><span class="fu"><a href="https://rdrr.io/pkg/knitr/man/kable.html" class="external-link">kable</a></span><span class="op">(</span><span class="va">batch_concurrent_benchmark</span> <span class="op">|&gt;</span> <span class="fu"><a href="https://dplyr.tidyverse.org/reference/mutate_all.html" class="external-link">mutate_if</a></span><span class="op">(</span><span class="va">is.numeric</span>, <span class="op">~</span> <span class="fu"><a href="https://rdrr.io/r/base/Round.html" class="external-link">round</a></span><span class="op">(</span><span class="va">.x</span>, <span class="fl">2</span><span class="op">)</span><span class="op">)</span><span class="op">)</span></span></code></pre></div>
-<table class="table">
-<colgroup>
-<col width="12%">
-<col width="22%">
-<col width="13%">
-<col width="14%">
-<col width="8%">
-<col width="16%">
-<col width="12%">
-</colgroup>
-<thead><tr class="header">
-<th align="right">batch_size</th>
-<th align="right">concurrent_requests</th>
-<th align="right">chunk_index</th>
-<th align="right">elapsed_time</th>
-<th align="left">success</th>
-<th align="right">rows_processed</th>
-<th align="right">throughput</th>
-</tr></thead>
-<tbody>
-<tr class="odd">
-<td align="right">1</td>
-<td align="right">1</td>
-<td align="right">2</td>
-<td align="right">921.77</td>
-<td align="left">TRUE</td>
-<td align="right">1995</td>
-<td align="right">2.16</td>
-</tr>
-<tr class="even">
-<td align="right">1</td>
-<td align="right">5</td>
-<td align="right">3</td>
-<td align="right">112.84</td>
-<td align="left">TRUE</td>
-<td align="right">1996</td>
-<td align="right">17.69</td>
-</tr>
-<tr class="odd">
-<td align="right">1</td>
-<td align="right">10</td>
-<td align="right">4</td>
-<td align="right">54.37</td>
-<td align="left">TRUE</td>
-<td align="right">1998</td>
-<td align="right">36.75</td>
-</tr>
-<tr class="even">
-<td align="right">1</td>
-<td align="right">20</td>
-<td align="right">5</td>
-<td align="right">26.38</td>
-<td align="left">TRUE</td>
-<td align="right">1999</td>
-<td align="right">75.77</td>
-</tr>
-<tr class="odd">
-<td align="right">4</td>
-<td align="right">1</td>
-<td align="right">6</td>
-<td align="right">200.85</td>
-<td align="left">TRUE</td>
-<td align="right">1996</td>
-<td align="right">9.94</td>
-</tr>
-<tr class="even">
-<td align="right">4</td>
-<td align="right">5</td>
-<td align="right">7</td>
-<td align="right">35.10</td>
-<td align="left">TRUE</td>
-<td align="right">1997</td>
-<td align="right">56.90</td>
-</tr>
-<tr class="odd">
-<td align="right">4</td>
-<td align="right">10</td>
-<td align="right">8</td>
-<td align="right">25.28</td>
-<td align="left">TRUE</td>
-<td align="right">2000</td>
-<td align="right">79.12</td>
-</tr>
-<tr class="even">
-<td align="right">4</td>
-<td align="right">20</td>
-<td align="right">9</td>
-<td align="right">14.11</td>
-<td align="left">TRUE</td>
-<td align="right">1999</td>
-<td align="right">141.62</td>
-</tr>
-<tr class="odd">
-<td align="right">8</td>
-<td align="right">1</td>
-<td align="right">10</td>
-<td align="right">102.14</td>
-<td align="left">TRUE</td>
-<td align="right">1996</td>
-<td align="right">19.54</td>
-</tr>
-<tr class="even">
-<td align="right">8</td>
-<td align="right">5</td>
-<td align="right">11</td>
-<td align="right">20.71</td>
-<td align="left">TRUE</td>
-<td align="right">1998</td>
-<td align="right">96.48</td>
-</tr>
-<tr class="odd">
-<td align="right">8</td>
-<td align="right">10</td>
-<td align="right">12</td>
-<td align="right">13.23</td>
-<td align="left">TRUE</td>
-<td align="right">1995</td>
-<td align="right">150.82</td>
-</tr>
-<tr class="even">
-<td align="right">8</td>
-<td align="right">20</td>
-<td align="right">13</td>
-<td align="right">10.20</td>
-<td align="left">TRUE</td>
-<td align="right">1998</td>
-<td align="right">195.85</td>
-</tr>
-<tr class="odd">
-<td align="right">16</td>
-<td align="right">1</td>
-<td align="right">14</td>
-<td align="right">75.39</td>
-<td align="left">TRUE</td>
-<td align="right">1995</td>
-<td align="right">26.46</td>
-</tr>
-<tr class="even">
-<td align="right">16</td>
-<td align="right">5</td>
-<td align="right">15</td>
-<td align="right">20.16</td>
-<td align="left">TRUE</td>
-<td align="right">1999</td>
-<td align="right">99.14</td>
-</tr>
-<tr class="odd">
-<td align="right">16</td>
-<td align="right">10</td>
-<td align="right">16</td>
-<td align="right">12.86</td>
-<td align="left">TRUE</td>
-<td align="right">1999</td>
-<td align="right">155.40</td>
-</tr>
-<tr class="even">
-<td align="right">16</td>
-<td align="right">20</td>
-<td align="right">17</td>
-<td align="right">14.35</td>
-<td align="left">TRUE</td>
-<td align="right">1998</td>
-<td align="right">139.23</td>
-</tr>
-<tr class="odd">
-<td align="right">32</td>
-<td align="right">1</td>
-<td align="right">18</td>
-<td align="right">64.83</td>
-<td align="left">TRUE</td>
-<td align="right">2000</td>
-<td align="right">30.85</td>
-</tr>
-<tr class="even">
-<td align="right">32</td>
-<td align="right">5</td>
-<td align="right">19</td>
-<td align="right">15.87</td>
-<td align="left">TRUE</td>
-<td align="right">2000</td>
-<td align="right">126.04</td>
-</tr>
-<tr class="odd">
-<td align="right">32</td>
-<td align="right">10</td>
-<td align="right">20</td>
-<td align="right">12.59</td>
-<td align="left">TRUE</td>
-<td align="right">2000</td>
-<td align="right">158.84</td>
-</tr>
-<tr class="even">
-<td align="right">32</td>
-<td align="right">20</td>
-<td align="right">1</td>
-<td align="right">10.23</td>
-<td align="left">TRUE</td>
-<td align="right">1998</td>
-<td align="right">195.39</td>
-</tr>
-</tbody>
-</table>
-<p>The results effectively speak for themselves. To embed
-<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mo>≈</mo><annotation encoding="application/x-tex">\approx</annotation></semantics></math>
-2,000 documents sending them 1 text and 1 request at a time, we get a
-throughput of
-<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>a</mi><mi>p</mi><mi>p</mi><mi>r</mi><mi>o</mi><mi>x</mi></mrow><annotation encoding="application/x-tex">approx</annotation></semantics></math>
-2.16 texts per second, and it takes over 15 minutes! At the other end,
-20 concurrent requests of batch size 8, and 20 concurrent requests of
-batch size 32 have a throughout of 195, which is close to 200x quicker.
-And we get our results back in 10 seconds!</p>
-<blockquote>
-<p><strong>NOTE</strong>: If we needed to, we could re-run the
-benchmarking code multiple times but the general trend is very
-clear.</p>
-</blockquote>
-<div class="sourceCode" id="cb17"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="va">batch_concurrent_benchmark</span> <span class="op">|&gt;</span> </span>
-<span>  <span class="fu"><a href="https://dplyr.tidyverse.org/reference/mutate.html" class="external-link">mutate</a></span><span class="op">(</span>batch_size <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/factor.html" class="external-link">factor</a></span><span class="op">(</span><span class="va">batch_size</span><span class="op">)</span>, concurrent_requests<span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/factor.html" class="external-link">factor</a></span><span class="op">(</span><span class="va">concurrent_requests</span><span class="op">)</span><span class="op">)</span> <span class="op">|&gt;</span></span>
-<span>  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/ggplot.html" class="external-link">ggplot</a></span><span class="op">(</span><span class="fu"><a href="https://ggplot2.tidyverse.org/reference/aes.html" class="external-link">aes</a></span><span class="op">(</span>x<span class="op">=</span> <span class="va">batch_size</span>, y <span class="op">=</span> <span class="va">throughput</span>, group <span class="op">=</span> <span class="va">concurrent_requests</span><span class="op">)</span><span class="op">)</span> <span class="op">+</span></span>
-<span>  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/geom_point.html" class="external-link">geom_point</a></span><span class="op">(</span><span class="fu"><a href="https://ggplot2.tidyverse.org/reference/aes.html" class="external-link">aes</a></span><span class="op">(</span>colour <span class="op">=</span> <span class="va">concurrent_requests</span><span class="op">)</span><span class="op">)</span> <span class="op">+</span></span>
-<span>  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/geom_path.html" class="external-link">geom_line</a></span><span class="op">(</span><span class="fu"><a href="https://ggplot2.tidyverse.org/reference/aes.html" class="external-link">aes</a></span><span class="op">(</span>colour <span class="op">=</span> <span class="va">concurrent_requests</span><span class="op">)</span><span class="op">)</span> <span class="op">+</span></span>
-<span>  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/labs.html" class="external-link">labs</a></span><span class="op">(</span>y <span class="op">=</span> <span class="st">"Throughput"</span>, x <span class="op">=</span> <span class="st">"Batch Size"</span>, title <span class="op">=</span> <span class="st">"Increasing `batch_size` and `concurrent_requests` increases throughput"</span><span class="op">)</span> <span class="op">+</span></span>
-<span>  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/scale_viridis.html" class="external-link">scale_colour_viridis_d</a></span><span class="op">(</span><span class="op">)</span> <span class="op">+</span></span>
-<span>  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/ggtheme.html" class="external-link">theme_minimal</a></span><span class="op">(</span><span class="op">)</span> <span class="op">+</span></span>
-<span>  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/theme.html" class="external-link">theme</a></span><span class="op">(</span>legend.position <span class="op">=</span> <span class="st">"bottom"</span><span class="op">)</span> </span></code></pre></div>
-<p><img src="hugging_face_inference_files/figure-html/unnamed-chunk-17-1.png" width="700"></p>
-<div class="sourceCode" id="cb18"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="va">batch_concurrent_benchmark</span> <span class="op">|&gt;</span> </span>
-<span>    <span class="fu"><a href="https://dplyr.tidyverse.org/reference/mutate.html" class="external-link">mutate</a></span><span class="op">(</span>batch_size <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/factor.html" class="external-link">factor</a></span><span class="op">(</span><span class="va">batch_size</span><span class="op">)</span>, </span>
-<span>           concurrent_requests <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/factor.html" class="external-link">factor</a></span><span class="op">(</span><span class="va">concurrent_requests</span><span class="op">)</span><span class="op">)</span> <span class="op">|&gt;</span>  </span>
-<span>    <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/ggplot.html" class="external-link">ggplot</a></span><span class="op">(</span><span class="fu"><a href="https://ggplot2.tidyverse.org/reference/aes.html" class="external-link">aes</a></span><span class="op">(</span>x <span class="op">=</span> <span class="va">batch_size</span>, y <span class="op">=</span> <span class="va">concurrent_requests</span>, fill <span class="op">=</span> <span class="va">throughput</span><span class="op">)</span><span class="op">)</span> <span class="op">+</span> </span>
-<span>    <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/geom_tile.html" class="external-link">geom_tile</a></span><span class="op">(</span><span class="op">)</span> <span class="op">+</span></span>
-<span>    <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/geom_text.html" class="external-link">geom_text</a></span><span class="op">(</span><span class="fu"><a href="https://ggplot2.tidyverse.org/reference/aes.html" class="external-link">aes</a></span><span class="op">(</span>label <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/Round.html" class="external-link">round</a></span><span class="op">(</span><span class="va">throughput</span>, <span class="fl">1</span><span class="op">)</span><span class="op">)</span>, colour <span class="op">=</span> <span class="st">"white"</span><span class="op">)</span> <span class="op">+</span></span>
-<span>    <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/scale_viridis.html" class="external-link">scale_fill_viridis_c</a></span><span class="op">(</span>name <span class="op">=</span> <span class="st">"Throughput"</span><span class="op">)</span> <span class="op">+</span></span>
-<span>    <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/ggtheme.html" class="external-link">theme_minimal</a></span><span class="op">(</span><span class="op">)</span> <span class="op">+</span></span>
-<span>    <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/labs.html" class="external-link">labs</a></span><span class="op">(</span>x <span class="op">=</span> <span class="st">"Batch Size"</span>, y <span class="op">=</span> <span class="st">"Concurrent Requests"</span>,</span>
-<span>         title <span class="op">=</span> <span class="st">"Throughput by Batch Size and Concurrent Requests"</span><span class="op">)</span> <span class="op">+</span></span>
-<span>    <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/theme.html" class="external-link">theme</a></span><span class="op">(</span>legend.position <span class="op">=</span> <span class="st">"none"</span><span class="op">)</span></span></code></pre></div>
-<p><img src="hugging_face_inference_files/figure-html/unnamed-chunk-18-1.png" width="700"></p>
-<p>Which parameter is more important for speed,
-<code>batch_size =</code> or <code>concurrent_requests =</code>? By eye
-it looks like concurrent_requests has the bigger effect, but it’s clear
-that both parameters have a positive effect, and within the boundaries
-of our parameters, there is an approximately linear relationship between
-them and throughput.</p>
-<p>Putting together a quick linear model confirms that everything else
-equal, increasing <code>concurrent_requests</code> increases throughput
-more than <code>batch_size</code></p>
-<div class="sourceCode" id="cb19"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="va">model</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/stats/lm.html" class="external-link">lm</a></span><span class="op">(</span><span class="va">throughput</span> <span class="op">~</span> <span class="va">batch_size</span> <span class="op">+</span> <span class="va">concurrent_requests</span>, data <span class="op">=</span> <span class="va">batch_concurrent_benchmark</span><span class="op">)</span></span>
-<span></span>
-<span><span class="fu">broom</span><span class="fu">::</span><span class="fu"><a href="https://generics.r-lib.org/reference/tidy.html" class="external-link">tidy</a></span><span class="op">(</span><span class="va">model</span><span class="op">)</span> <span class="op">|&gt;</span>  </span>
-<span>  <span class="fu"><a href="https://dplyr.tidyverse.org/reference/mutate.html" class="external-link">mutate</a></span><span class="op">(</span><span class="fu"><a href="https://dplyr.tidyverse.org/reference/across.html" class="external-link">across</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="va">estimate</span>, <span class="va">std.error</span>, <span class="va">statistic</span><span class="op">)</span>, <span class="op">~</span><span class="fu"><a href="https://rdrr.io/r/base/Round.html" class="external-link">round</a></span><span class="op">(</span><span class="va">.x</span>, <span class="fl">2</span><span class="op">)</span><span class="op">)</span><span class="op">)</span></span>
-<span><span class="co">#&gt; <span style="color: #949494;"># A tibble: 3 × 5</span></span></span>
-<span><span class="co">#&gt;   term                estimate std.error statistic   p.value</span></span>
-<span><span class="co">#&gt;   <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>                  <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span>     <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span>     <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span>     <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span></span></span>
-<span><span class="co">#&gt; <span style="color: #BCBCBC;">1</span> (Intercept)             3.34     15.5       0.22 0.832    </span></span>
-<span><span class="co">#&gt; <span style="color: #BCBCBC;">2</span> batch_size              2.4       0.71      3.37 0.003<span style="text-decoration: underline;">66</span>  </span></span>
-<span><span class="co">#&gt; <span style="color: #BCBCBC;">3</span> concurrent_requests     6.45      1.12      5.77 0.000<span style="text-decoration: underline;">022</span>4</span></span></code></pre></div>
-<blockquote>
-<p><strong>QUESTION</strong>: What might happen if we keep increasing
-<code>batch_size</code> and <code>concurrent_requests</code>? Will the
-relationship hold or not?</p>
-</blockquote>
-</div>
-</div>
-<div class="section level3">
-<h3 id="advanced-usage">Advanced Usage<a class="anchor" aria-label="anchor" href="#advanced-usage"></a>
-</h3>
-<p>The previous sections have explored a high-level API for single
-texts, lists of texts, and data frames. Sometimes you will need to do
-something the <code>hf_embed_text</code>, <code>hf_embed_batch</code>
-and <code>hf_embed_df</code> functions do not allow, and their ‘helpful
-defaults’ get in the way. I would generally recommend you go direct to
-{httr2}, but if you’re intent on using EndpointR then material may be
-forthcoming on some of the lower-level functions, if you can’t wait then
-head into the repo and explore the functions themselves!</p>
-</div>
-</div>
-<div class="section level2">
-<h2 id="quick-start---classification">Quick Start - Classification<a class="anchor" aria-label="anchor" href="#quick-start---classification"></a>
-</h2>
-<blockquote>
-<p><strong>TIP</strong>: this section of the vignette will assume
-familiarity with the section on embeddings, i.e. it’s expected that you
-know what a Hugging Face Inference Endpoint is, and the various options
-common to this package like ‘concurrent_requests’, batch_size’ etc.</p>
-</blockquote>
-<p>Similarly to the embeddings section, EndpointR provides 3 separate
-high-level functions which try to help you classify text without
-exposing the underlying request structure.</p>
-<ul>
-<li><code><a href="../reference/hf_classify_text.html">hf_classify_text()</a></code></li>
-<li><code><a href="../reference/hf_classify_batch.html">hf_classify_batch()</a></code></li>
-<li><code><a href="../reference/hf_classify_df.html">hf_classify_df()</a></code></li>
-</ul>
-<p>With one text:</p>
-<div class="sourceCode" id="cb20"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="va">endpoint_url</span> <span class="op">&lt;-</span> <span class="fu">httr2</span><span class="fu">::</span><span class="fu"><a href="https://httr2.r-lib.org/reference/secrets.html" class="external-link">secret_decrypt</a></span><span class="op">(</span><span class="st">"c2nF_Tx_4V32AO0PZOohHvmKqXZ4Ysd0UfqL1loDrge5eIbLIF07ynGstlRtRJHUgeaMVROKOgnuiWs66VYqLM3SFIufcFv9vIDwOSQyTB0B5A"</span>, <span class="st">"ENDPOINTR_KEY"</span><span class="op">)</span></span>
-<span></span>
-<span><span class="va">text</span> <span class="op">&lt;-</span> <span class="st">"Annual income twenty pounds, annual expenditure nineteen nineteen and six, result happiness. Annual income twenty pounds, annual expenditure twenty pounds ought and six, result misery."</span></span>
-<span></span>
-<span><span class="fu"><a href="../reference/hf_classify_text.html">hf_classify_text</a></span><span class="op">(</span></span>
-<span>  <span class="va">text</span>,</span>
-<span>  <span class="va">endpoint_url</span>,</span>
-<span>  <span class="st">"HF_TEST_API_KEY"</span></span>
-<span><span class="op">)</span></span></code></pre></div>
-<p>With a list of texts:</p>
-<div class="sourceCode" id="cb21"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">texts</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span></span>
-<span>  <span class="st">"It was the best of times, it was the worst of times, it was the age of wisdom, it was the age of foolishness."</span>,</span>
-<span>  <span class="st">"Whether I shall turn out to be the hero of my own life, or whether that station will be held by anybody else, these pages must show."</span>,</span>
-<span>  <span class="st">"There is nothing in the world so irresistibly contagious as laughter and good humour."</span>,</span>
-<span>  <span class="st">"The pain of parting is nothing to the joy of meeting again."</span>,</span>
-<span>  <span class="st">"No one is useless in this world who lightens the burdens of another."</span></span>
+<span>  <span class="st">"First text to embed"</span>,</span>
+<span>  <span class="st">"Second text to embed"</span>,</span>
+<span>  <span class="st">"Third text to embed"</span></span>
 <span><span class="op">)</span></span>
 <span></span>
-<span><span class="fu"><a href="../reference/hf_classify_batch.html">hf_classify_batch</a></span><span class="op">(</span></span>
+<span><span class="va">batch_result</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/hf_embed_batch.html">hf_embed_batch</a></span><span class="op">(</span></span>
 <span>  <span class="va">texts</span>,</span>
-<span>  <span class="va">endpoint_url</span>,</span>
-<span>  <span class="st">"HF_TEST_API_KEY"</span>,</span>
-<span>  batch_size <span class="op">=</span> <span class="fl">2</span></span>
+<span>  endpoint_url <span class="op">=</span> <span class="va">embed_url</span>,</span>
+<span>  key_name <span class="op">=</span> <span class="st">"HF_API_KEY"</span>,</span>
+<span>  batch_size <span class="op">=</span> <span class="fl">3</span>  <span class="co"># process 3 texts per request</span></span>
 <span><span class="op">)</span></span></code></pre></div>
-<p>With a data frame of texts and IDs:</p>
-<div class="sourceCode" id="cb22"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="va">text_df</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://tibble.tidyverse.org/reference/tibble.html" class="external-link">tibble</a></span><span class="op">(</span></span>
-<span>  text <span class="op">=</span> <span class="va">texts</span></span>
-<span><span class="op">)</span> <span class="op">|&gt;</span> </span>
-<span>  <span class="fu"><a href="https://dplyr.tidyverse.org/reference/mutate.html" class="external-link">mutate</a></span><span class="op">(</span>id <span class="op">=</span> <span class="fu"><a href="https://dplyr.tidyverse.org/reference/row_number.html" class="external-link">row_number</a></span><span class="op">(</span><span class="op">)</span>, .before <span class="op">=</span> <span class="fl">1</span><span class="op">)</span></span>
+<p>The result includes: - <code>text</code>: your original text -
+<code>.error</code>: TRUE if something went wrong -
+<code>.error_message</code>: what went wrong (if anything) -
+<code>V1</code> to <code>V384</code>: the embedding values</p>
+</div>
+<div class="section level3">
+<h3 id="data-frame">Data Frame<a class="anchor" aria-label="anchor" href="#data-frame"></a>
+</h3>
+<p>Most commonly, you’ll want to embed a column in a data frame:</p>
+<div class="sourceCode" id="cb5"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">embedding_result</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/hf_embed_df.html">hf_embed_df</a></span><span class="op">(</span></span>
+<span>  df <span class="op">=</span> <span class="va">my_data</span>,</span>
+<span>  text_var <span class="op">=</span> <span class="va">text</span>,      <span class="co"># column with your text</span></span>
+<span>  id_var <span class="op">=</span> <span class="va">id</span>,          <span class="co"># column with unique ids</span></span>
+<span>  endpoint_url <span class="op">=</span> <span class="va">embed_url</span>,</span>
+<span>  key_name <span class="op">=</span> <span class="st">"HF_API_KEY"</span></span>
+<span><span class="op">)</span></span></code></pre></div>
+<p>Check for errors:</p>
+<div class="sourceCode" id="cb6"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">embedding_result</span> <span class="op">|&gt;</span> <span class="fu"><a href="https://dplyr.tidyverse.org/reference/count.html" class="external-link">count</a></span><span class="op">(</span><span class="va">.error</span><span class="op">)</span></span></code></pre></div>
+<p>Extract just the embeddings:</p>
+<div class="sourceCode" id="cb7"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">embeddings_only</span> <span class="op">&lt;-</span> <span class="va">embedding_result</span> <span class="op">|&gt;</span> <span class="fu"><a href="https://dplyr.tidyverse.org/reference/select.html" class="external-link">select</a></span><span class="op">(</span><span class="va">V1</span><span class="op">:</span><span class="va">V384</span><span class="op">)</span></span></code></pre></div>
+</div>
+</div>
+<div class="section level2">
+<h2 id="classification">Classification<a class="anchor" aria-label="anchor" href="#classification"></a>
+</h2>
+<p>Classification works the same way as embeddings, just with a
+different URL and output format. If neceessary, you can also provide a
+custom function for tidying the output.</p>
+<div class="section level3">
+<h3 id="single-text-1">Single Text<a class="anchor" aria-label="anchor" href="#single-text-1"></a>
+</h3>
+<div class="sourceCode" id="cb8"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">classify_url</span> <span class="op">&lt;-</span> <span class="st">"https://router.huggingface.co/hf-inference/models/distilbert/distilbert-base-uncased-finetuned-sst-2-english"</span></span>
 <span></span>
-<span><span class="fu"><a href="../reference/hf_classify_df.html">hf_classify_df</a></span><span class="op">(</span></span>
-<span>  <span class="va">text_df</span>,</span>
-<span>  <span class="va">text</span>, </span>
-<span>  <span class="va">id</span>,</span>
-<span>  <span class="va">endpoint_url</span>,</span>
-<span>  <span class="st">"HF_TEST_API_KEY"</span></span>
+<span><span class="va">sentiment</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/hf_classify_text.html">hf_classify_text</a></span><span class="op">(</span></span>
+<span>  text <span class="op">=</span> <span class="st">"I love this package!"</span>,</span>
+<span>  endpoint_url <span class="op">=</span> <span class="va">classify_url</span>,</span>
+<span>  key_name <span class="op">=</span> <span class="st">"HF_API_KEY"</span></span>
 <span><span class="op">)</span></span></code></pre></div>
+</div>
+<div class="section level3">
+<h3 id="data-frame-1">Data Frame<a class="anchor" aria-label="anchor" href="#data-frame-1"></a>
+</h3>
+<div class="sourceCode" id="cb9"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">classification_result</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/hf_classify_df.html">hf_classify_df</a></span><span class="op">(</span></span>
+<span>  df <span class="op">=</span> <span class="va">my_data</span>,</span>
+<span>  text_var <span class="op">=</span> <span class="va">text</span>,</span>
+<span>  id_var <span class="op">=</span> <span class="va">id</span>,</span>
+<span>  endpoint_url <span class="op">=</span> <span class="va">classify_url</span>,</span>
+<span>  key_name <span class="op">=</span> <span class="st">"HF_API_KEY"</span></span>
+<span><span class="op">)</span></span></code></pre></div>
+<p>The result includes: - Your original <code>id</code> column -
+Classification labels (e.g., POSITIVE, NEGATIVE) - Confidence scores -
+Error tracking columns.</p>
+<blockquote>
+<p><strong>NOTE</strong>: Classification labels are model specific.</p>
+</blockquote>
+</div>
+</div>
+<div class="section level2">
+<h2 id="using-dedicated-endpoints">Using Dedicated Endpoints<a class="anchor" aria-label="anchor" href="#using-dedicated-endpoints"></a>
+</h2>
+<p>To use dedicated endpoints instead of the Inference API:</p>
+<ol style="list-style-type: decimal">
+<li>Deploy your model to a dedicated endpoint (see Hugging Face
+docs)</li>
+<li>Get your endpoint URL</li>
+<li>Replace the URL in any function:</li>
+</ol>
+<div class="sourceCode" id="cb10"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="co"># just change this line</span></span>
+<span><span class="va">dedicated_url</span> <span class="op">&lt;-</span> <span class="st">"https://your-endpoint-name.endpoints.huggingface.cloud"</span></span>
+<span></span>
+<span><span class="co"># everything else stays the same</span></span>
+<span><span class="va">result</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/hf_embed_text.html">hf_embed_text</a></span><span class="op">(</span></span>
+<span>  text <span class="op">=</span> <span class="st">"Sample text"</span>,</span>
+<span>  endpoint_url <span class="op">=</span> <span class="va">dedicated_url</span>,  <span class="co"># &lt;- only change</span></span>
+<span>  key_name <span class="op">=</span> <span class="st">"HF_API_KEY"</span></span>
+<span><span class="op">)</span></span></code></pre></div>
+<blockquote>
+<p><strong>Note</strong>: Dedicated endpoints take 20-30 seconds to
+start if they’re idle. Set <code>max_retries = 5</code> to give them
+time to wake up.</p>
+</blockquote>
+</div>
+<div class="section level2">
+<h2 id="tips">Tips<a class="anchor" aria-label="anchor" href="#tips"></a>
+</h2>
+<ul>
+<li>Start with small batch sizes (3-5) and increase gradually</li>
+<li>The Inference API has rate limits - dedicated endpoints have
+hardware constraints, increase hardware for higher limits</li>
+<li>For production use, choose dedicated endpoints</li>
+<li>Check the <a href="articles/improving_performance.html">Improving
+Performance</a> vignette for speed tips</li>
+</ul>
+</div>
+<div class="section level2">
+<h2 id="common-issues">Common Issues<a class="anchor" aria-label="anchor" href="#common-issues"></a>
+</h2>
+<p><strong>Rate limits</strong>: Reduce batch size or add delays between
+requests</p>
+<p><strong>Model not available</strong>: Not all models work with the
+Inference API. Check the model page or use dedicated endpoints.</p>
+<p><strong>Timeouts</strong>: Increase <code>max_retries</code> or
+reduce batch size</p>
+</div>
+<div class="section level2">
+<h2 id="improving-performance">Improving Performance<a class="anchor" aria-label="anchor" href="#improving-performance"></a>
+</h2>
+<p>EndpointR’s functions come with knobs and dials and you can turn to
+improve throughput and performance. Visit the <a href="articles/improving_performance.html">Improving Performance</a>
+vignette for more information.</p>
 </div>
 <div class="section level2">
 <h2 id="appendix">Appendix<a class="anchor" aria-label="anchor" href="#appendix"></a>
 </h2>
 <div class="section level3">
-<h3 id="appendix---embeddings">Appendix - Embeddings<a class="anchor" aria-label="anchor" href="#appendix---embeddings"></a>
+<h3 id="comparison-of-inference-api-vs-dedicated-inference-endpoints">Comparison of Inference API vs Dedicated Inference Endpoints<a class="anchor" aria-label="anchor" href="#comparison-of-inference-api-vs-dedicated-inference-endpoints"></a>
 </h3>
-<p>TODO: out of date post-refactoring ### Benchmarking Concurrent
-Requests</p>
-<div class="sourceCode" id="cb23"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="va">run_benchmark</span> <span class="op">&lt;-</span> <span class="kw">function</span><span class="op">(</span><span class="va">num_concurrent</span>, <span class="va">data</span>, <span class="va">endpoint</span>, <span class="va">key</span><span class="op">)</span> <span class="op">{</span></span>
-<span>  <span class="va">start_time</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/Sys.time.html" class="external-link">Sys.time</a></span><span class="op">(</span><span class="op">)</span></span>
-<span>  <span class="va">res_df</span> <span class="op">&lt;-</span> <span class="kw"><a href="https://rdrr.io/r/base/try.html" class="external-link">try</a></span><span class="op">(</span><span class="fu"><a href="../reference/hf_embed_df.html">hf_embed_df</a></span><span class="op">(</span></span>
-<span>                  df <span class="op">=</span> <span class="va">data</span>,</span>
-<span>                  text_var <span class="op">=</span> <span class="va">sentence</span>, </span>
-<span>                  id_var<span class="op">=</span> <span class="va">id</span>,         </span>
-<span>                  endpoint_url <span class="op">=</span> <span class="va">endpoint</span>,</span>
-<span>                  key_name <span class="op">=</span> <span class="va">key</span>,</span>
-<span>                  include_errors <span class="op">=</span> <span class="cn">FALSE</span>, </span>
-<span>                  concurrent_requests <span class="op">=</span> <span class="va">num_concurrent</span>,</span>
-<span>                  progress <span class="op">=</span> <span class="cn">FALSE</span> </span>
-<span>                <span class="op">)</span>, silent <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span> </span>
-<span>  <span class="va">processing_time</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/Sys.time.html" class="external-link">Sys.time</a></span><span class="op">(</span><span class="op">)</span> <span class="op">-</span> <span class="va">start_time</span></span>
-<span>  <span class="va">success</span> <span class="op">&lt;-</span> <span class="op">!</span><span class="fu"><a href="https://rdrr.io/r/base/class.html" class="external-link">inherits</a></span><span class="op">(</span><span class="va">res_df</span>, <span class="st">"try-error"</span><span class="op">)</span> <span class="op">&amp;&amp;</span> <span class="fu"><a href="https://rdrr.io/r/base/nrow.html" class="external-link">nrow</a></span><span class="op">(</span><span class="va">res_df</span><span class="op">)</span> <span class="op">==</span> <span class="fu"><a href="https://rdrr.io/r/base/nrow.html" class="external-link">nrow</a></span><span class="op">(</span><span class="va">data</span><span class="op">)</span></span>
-<span>  <span class="kw"><a href="https://rdrr.io/r/base/function.html" class="external-link">return</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/data.frame.html" class="external-link">data.frame</a></span><span class="op">(</span></span>
-<span>    concurrent_requests <span class="op">=</span> <span class="va">num_concurrent</span>,</span>
-<span>    processing_time_secs <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/numeric.html" class="external-link">as.numeric</a></span><span class="op">(</span><span class="va">processing_time</span>, units <span class="op">=</span> <span class="st">"secs"</span><span class="op">)</span>,</span>
-<span>    success <span class="op">=</span> <span class="va">success</span></span>
-<span>  <span class="op">)</span><span class="op">)</span></span>
-<span><span class="op">}</span></span>
-<span></span>
-<span><span class="va">num_requests_vec</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">5</span>, <span class="fl">10</span>, <span class="fl">20</span><span class="op">)</span></span>
-<span><span class="va">results_list</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/lapply.html" class="external-link">lapply</a></span><span class="op">(</span><span class="va">num_requests_vec</span>, <span class="kw">function</span><span class="op">(</span><span class="va">n</span><span class="op">)</span> <span class="op">{</span></span>
-<span>  <span class="fu">run_benchmark</span><span class="op">(</span></span>
-<span>    num_concurrent <span class="op">=</span> <span class="va">n</span>,</span>
-<span>    data <span class="op">=</span> <span class="va">embedding_df_1000</span>,</span>
-<span>    endpoint <span class="op">=</span> <span class="va">endpoint_url</span>,</span>
-<span>    key <span class="op">=</span> <span class="st">"HF_TEST_API_KEY"</span> </span>
-<span>  <span class="op">)</span></span>
-<span><span class="op">}</span><span class="op">)</span></span>
-<span></span>
-<span><span class="op">(</span><span class="va">summary_df</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/do.call.html" class="external-link">do.call</a></span><span class="op">(</span><span class="va">rbind</span>, <span class="va">results_list</span><span class="op">)</span><span class="op">)</span></span></code></pre></div>
-<div class="section level4">
-<h4 id="benchmarking-batch-and-concurrent-requests">Benchmarking Batch and Concurrent Requests<a class="anchor" aria-label="anchor" href="#benchmarking-batch-and-concurrent-requests"></a>
-</h4>
-<p>You won’t be able to re-run this exactly as-is, as the data frame is
-not provided with the package. You could bring your own data if you
-wanted to do this.</p>
-<div class="sourceCode" id="cb24"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="va">trust</span> <span class="op">&lt;-</span> <span class="fu">readr</span><span class="fu">::</span><span class="fu">read_csv</span><span class="op">(</span><span class="st">"~/data/trust/trust_slice_spam_classification.csv"</span><span class="op">)</span> <span class="op">|&gt;</span> </span>
-<span>  <span class="fu"><a href="https://dplyr.tidyverse.org/reference/select.html" class="external-link">select</a></span><span class="op">(</span><span class="va">text</span><span class="op">)</span> <span class="op">|&gt;</span></span>
-<span>  <span class="fu"><a href="https://dplyr.tidyverse.org/reference/mutate.html" class="external-link">mutate</a></span><span class="op">(</span>id <span class="op">=</span> <span class="fu"><a href="https://dplyr.tidyverse.org/reference/row_number.html" class="external-link">row_number</a></span><span class="op">(</span><span class="op">)</span><span class="op">)</span> <span class="op">|&gt;</span></span>
-<span>  <span class="fu"><a href="https://dplyr.tidyverse.org/reference/filter.html" class="external-link">filter</a></span><span class="op">(</span><span class="op">!</span><span class="fu"><a href="https://rdrr.io/r/base/NA.html" class="external-link">is.na</a></span><span class="op">(</span><span class="va">text</span><span class="op">)</span>, <span class="va">text</span> <span class="op">!=</span> <span class="st">""</span><span class="op">)</span> <span class="co"># stop NAs and empty vals crashing anything</span></span>
-<span></span>
-<span><span class="va">chunk_size</span> <span class="op">&lt;-</span> <span class="fl">2000</span></span>
-<span><span class="va">total_chunks</span> <span class="op">&lt;-</span> <span class="fl">20</span></span>
-<span></span>
-<span><span class="co"># this chunking logic is actually rubbish.</span></span>
-<span><span class="va">trust_chunks</span> <span class="op">&lt;-</span> <span class="va">trust</span> <span class="op">|&gt;</span></span>
-<span>  <span class="fu"><a href="https://dplyr.tidyverse.org/reference/mutate.html" class="external-link">mutate</a></span><span class="op">(</span>chunk_id <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/Round.html" class="external-link">ceiling</a></span><span class="op">(</span><span class="va">id</span> <span class="op">/</span> <span class="va">chunk_size</span><span class="op">)</span><span class="op">)</span> <span class="op">|&gt;</span></span>
-<span>  <span class="fu"><a href="https://dplyr.tidyverse.org/reference/group_split.html" class="external-link">group_split</a></span><span class="op">(</span><span class="va">chunk_id</span><span class="op">)</span> <span class="op">|&gt;</span></span>
-<span>  <span class="fu"><a href="https://rdrr.io/r/utils/head.html" class="external-link">head</a></span><span class="op">(</span><span class="va">total_chunks</span><span class="op">)</span></span>
-<span></span>
-<span><span class="va">benchmark_params</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://tidyr.tidyverse.org/reference/expand.html" class="external-link">crossing</a></span><span class="op">(</span></span>
-<span>  batch_size <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">1</span>, <span class="fl">4</span>, <span class="fl">8</span>, <span class="fl">16</span>, <span class="fl">32</span><span class="op">)</span>,</span>
-<span>  concurrent_requests <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">1</span>, <span class="fl">5</span>, <span class="fl">10</span>, <span class="fl">20</span><span class="op">)</span></span>
-<span><span class="op">)</span> <span class="op">|&gt;</span></span>
-<span>  <span class="fu"><a href="https://dplyr.tidyverse.org/reference/mutate.html" class="external-link">mutate</a></span><span class="op">(</span>chunk_index <span class="op">=</span> <span class="fu"><a href="https://dplyr.tidyverse.org/reference/row_number.html" class="external-link">row_number</a></span><span class="op">(</span><span class="op">)</span> <span class="op"><a href="https://rdrr.io/r/base/Arithmetic.html" class="external-link">%%</a></span> <span class="va">total_chunks</span> <span class="op">+</span> <span class="fl">1</span><span class="op">)</span></span>
-<span></span>
-<span><span class="va">benchmark_results</span> <span class="op">&lt;-</span> <span class="va">benchmark_params</span> <span class="op">|&gt;</span></span>
-<span>  <span class="fu"><a href="https://dplyr.tidyverse.org/reference/mutate.html" class="external-link">mutate</a></span><span class="op">(</span>result <span class="op">=</span> <span class="fu"><a href="https://purrr.tidyverse.org/reference/pmap.html" class="external-link">pmap</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span><span class="va">batch_size</span>, <span class="va">concurrent_requests</span>, <span class="va">chunk_index</span><span class="op">)</span>, <span class="kw">function</span><span class="op">(</span><span class="va">bs</span>, <span class="va">cr</span>, <span class="va">ci</span><span class="op">)</span> <span class="op">{</span></span>
-<span>    <span class="va">current_chunk</span> <span class="op">&lt;-</span> <span class="va">trust_chunks</span><span class="op">[[</span><span class="va">ci</span><span class="op">]</span><span class="op">]</span></span>
-<span></span>
-<span>    <span class="va">start_time</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/Sys.time.html" class="external-link">Sys.time</a></span><span class="op">(</span><span class="op">)</span></span>
-<span></span>
-<span>    <span class="va">res</span> <span class="op">&lt;-</span> <span class="kw"><a href="https://rdrr.io/r/base/try.html" class="external-link">try</a></span><span class="op">(</span><span class="fu"><a href="../reference/hf_embed_df.html">hf_embed_df</a></span><span class="op">(</span></span>
-<span>      df <span class="op">=</span> <span class="va">current_chunk</span>,</span>
-<span>      text_var <span class="op">=</span> <span class="va">text</span>,</span>
-<span>      id_var <span class="op">=</span> <span class="va">id</span>,</span>
-<span>      endpoint_url <span class="op">=</span> <span class="va">endpoint_url</span>,</span>
-<span>      key_name <span class="op">=</span> <span class="st">"HF_TEST_API_KEY"</span>,</span>
-<span>      batch_size <span class="op">=</span> <span class="va">bs</span>,</span>
-<span>      concurrent_requests <span class="op">=</span> <span class="va">cr</span>,</span>
-<span>      progress <span class="op">=</span> <span class="cn">TRUE</span></span>
-<span>    <span class="op">)</span>, silent <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span></span>
-<span></span>
-<span>    <span class="va">elapsed_time</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/numeric.html" class="external-link">as.numeric</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/Sys.time.html" class="external-link">Sys.time</a></span><span class="op">(</span><span class="op">)</span> <span class="op">-</span> <span class="va">start_time</span>, units <span class="op">=</span> <span class="st">"secs"</span><span class="op">)</span></span>
-<span>    <span class="va">success</span> <span class="op">&lt;-</span> <span class="op">!</span><span class="fu"><a href="https://rdrr.io/r/base/class.html" class="external-link">inherits</a></span><span class="op">(</span><span class="va">res</span>, <span class="st">"try-error"</span><span class="op">)</span></span>
-<span>    <span class="va">rows_processed</span> <span class="op">&lt;-</span> <span class="kw">if</span><span class="op">(</span><span class="va">success</span><span class="op">)</span> <span class="fu"><a href="https://rdrr.io/r/base/nrow.html" class="external-link">nrow</a></span><span class="op">(</span><span class="va">current_chunk</span><span class="op">)</span> <span class="kw">else</span> <span class="fl">0</span></span>
-<span></span>
-<span>    <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span></span>
-<span>      elapsed_time <span class="op">=</span> <span class="va">elapsed_time</span>,</span>
-<span>      success <span class="op">=</span> <span class="va">success</span>,</span>
-<span>      rows_processed <span class="op">=</span> <span class="va">rows_processed</span>,</span>
-<span>      throughput <span class="op">=</span> <span class="kw">if</span><span class="op">(</span><span class="va">success</span><span class="op">)</span> <span class="va">rows_processed</span> <span class="op">/</span> <span class="va">elapsed_time</span> <span class="kw">else</span> <span class="fl">0</span></span>
-<span>    <span class="op">)</span></span>
-<span>  <span class="op">}</span><span class="op">)</span><span class="op">)</span> <span class="op">|&gt;</span></span>
-<span>  <span class="fu">nest_wider</span><span class="op">(</span><span class="va">result</span><span class="op">)</span></span></code></pre></div>
+<table class="table">
+<colgroup>
+<col width="33%">
+<col width="33%">
+<col width="33%">
+</colgroup>
+<thead><tr class="header">
+<th>Feature</th>
+<th>Inference API</th>
+<th>Dedicated Inference Endpoints</th>
+</tr></thead>
+<tbody>
+<tr class="odd">
+<td><strong>Accessibility</strong></td>
+<td>Public, shared service</td>
+<td>Private, dedicated hardware</td>
+</tr>
+<tr class="even">
+<td><strong>Cost</strong></td>
+<td>Free (with paid tiers)</td>
+<td>Paid service - rent specific hardware</td>
+</tr>
+<tr class="odd">
+<td><strong>Hardware</strong></td>
+<td>Shared computing resources</td>
+<td>Dedicated hardware allocation</td>
+</tr>
+<tr class="even">
+<td><strong>Wait Times</strong></td>
+<td>Variable, unknowable in advance</td>
+<td>Predictable, minimal queuing, ~30s for first request</td>
+</tr>
+<tr class="odd">
+<td><strong>Production Ready</strong></td>
+<td>Not recommended for production</td>
+<td>Recommended for production use</td>
+</tr>
+<tr class="even">
+<td><strong>Use Case</strong></td>
+<td>Casual usage, testing, prototyping</td>
+<td>Production applications, consistent performance</td>
+</tr>
+<tr class="odd">
+<td><strong>Scalability</strong></td>
+<td>Limited by shared resources</td>
+<td>Scales with dedicated allocation</td>
+</tr>
+<tr class="even">
+<td><strong>Availability</strong></td>
+<td>Subject to shared infrastructure limits</td>
+<td>Guaranteed availability during rental period</td>
+</tr>
+<tr class="odd">
+<td><strong>Model Coverage</strong></td>
+<td>Commonly-used models, models selected by Hugging Face</td>
+<td>Virtually all models on the Hub are available</td>
+</tr>
+</tbody>
+</table>
 </div>
 </div>
-<div class="section level3">
-<h3 id="appendix---classification">Appendix - Classification<a class="anchor" aria-label="anchor" href="#appendix---classification"></a>
-</h3>
-</div>
-</div>
-
   </main><aside class="col-md-3"><nav id="toc" aria-label="Table of contents"><h2>On this page</h2>
     </nav></aside>
 </div>
