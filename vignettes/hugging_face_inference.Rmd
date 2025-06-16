@@ -64,14 +64,6 @@ Hugging Face offers two inference options:
 
 For this vignette, we'll use the Inference API. To switch to dedicated endpoints, just change the URL.
 
-```{r, Inference Endpoints}
-# Option 1: Inference API (free, for testing)
-embed_url <-"https://router.huggingface.co/hf-inference/models/sentence-transformers/all-mpnet-base-v2/pipeline/feature-extraction"
-
-# Option 2: Dedicated Endpoint (production)
-dedicated_url <- "https://your-endpoint-name.endpoints.huggingface.cloud"
-```
-
 # Getting Started
 
 Go to [Hugging Face's models hub](https://huggingface.co/models) and fetch the Inference API's URL for the model you want to embed your data with. Not all models are available via the Hugging Face Inference API, if you need to use a model that is not available you may need to deploy a [Dedicated Inference Endpoint](https://huggingface.co/inference-endpoints/dedicated).
