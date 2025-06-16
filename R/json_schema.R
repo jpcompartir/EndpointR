@@ -84,18 +84,30 @@ S7::method(validate_response, json_schema) <- function(schema, data) {
   }
 
   schema_json <- jsonlite::toJSON(schema@schema, auto_unbox = TRUE)
-
-  validator <- jsonvalidate::json_validator(schema_json)
-
-
   data_json <- jsonlite::toJSON(data, auto_unbox = TRUE)
-  is_valid <- validator(data_json)
+
+  # ajv engine with verbose for getting error messages out
+  is_valid <- jsonvalidate::json_validate(data_json, schema_json,
+                                          engine = "ajv", verbose = TRUE)
 
   if (!is_valid) {
     errors <- attr(is_valid, "errors")
+
+    error_msgs <- errors |>
+      dplyr::mutate(
+        field = dplyr::case_when(
+          instancePath == "" ~ "root",
+          TRUE ~ stringr::str_remove(instancePath, "^/")
+        )
+      ) |>
+      dplyr::mutate(
+        error_text = glue::glue("Field '{field}': {message}")
+      ) |>
+      dplyr::pull(error_text)
+
     cli::cli_abort(c(
-      "Response data does not match schema",
-      "x" = errors
+      "Response data does not match schema:",
+      "x" = error_msgs
     ))
   }
 

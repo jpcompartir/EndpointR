@@ -198,6 +198,8 @@ oai_build_completions_request_list <- function(
 #' @param endpoint_url OpenAI API endpoint URL
 #'
 #' @return A tibble
+#'
+#' @export
 #' @examples
 #' \dontrun{
 #'

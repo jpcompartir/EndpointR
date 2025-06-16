@@ -81,7 +81,9 @@ system_prompt <- "Analyse the text's sentiment: "
 text <- "Oh man, I'm getting to the end of my limit with this thing. WHY DOESN'T IT JUST WORK?!?"
 ```
 
-Then we can create our request and inspect it with {httr2}'s `req_dry_run()` function - it's good hygiene to check your request is formatted as you expect it to be, particularly when using it for the first time.
+Then we can create our request and inspect it with {httr2}'s `req_dry_run()` function - it's good hygiene to check your request is formatted as you expect it to be, particularly when using it for the first time. For example, if you intend to have a system prompt, is there a {"role": "system"} key:value pair inside the messages list? Is the value of "model": a valid model ID? Etc.
+
+> **TIP**:You may need to familiarise yourself with the [OpenAI API Documentation](https://platform.openai.com/docs/api-reference/introduction) before proceeding.
 
 ```{r, sentiment_request}
 sentiment_request <- oai_build_completions_request(
@@ -271,4 +273,9 @@ For detailed information on creating JSON schemas for structured outputs, see `v
 
 # Anthropic
 
+TBC
+
 # Google
+
+TBC
+
