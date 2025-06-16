@@ -105,7 +105,7 @@ We can do it simply with the `path =` argument in `httr2::req_perform()`, but th
 
 Headliners:
 
--   [ ] Completions API Requests & Responses
+-   [x] Completions API Requests & Responses
 -   [ ] Responses API Requests & Responses
 -   [ ] Name Functions - don't have as clear a naming structure as `hf_classify/hf_embed`
 
@@ -182,8 +182,9 @@ Schema -\> Type relationship? e.g. schema_number has its own method which coerce
 
 ## Testing & Polish
 
--   [ ] Unit tests for all schema builders
+-   [x] Unit tests for all schema builders
 -   [ ] Integration tests with actual LLM APIs
 -   [ ] Performance benchmarks for large schemas
 -   [ ] Vignettes with real-world examples
+-   [ ] Vignette re-working/refining based on JH feedback
 -   [ ] Optional Fields and Schemas

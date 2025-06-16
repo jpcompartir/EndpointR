@@ -25,7 +25,7 @@ navbar:
       - text: Hugging Face Inference Endpoints
         href: articles/hugging_face_inference.html
       - text: "---"
-      - text: LLM Providers
+      - text: LLM Providers (OpenAI, Anthropic)
       - text: Working with Major LLM Providers
         href: articles/llm_providers.html
       - text: Structured Outputs with JSON Schema

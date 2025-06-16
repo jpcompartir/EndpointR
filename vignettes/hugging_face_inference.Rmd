@@ -58,6 +58,7 @@ library(ggplot2)
 | **Use Case** | Casual usage, testing, prototyping | Production applications, consistent performance |
 | **Scalability** | Limited by shared resources | Scales with dedicated allocation |
 | **Availability** | Subject to shared infrastructure limits | Guaranteed availability during rental period |
+| **Model Coverage** | Selection of the commonly-used models | Virtually all mdoels on the Hub are available |
 
 EndpointR works with both - you just need to change the URL!
 
@@ -75,7 +76,7 @@ set_api_key("HF_TEST_API_KEY") # I'm using a test API key for this vignette
 
 # Getting Started - Embeddings
 
-Fetch the Inference API's URL for the model you want to embed your data with.
+Go to [Hugging Face's models hub](https://huggingface.co/models) and fetch the Inference API's URL for the model you want to embed your data with. Not all models are available via the Hugging Face Inference API, if you need to use a model that is not available you may need to deploy a [Dedicated Inference Endpoint](https://huggingface.co/inference-endpoints/dedicated).
 
 ```{r}
 embedding_url <-"https://router.huggingface.co/hf-inference/models/sentence-transformers/all-mpnet-base-v2/pipeline/feature-extraction"
