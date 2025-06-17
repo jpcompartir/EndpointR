@@ -28,500 +28,199 @@ knitr::opts_chunk$set(
 )
 ```
 
-# Introduction
+This vignette shows how to embed and classify text with EndpointR using Hugging Face's inference services.
+
+# Setup
 
 ```{r setup, eval = TRUE}
 library(EndpointR)
 library(dplyr)
-library(tibble)
 library(httr2)
-library(purrr)
-library(tidyr)
-library(ggplot2)
+library(tibble)
+
+my_data <- tibble(
+  id = 1:3,
+  text = c(
+    "Machine learning is fascinating",
+    "I love working with embeddings", 
+    "Natural language processing is powerful"
+  ),
+  category = c("ML", "embeddings", "NLP")
+)
 ```
 
-## Who is this vignette for?
+Follow Hugging Face's [docs](https://huggingface.co/docs/hub/security-tokens) to generate a Hugging Face token, and then register it with EndpointR:
 
-This vignette is for people who want to embed or classify data using pre-configured, dedicated Hugging Face Endpoints, assuming you have received your API key and the endpoint URL/details.
+```{r, keys_and_urls}
+set_api_key("HF_TEST_API_KEY") 
+```
 
-Experienced users looking for fine-grained control over their API requests will be better served by heading directly to the {[httr2](https://httr2.r-lib.org/index.html)} package.
+# Choosing Your Service
 
-## What is Hugging Face?
+Hugging Face offers two inference options:
 
-For the past few years [Hugging Face](https://huggingface.co/) has been the de-facto location for open-source AI. It is a place to save and share datasets & Machine Learning models alike. Importantly, we can train our own models and then upload them to the Hugging Face Hub for others to use.
+-   **Inference API**: Free, good for testing
+-   **Dedicated Endpoints**: Paid, reliable, fast
 
-## What are Inference Endpoints?
-
-Any model that is saved on the Hugging Face Hub can be connected to a Hugging Face Inference Endpoint allowing us to get predictions from that model using Hugging Face's [^1] hardware. Given that modern-day Machine Learning models tend to require a large amount of compute, and not everybody has powerful laptops to use the models locally, this is a democratising force and a useful tool to have at our disposal.
-
-[^1]: or another inference provider's
-
-### Common Use-cases
-
--   Text embeddings via Sentence Transformers
--   Sentiment analysis
--   Text classification
--   Image recognition
--   Question answering
--   Text generation
-
-This vignette focuses on using Hugging Face endpoints for text embeddings.
+For this vignette, we'll use the Inference API. To switch to dedicated endpoints, just change the URL.
 
 # Getting Started
 
-## API Key Management
+Go to [Hugging Face's models hub](https://huggingface.co/models) and fetch the Inference API's URL for the model you want to embed your data with. Not all models are available via the Hugging Face Inference API, if you need to use a model that is not available you may need to deploy a [Dedicated Inference Endpoint](https://huggingface.co/inference-endpoints/dedicated).
 
-First read the [EndpointR API Keys](vignettes/api_keys.Rmd) vignette.
+# Embeddings
 
-Assuming the endpoint has been set up, you'll need to retrieve your API key from Hugging Face (or from the team/department responsible for providing API keys) and store it securely in an environment variable.
+## Single Text
 
-`set_api_key` will ask you to input the value for your API key using {askpass}, this reduces [^2] the likelihood of your API key ending up in your code somewhere.
-
-[^2]: but never reduces to zero, so always be vigilant!
+Embed one piece of text:
 
 ```{r}
-set_api_key("HF_TEST_API_KEY")
-```
+# inference api url for embeddings
+embed_url <- "https://router.huggingface.co/hf-inference/models/sentence-transformers/all-mpnet-base-v2/pipeline/feature-extraction"
 
-EndpointR functions that need API keys will have a `key_name` argument, you put the same name as you entered into `set_api_key` and EndpointR will retrieve it, without printing the contents to the console.
-
-# Quick Start - Embeddings
-
-EndpointR provides convenient functions for common embedding tasks without exposing the underlying request structure. EndpointR will handle retries, errors, concurrent requests, and batching of requests through configurable options.
-
-## Embedding a Single Text
-
-> For this example, I have previously set up a package-level key for encrypting sensitive information, `ENDPOINTR_KEY`, this can be used with {httr2}'s `secret_encrypt` and `secret_decrypt` function to encrypt any information. For example, you can use these functions to encrypt your API keys themselves.
-
-1.  Get your endpoint's URL
-2.  Make sure the key_name points to the correct API key for your endpoint
-3.  Get a single piece of text you want to embed
-4.  Call `hf_embed_text()`
-
-If the endpoint is not already active, it will take some time to initialise - the model's weights will be loaded onto a server. This process tends to take $\approx$ 20-30 seconds. Setting `max_retries = 5` will usually give the endpoint enough time to initialise, receive our request and return its response.
-
-```{r}
-endpoint_url <- httr2::secret_decrypt("kcZCsc92Ty7PuAk7_FdCcdOU_dlDpvWdDyfpwCWg-wW80eJxJPdQ68nz4V_0922SzSwM5_dYfpTOqsZ-GodUpLN4PQbwE73wlZkBCWIaIXc15g", "ENDPOINTR_KEY")
-
-embeddings <- hf_embed_text(
+result <- hf_embed_text(
   text = "This is a sample text to embed",
-  endpoint_url = endpoint_url,
-  key_name = "HF_TEST_API_KEY",
-  max_retries = 5
+  endpoint_url = embed_url,
+  key_name = "HF_API_KEY"
 )
 ```
 
-The output is tidied into a tibble with 1 row and 384 columns. Each column is an embedding dimension, and the 'all-minilm-l6-v2' model used by this endpoint has 384 dimensions.
+The result is a tibble with one row and 384 columns (V1 to V384). Each column is an embedding dimension.
 
-```{r}
-embeddings
-```
+> **Note**: The number of columns depends on your model. Check the model's Hugging Face page for its embedding size.
 
-## Working with Multiple Texts
+## List of Texts
 
-When working with multiple texts, it would be possible to create a `hf_embed_text` function call for each text, and save each result to its own variable:
-
-```{r}
-text_1_embeddings <- hf_embed_text(text = "This is a sample text to embed", endpoint_url = endpoint_url, key_name = "HF_TEST_API_KEY", max_retries = 5)
-text_2_embeddings <- hf_embed_text(text = "This is a sample text nunber 2 to embed", endpoint_url = endpoint_url, key_name = "HF_TEST_API_KEY", max_retries = 5)
-
-```
-
-And so on, for as many texts as we have. But this would get very boring, very quickly. Instead, it would be nice if we could embed multiple texts at the same time.
-
-## Embedding a List of Texts {#embedding-a-list-of-texts}
-
-Rather than send 10 requests and get 10 responses, we could batch our texts together so that each request has multiple texts. In the following example we'll send a list of 10 texts in 2 separate requests.
-
-> **DISCLAIMER**: Claude was used to generate these sentences, instructed to write 10 sentences about embeddings, APIs, being British, and to add humour where it saw fit. The humour is 'mixed' at best.
-
-```{r}
-embedding_sentences <- c(
-  "Text embedding models compress your rambling prose into compact vectors, much like how British commuters squeeze themselves into tube carriages during rush hour.",
-  "Setting up an inference endpoint without proper documentation is akin to attempting to navigate London using a map of Birmingham.",
-  "When your embedding model starts hallucinating, it's rather like watching Parliament during Question Time—entertaining but utterly unpredictable.",
-  "Optimising your inference endpoint is essential unless you fancy your users growing old whilst waiting for a response, perhaps even ageing enough to collect their pension.",
-  "The distance between word embeddings reveals semantic relationships, though sadly not the distance between what your client requested and what they actually wanted.",
-  "Creating multilingual embeddings is a bit like attempting to order tea properly across Europe—technically possible but fraught with cultural misunderstandings.",
-  "Batch processing through inference endpoints saves computing resources, much like how the British save conversation topics by discussing the weather exclusively.",
-  "Token limits on embedding APIs are the digital equivalent of a queue at a British post office—inevitably, you'll reach the front just as they close for lunch.",
-  "Fine-tuning embedding models on domain-specific corpora is rather like training a British child to apologise—it requires repetition, patience, and considerable examples.",
-  "When your inference endpoint crashes under load, it maintains that quintessentially British trait of breaking down precisely when most inconvenient."
-)
-```
-
-the `hf_embed_batch()` function handles a list of texts, and turns them into batches, sized according to what we enter into `batch_size =`. The default value is 8, we'll change it to 5 and send all of our texts in 2 requests.
-
-```{r}
-hf_embed_batch(
-  embedding_sentences,
-  endpoint_url,
-  "HF_TEST_API_KEY",
-  batch_size = 5,
-)
-```
-
-The `hf_embed_batch` function will return our texts in a single data frame, with the text itself, two columns related to errors, and columns for each embedding dimension.
-
-The `.error` and `.error_message` are introduced because we need to know whether errors occur at the individual post level. For example, if a batch of 10 requests has 2 errors, we want to see which individual post had errors, and keep the embeddings for the rest.
-
-Batching is generally a good idea, and we'll see later that holding everything else equal, it does lead to a speed up over non-batched. However, if you try to set the batch_size too high, you are more likely to hit rate limits, or have your request rejected due to the payload being too large.
-
-> **TIP**: Experiment to find the correct batch size for your data and the endpoint. Start small and work upwards in small incremeents.
-
-## Embedding a Data Frame of Texts
-
-As data professionals, we are more likely to work with data frames than any other data structure. We will usually have the texts we want to embed, their unique identifiers, and a selection of other columns to work with. EndpointR has a function - `hf_embed_df()` - built just for this use case.
-
-For now, let's create some IDs and build a data frame from the sentences we defined earlier:
-
-```{r}
-embedding_ids <- 1:10
-
-embedding_df <-
-  tibble(
-    id = embedding_ids,
-    sentence = embedding_sentences
-  )
-```
-
-The function requires an input to:
-
--   `text_var =` this should be the column in your data frame with the text data you need to embed.
--   `id_var =` this should be the column in your data frame which identifies each piece of text - this makes sure we can link our embeddings to the correct text.
--   `key_name` we've seen this before
--   `endpoint_url` we've seen this before
-
-And then we have some optional arguments - these are optional because there is a default value for when we don't set them. We'll look at some of the other optional arguments in a later section. The key optional arguments for `hf_embed_df()` are:
-
--   `progress` lets EndpointR know whether to provide a progress bar, this is only really we're worth it if we're embedding a lot of data. For now we'll set it to `FALSE`
--   `max_retries` tells EndpointR how many times it should try to repeat the request before moving on to the next item.
-
-> **NOTE**: We'll look at some additional arguments, such as batch_size and concurrent_requests later in [scaling performance](improving-performance)
-
-```{r}
-(
-  result_df <- hf_embed_df(
-  df = embedding_df,
-  text_var = sentence,
-  id_var = id,
-  key_name = "HF_TEST_API_KEY",
-  endpoint_url = endpoint_url,
-  progress = FALSE,
-  max_retries = 5)
-)
-```
-
-We now have a data frame with our original ID column, the text column, the same '`.error` columns as in the batching case, and a number of columns with a 'V' followed by some digits. Each digit represents an 'embedding dimension', you should have as many 'VXX' columns as there are embedding dimensions for the model you are using.
-
-You can check whether you had any errors a number of ways, I like to use `dplyr::count()` or `dplyr::filter()`, here's the count way:
-
-```{r}
-count(result_df, .error)
-```
-
-If you need to select only the columns that contain embeddings - for example if you want to feed these embeddings into a clustering, or dimensionality reduction model, you can select a range of columns using `dplyr::select()` - here I'll select V1:V384, which gives me all of the embeddings.
-
-```{r}
-result_df |> select(V1:V384)
-```
-
-If I had 768 embedding dimensions, I would input `V1:V768`, and similarly for 1024 dimensions, `V1:V1024`, you get the idea.
-
-## Improving Performance
-
-> This section will focus mainly on the `hf_embed_df()` function and the options we have for improving throughput of requests.
-
-So far we've looked at how to send a single piece of text, a list or batch of texts, and how to iterate through a data frame full of texts, sending one request at a time. Whilst these are key workflows, once you're more comfortable with sending requests to APIs and receiving responses, you'll probably need to send a bunch of requests quickly, or in a more memory-efficient manner.
-
-Before we get into how, let's go a bit further into why.
-
-For each row of our data frame, we need to create a request which we will then perform. We then need to perform the request by sending our information over the internet to the endpoint. The endpoint accepts our request, performs any computation, and sends a successful response or an error. Each of these steps has an associated cost in time, and the cost for each step is not equal - some steps are more costly than others.
-
-Creating each request is almost instant, but if we have a larger data frame - e.g. with 100,000 rows: creating 100,000 requests simultaneously will take $\approx$ 30s-90s. If we process them all at once, we'll have to wait the full amount of time before we send any requests and receive any responses. Clearly this is wasteful - if we had created the first request and sent it, we wouldn't be waiting 90s just to start sending requests.
-
-Sending each request to the endpoint and waiting for it to process will usually take a lot longer than preparing the request. Therefore, if we can find ways to reduce the time we spend waiting here, we should be able to reduce the overall time it takes to prepare and send our requests significantly.
-
-For the `hf_embed_df` function, our main options are to increase the number of requests we send at at once, and the number of texts we send within each request.
-
--   `concurrent_requests` lets EndpointR know how many requests to send at the same time. This should be a number between 1 and \~20-50 (in extreme cases you may be ok with 100, but most endpoints will not accept this)
--   `batch_size` lets EndpointR know whether to send requests with individual texts, or with a number of texts 'batched up' together.
-
-## Concurrent Requests
-
-Hugging Face' Inference Endpoints can handle multiple request arriving at the same time - and if configured they will 'autoscale' to provide higher throughput when there is a backlog of requests. As a rule, start with \~5 concurrent requests, and work up to \~20. If you start hitting rate limits go back down to \~10 and find the sweetspot. If endpoint is handling 20 requests then you could continue increasing gradually but it's not recommended unless you are sure the endpoint can handle it.
-
-Here we send 5 concurrent requests - this will iterate through the data frame 5 rows at a time, and send new requests when responses are returned, until we run out of data to embed.
-
-```{r}
-hf_embed_df(
-  df = embedding_df,
-  text_var = sentence,
-  endpoint_url = endpoint_url,
-  key_name = "HF_TEST_API_KEY",
-  id_var= id,
-  concurrent_requests = 5,
-  progress = TRUE
-)
-```
-
-Let's benchmark performance (see appendix for code) - there is some overhead associated with generating parallel requests, so we'll need a bigger data frame to understand what type of speed up we can get.
-
-```{r}
-id_1000 <- 1:1000
-sentences_1000 <- rep(embedding_df$sentence, 100)
-embedding_df_1000 <- tibble(id = id_1000, sentence = sentences_1000)
-```
-
-Recording the results: we can see a \~40% reduction in processing time when going from 5-\> 10 concurrent requests and a \~15% reduction when going from 10 -\> 20 concurrent requests.
-
-| concurrent_requests | processing_time_secs | success |
-|--------------------:|---------------------:|:--------|
-|                   5 |                 19.8 | TRUE    |
-|                  10 |                 11.9 | TRUE    |
-|                  20 |                 10.2 | TRUE    |
-
-\*Exact times will fluctuate, so take these as approximates.
-
-## Batch Requests
-
-If our endpoint does not allow for multiple concurrent requests, or it's being overloaded by other users, we can still gain some efficiency by sending batches of the data frame in each request. Under the hood this looks quite similar to the [section](#embedding-a-list-of-texts) on embedding a list of texts in a batch.
-
-> **TIP**: experiment with batch sizes to find the sweetspot - usually starting around 8-16, and capping out at \~64. You'll know when you've gone too high because you'll start seeing the retry bar, and/or your responses will contain errors.
-
-```{r}
-hf_embed_df(
-  df = embedding_df_1000,
-  text_var = sentence,
-  endpoint_url = endpoint_url,
-  key_name = "HF_TEST_API_KEY",
-  id_var= id,
-  concurrent_requests = 5,
-  batch_size = 20,
-  progress = TRUE
-)
-```
-
-## Batching Concurrent Requests
-
-For maximum speed up, we can also send batches of multiple concurrent requests. If our endpoint is able to handle them, 10 concurrent requests of `batch_size = 10` will be marginally faster than 10 concurrent requests of `batch_size = 5`.
-
-### Benchmarking Batching & Concurrent Requests
-
-In a separate session we did some benchmarking to understand the relationship between batch size, concurrent requests, and throughput, where throughput is the number of rows processed per second. We looked at combinations of:
-
--   **batch_size = c(1, 4, 8, 16, 32)**
--   **concurrent_requests = c(1, 5, 10, 15, 20)**
-
-```{r, eval = TRUE}
-data(batch_concurrent_benchmark, package = "EndpointR")
-
-knitr::kable(batch_concurrent_benchmark |> mutate_if(is.numeric, ~ round(.x, 2)))
-```
-
-The results effectively speak for themselves. To embed $\approx$ 2,000 documents sending them 1 text and 1 request at a time, we get a throughput of $approx$ 2.16 texts per second, and it takes over 15 minutes! At the other end, 20 concurrent requests of batch size 8, and 20 concurrent requests of batch size 32 have a throughout of 195, which is close to 200x quicker. And we get our results back in 10 seconds!
-
-> **NOTE**: If we needed to, we could re-run the benchmarking code multiple times but the general trend is very clear.
-
-```{r, eval = TRUE}
-batch_concurrent_benchmark |> 
-  mutate(batch_size = factor(batch_size), concurrent_requests= factor(concurrent_requests)) |>
-  ggplot(aes(x= batch_size, y = throughput, group = concurrent_requests)) +
-  geom_point(aes(colour = concurrent_requests)) +
-  geom_line(aes(colour = concurrent_requests)) +
-  labs(y = "Throughput", x = "Batch Size", title = "Increasing `batch_size` and `concurrent_requests` increases throughput") +
-  scale_colour_viridis_d() +
-  theme_minimal() +
-  theme(legend.position = "bottom") 
-```
-
-```{r, eval = TRUE}
-batch_concurrent_benchmark |> 
-    mutate(batch_size = factor(batch_size), 
-           concurrent_requests = factor(concurrent_requests)) |>  
-    ggplot(aes(x = batch_size, y = concurrent_requests, fill = throughput)) + 
-    geom_tile() +
-    geom_text(aes(label = round(throughput, 1)), colour = "white") +
-    scale_fill_viridis_c(name = "Throughput") +
-    theme_minimal() +
-    labs(x = "Batch Size", y = "Concurrent Requests",
-         title = "Throughput by Batch Size and Concurrent Requests") +
-    theme(legend.position = "none")
-```
-
-Which parameter is more important for speed, `batch_size =` or `concurrent_requests =`? By eye it looks like concurrent_requests has the bigger effect, but it's clear that both parameters have a positive effect, and within the boundaries of our parameters, there is an approximately linear relationship between them and throughput.
-
-Putting together a quick linear model confirms that everything else equal, increasing `concurrent_requests` increases throughput more than `batch_size`
-
-```{r, eval = TRUE}
-model <- lm(throughput ~ batch_size + concurrent_requests, data = batch_concurrent_benchmark)
-
-broom::tidy(model) |>  
-  mutate(across(c(estimate, std.error, statistic), ~round(.x, 2)))
-```
-
-> **QUESTION**: What might happen if we keep increasing `batch_size` and `concurrent_requests`? Will the relationship hold or not?
-
-## Advanced Usage
-
-The previous sections have explored a high-level API for single texts, lists of texts, and data frames. Sometimes you will need to do something the `hf_embed_text`, `hf_embed_batch` and `hf_embed_df` functions do not allow, and their 'helpful defaults' get in the way. I would generally recommend you go direct to {httr2}, but if you're intent on using EndpointR then material may be forthcoming on some of the lower-level functions, if you can't wait then head into the repo and explore the functions themselves!
-
-# Quick Start - Classification
-
-> **TIP**: this section of the vignette will assume familiarity with the section on embeddings, i.e. it's expected that you know what a Hugging Face Inference Endpoint is, and the various options common to this package like 'concurrent_requests', batch_size' etc.
-
-Similarly to the embeddings section, EndpointR provides 3 separate high-level functions which try to help you classify text without exposing the underlying request structure.
-
--   `hf_classify_text()`
--   `hf_classify_batch()`
--   `hf_classify_df()`
-
-With one text:
-
-```{r}
-endpoint_url <- httr2::secret_decrypt("c2nF_Tx_4V32AO0PZOohHvmKqXZ4Ysd0UfqL1loDrge5eIbLIF07ynGstlRtRJHUgeaMVROKOgnuiWs66VYqLM3SFIufcFv9vIDwOSQyTB0B5A", "ENDPOINTR_KEY")
-
-text <- "Annual income twenty pounds, annual expenditure nineteen nineteen and six, result happiness. Annual income twenty pounds, annual expenditure twenty pounds ought and six, result misery."
-
-hf_classify_text(
-  text,
-  endpoint_url,
-  "HF_TEST_API_KEY"
-)
-
-```
-
-With a list of texts:
+Embed multiple texts at once using batching:
 
 ```{r}
 texts <- c(
-  "It was the best of times, it was the worst of times, it was the age of wisdom, it was the age of foolishness.",
-  "Whether I shall turn out to be the hero of my own life, or whether that station will be held by anybody else, these pages must show.",
-  "There is nothing in the world so irresistibly contagious as laughter and good humour.",
-  "The pain of parting is nothing to the joy of meeting again.",
-  "No one is useless in this world who lightens the burdens of another."
+  "First text to embed",
+  "Second text to embed",
+  "Third text to embed"
 )
 
-hf_classify_batch(
+batch_result <- hf_embed_batch(
   texts,
-  endpoint_url,
-  "HF_TEST_API_KEY",
-  batch_size = 2
+  endpoint_url = embed_url,
+  key_name = "HF_API_KEY",
+  batch_size = 3  # process 3 texts per request
 )
 ```
 
-With a data frame of texts and IDs:
+The result includes: - `text`: your original text - `.error`: TRUE if something went wrong - `.error_message`: what went wrong (if anything) - `V1` to `V384`: the embedding values
+
+## Data Frame
+
+Most commonly, you'll want to embed a column in a data frame:
 
 ```{r}
-text_df <- tibble(
-  text = texts
-) |> 
-  mutate(id = row_number(), .before = 1)
-
-hf_classify_df(
-  text_df,
-  text, 
-  id,
-  endpoint_url,
-  "HF_TEST_API_KEY"
+embedding_result <- hf_embed_df(
+  df = my_data,
+  text_var = text,      # column with your text
+  id_var = id,          # column with unique ids
+  endpoint_url = embed_url,
+  key_name = "HF_API_KEY"
 )
 ```
+
+Check for errors:
+
+```{r}
+embedding_result |> count(.error)
+```
+
+Extract just the embeddings:
+
+```{r}
+embeddings_only <- embedding_result |> select(V1:V384)
+```
+
+# Classification
+
+Classification works the same way as embeddings, just with a different URL and output format. If neceessary, you can also provide a custom function for tidying the output.
+
+## Single Text
+
+```{r}
+classify_url <- "https://router.huggingface.co/hf-inference/models/distilbert/distilbert-base-uncased-finetuned-sst-2-english"
+
+sentiment <- hf_classify_text(
+  text = "I love this package!",
+  endpoint_url = classify_url,
+  key_name = "HF_API_KEY"
+)
+```
+
+## Data Frame
+
+```{r}
+classification_result <- hf_classify_df(
+  df = my_data,
+  text_var = text,
+  id_var = id,
+  endpoint_url = classify_url,
+  key_name = "HF_API_KEY"
+)
+```
+
+The result includes: - Your original `id` column - Classification labels (e.g., POSITIVE, NEGATIVE) - Confidence scores - Error tracking columns.
+
+> **NOTE**: Classification labels are model specific.
+
+# Using Dedicated Endpoints
+
+To use dedicated endpoints instead of the Inference API:
+
+1.  Deploy your model to a dedicated endpoint (see Hugging Face docs)
+2.  Get your endpoint URL
+3.  Replace the URL in any function:
+
+```{r}
+# just change this line
+dedicated_url <- "https://your-endpoint-name.endpoints.huggingface.cloud"
+
+# everything else stays the same
+result <- hf_embed_text(
+  text = "Sample text",
+  endpoint_url = dedicated_url,  # <- only change
+  key_name = "HF_API_KEY"
+)
+```
+
+> **Note**: Dedicated endpoints take 20-30 seconds to start if they're idle. Set `max_retries = 5` to give them time to wake up.
+
+# Tips
+
+-   Start with small batch sizes (3-5) and increase gradually
+-   The Inference API has rate limits - dedicated endpoints have hardware constraints, increase hardware for higher limits
+-   For production use, choose dedicated endpoints
+-   Check the [Improving Performance](articles/improving_performance.html) vignette for speed tips
+
+# Common Issues
+
+**Rate limits**: Reduce batch size or add delays between requests
+
+**Model not available**: Not all models work with the Inference API. Check the model page or use dedicated endpoints.
+
+**Timeouts**: Increase `max_retries` or reduce batch size
+
+# Improving Performance
+
+EndpointR's functions come with knobs and dials and you can turn to improve throughput and performance. Visit the [Improving Performance](articles/improving_performance.html) vignette for more information.
 
 # Appendix
 
-## Appendix - Embeddings
+## Comparison of Inference API vs Dedicated Inference Endpoints
 
-### Benchmarking Concurrent Requests
-
-```{r, benchmark_concurrent}
-run_benchmark <- function(num_concurrent, data, endpoint, key) {
-  start_time <- Sys.time()
-  res_df <- try(hf_embed_df(
-                  df = data,
-                  text_var = sentence, 
-                  id_var= id,         
-                  endpoint_url = endpoint,
-                  key_name = key,
-                  include_errors = FALSE, 
-                  concurrent_requests = num_concurrent,
-                  progress = FALSE 
-                ), silent = TRUE) 
-  processing_time <- Sys.time() - start_time
-  success <- !inherits(res_df, "try-error") && nrow(res_df) == nrow(data)
-  return(data.frame(
-    concurrent_requests = num_concurrent,
-    processing_time_secs = as.numeric(processing_time, units = "secs"),
-    success = success
-  ))
-}
-
-num_requests_vec <- c(5, 10, 20)
-results_list <- lapply(num_requests_vec, function(n) {
-  run_benchmark(
-    num_concurrent = n,
-    data = embedding_df_1000,
-    endpoint = endpoint_url,
-    key = "HF_TEST_API_KEY" 
-  )
-})
-
-(summary_df <- do.call(rbind, results_list))
-```
-
-### Benchmarking Batch and Concurrent Requests
-
-You won't be able to re-run this exactly as-is, as the data frame is not provided with the package. You could bring your own data if you wanted to do this.
-
-```{r,benchmark_concurrent_batching}
-trust <- readr::read_csv("~/data/trust/trust_slice_spam_classification.csv") |> 
-  select(text) |>
-  mutate(id = row_number()) |>
-  filter(!is.na(text), text != "") # stop NAs and empty vals crashing anything
-
-chunk_size <- 2000
-total_chunks <- 20
-
-# this chunking logic is actually rubbish.
-trust_chunks <- trust |>
-  mutate(chunk_id = ceiling(id / chunk_size)) |>
-  group_split(chunk_id) |>
-  head(total_chunks)
-
-benchmark_params <- crossing(
-  batch_size = c(1, 4, 8, 16, 32),
-  concurrent_requests = c(1, 5, 10, 20)
-) |>
-  mutate(chunk_index = row_number() %% total_chunks + 1)
-
-benchmark_results <- benchmark_params |>
-  mutate(result = pmap(list(batch_size, concurrent_requests, chunk_index), function(bs, cr, ci) {
-    current_chunk <- trust_chunks[[ci]]
-
-    start_time <- Sys.time()
-
-    res <- try(hf_embed_df(
-      df = current_chunk,
-      text_var = text,
-      id_var = id,
-      endpoint_url = endpoint_url,
-      key_name = "HF_TEST_API_KEY",
-      batch_size = bs,
-      concurrent_requests = cr,
-      progress = TRUE
-    ), silent = TRUE)
-
-    elapsed_time <- as.numeric(Sys.time() - start_time, units = "secs")
-    success <- !inherits(res, "try-error")
-    rows_processed <- if(success) nrow(current_chunk) else 0
-
-    list(
-      elapsed_time = elapsed_time,
-      success = success,
-      rows_processed = rows_processed,
-      throughput = if(success) rows_processed / elapsed_time else 0
-    )
-  })) |>
-  nest_wider(result)
-```
-
-## Appendix - Classification
+| Feature | Inference API | Dedicated Inference Endpoints |
+|----|----|----|
+| **Accessibility** | Public, shared service | Private, dedicated hardware |
+| **Cost** | Free (with paid tiers) | Paid service - rent specific hardware |
+| **Hardware** | Shared computing resources | Dedicated hardware allocation |
+| **Wait Times** | Variable, unknowable in advance | Predictable, minimal queuing, \~30s for first request |
+| **Production Ready** | Not recommended for production | Recommended for production use |
+| **Use Case** | Casual usage, testing, prototyping | Production applications, consistent performance |
+| **Scalability** | Limited by shared resources | Scales with dedicated allocation |
+| **Availability** | Subject to shared infrastructure limits | Guaranteed availability during rental period |
+| **Model Coverage** | Commonly-used models, models selected by Hugging Face | Virtually all models on the Hub are available |

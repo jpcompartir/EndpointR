@@ -1,0 +1,124 @@
+url: https://jpcompartir.github.io/EndpointR/
+template:
+  bootstrap: 5
+  bslib:
+    primary: "#0073e6"
+    navbar-bg: "#f8f9fa"
+
+home:
+  title: "EndpointR"
+  description: "A batteries-included R package for connecting to Machine Learning inference APIs"
+
+navbar:
+  structure:
+    left: [intro, reference, articles, tutorials, news]
+    right: [search, github]
+  components:
+    articles:
+      text: Articles
+      menu:
+      - text: Getting Started
+      - text: API Key Management
+        href: articles/api_keys.html
+      - text: "---"
+      - text: Hugging Face
+      - text: Hugging Face Inference Endpoints
+        href: articles/hugging_face_inference.html
+      - text: "---"
+      - text: LLM Providers (OpenAI, Anthropic)
+      - text: Working with Major LLM Providers
+        href: articles/llm_providers.html
+      - text: Structured Outputs with JSON Schema
+        href: articles/structured_outputs_json_schema.html
+      - text: "---"
+      - text: Advanced Topics
+      - text: Improving Performance
+        href: articles/improving_performance.html
+      - text: Embeddings Providers
+        href: articles/embeddings_providers.html
+
+reference:
+- title: "Getting Started"
+  desc: "Essential functions for setting up and managing API keys"
+  contents:
+  - set_api_key
+  - get_api_key
+  - validate_hf_endpoint
+
+- title: "Hugging Face - Text Embeddings"
+  desc: "Functions for generating text embeddings using Hugging Face endpoints"
+  contents:
+  - hf_embed_text
+  - hf_embed_batch
+  - hf_embed_df
+  - tidy_embedding_response
+
+- title: "Hugging Face - Text Classification"
+  desc: "Functions for classifying text using Hugging Face endpoints"
+  contents:
+  - hf_classify_text
+  - hf_classify_batch
+  - hf_classify_df
+  - tidy_classification_response
+
+- title: "Hugging Face - Core Infrastructure"
+  desc: "Low-level functions for building and performing Hugging Face requests"
+  contents:
+  - hf_build_request
+  - hf_build_request_batch
+  - hf_build_request_df
+  - hf_perform_request
+
+- title: "OpenAI Integration"
+  desc: "Functions for working with OpenAI's APIs including structured outputs"
+  contents:
+  - oai_build_completions_request
+  - oai_build_completions_request_list
+  - oai_complete_df
+
+- title: "JSON Schema for Structured Outputs"
+  desc: "Type-safe schema creation and validation for structured LLM outputs"
+  contents:
+  - create_json_schema
+  - json_schema
+  - json_dump
+  - validate_response
+
+- title: "Schema Builders"
+  desc: "Helper functions for creating different types of JSON schema properties"
+  contents:
+  - schema_object
+  - schema_string
+  - schema_number
+  - schema_integer
+  - schema_boolean
+  - schema_enum
+  - schema_array
+
+- title: "Core Utilities"
+  desc: "Internal utility functions and data processing helpers"
+  contents:
+  - safely_perform_request
+  - chunk_dataframe
+
+- title: "Sample Data"
+  desc: "Datasets included with the package for examples and testing"
+  contents:
+  - batch_concurrent_benchmark
+
+authors:
+  Jack Penzer:
+    href: https://github.com/jpcompartir
+
+development:
+  mode: auto
+
+news:
+  releases:
+  - text: "Version 0.1.0"
+    href: news/index.html
+
+footer:
+  structure:
+    left: developed_by
+    right: built_with

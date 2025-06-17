@@ -2,7 +2,7 @@
 title: "Embeddings Providers"
 output: rmarkdown::html_vignette
 vignette: >
-  %\VignetteIndexEntry{embeddings_providers}
+  %\VignetteIndexEntry{Embeddings Providers}
   %\VignetteEngine{knitr::rmarkdown}
   %\VignetteEncoding{UTF-8}
 ---

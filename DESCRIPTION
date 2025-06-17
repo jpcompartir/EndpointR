@@ -29,8 +29,11 @@ Imports:
     askpass,
     glue,
     tidyr,
-    tibble
+    tibble,
+    S7,
+    jsonvalidate
 VignetteBuilder: knitr
 Depends: 
     R (>= 3.5)
 LazyData: true
+URL: https://jpcompartir.github.io/EndpointR/

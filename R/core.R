@@ -31,7 +31,7 @@ perform_request_or_return_error <- function(request) {
 
     return(response)
   }, error = function(e) {
-    cli::cli_alert_warning("Sequential request failed: {conditionMessage(e)}")
+    cli::cli_alert_warning("Sequential request to {.url {request$url}} failed: {conditionMessage(e)}")
     return(e)
   })
 }
