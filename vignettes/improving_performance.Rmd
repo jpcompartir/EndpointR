@@ -55,7 +55,7 @@ library(dplyr)
 
 TODO: Copied from hugging_face_inference.Rmd, need to re-order and edit
 
-We'll need some data, so we'll grab the same sentences and data frame from the [introductory vignette](articles/hugging_face_inference) on Hugging Face Inference:
+We'll need some data, so we'll grab the same sentences and data frame from the [introductory vignette](hugging_face_inference.html) on Hugging Face Inference:
 
 ```{r, setup_data}
 embedding_sentences <- c(
