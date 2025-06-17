@@ -1,0 +1,71 @@
+---
+title: "openai_embeddings"
+output: 
+  html_document:
+    toc: true
+    toc_float: true
+    toc_depth: 3
+    theme: flatly
+    number_sections: true
+    fig_caption: true
+    df_print: paged
+    highlight: tango
+    code_folding: show
+    anchor_sections: true
+---
+
+```{r}
+library(httr2)
+library(dplyr)
+library(tidyr)
+library(purrr)
+library(tibble)
+```
+
+# Single Req
+
+```{r}
+x <- oai_build_embedding_request("hello")
+
+res <- x$request |> httr2::req_perform()
+```
+
+```{r}
+res_json <- res |> 
+  resp_body_json()
+
+res$status_code
+
+```
+
+# Batch
+
+```{r}
+batch_req <- oai_build_embedding_request(list("hello", "goodbye"))
+
+batch_res <- batch_req$request |>  httr2::req_perform()
+
+batch_res_json <- batch_res |>resp_body_json()
+
+batch_res_json |>
+  pluck('data') |>
+  map(~{
+    x <- .x
+    
+    browser()
+    
+    index <- x$index
+    embeddings <- x$embedding
+    
+    col_names <- paste("V", seq_along(embeddings), sep = "")
+    
+    setNames(embeddings, col_names)
+    
+    id_df <- data.frame(batch_id = index)
+    
+    embedding_df <- as.data.frame(embeddings, col.names = col_names)
+    
+    bind_cols(id_df, embedding_df) |> tibble()
+   }) 
+
+```
