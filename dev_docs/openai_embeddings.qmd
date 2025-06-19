@@ -24,18 +24,31 @@ library(tibble)
 
 # Single Req
 
+Quite similar to hugging face embeddings, except the part of the response we are interested in is an object with elements object, index, embedding. Whether batch or single embeddings we get this object - for single embeddings the index is 0.
+
 ```{r}
 x <- oai_build_embedding_request("hello")
 
-res <- x$request |> httr2::req_perform()
+res <- x$request |> httr2::req_perform(
 ```
 
 ```{r}
 res_json <- res |> 
   resp_body_json()
 
-res$status_code
+col_names <- paste("V", seq_along(res_json$data[[1]][["embedding"]] ), sep = "")
 
+res_json$data[[1]][["index"]]
+
+res_json$data[[1]][["embedding"]] |> 
+  as.data.frame(col.names = col_names) |> 
+  as_tibble()
+
+# or in tidyv
+res_json |> 
+  pluck('data', 1, "embedding") |>
+  as.data.frame(col.names = col_names) |> 
+  as_tibble()
 ```
 
 # Batch
@@ -50,7 +63,7 @@ batch_res_json <- batch_res |>resp_body_json()
 batch_res_json |>
   pluck('data') |>
   map(~{
-    x <- .x
+    x <- .x # for the environment stuff inside map/anonymous func
     
     browser()
     

@@ -189,3 +189,14 @@ Schema -\> Type relationship? e.g. schema_number has its own method which coerce
 -   [ ] Vignettes with real-world examples
 -   [ ] Vignette re-working/refining based on JH feedback
 -   [ ] Optional Fields and Schemas
+
+# OpenAI Embeddings
+
+-   [ ] Build Request
+    -   [ ] Dimensions parameter?
+-   [ ] Text, List, DF High-level functions
+-   [ ] Concurrency
+-   [ ] Batching
+-   [ ] Retries
+-   [ ] Error Handling
+-   [ ] Output tidier(s)

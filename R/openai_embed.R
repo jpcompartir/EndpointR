@@ -30,6 +30,11 @@ oai_build_embedding_request <- function(input,
 
 
 
+parse_oai_date <- function(date_string) {
+  parsed_date <- as.POSIXct("Thu, 19 Jun 2025 09:28:47 GMT", format = "%a, %d %b %Y %H:%M:%S", tz = "GMT")
+  date <- as.date(parsed_date)
+  return(date)
+}
 
 
 
