@@ -28,7 +28,9 @@ oai_build_embedding_request <- function(input,
                      retry_on_failure = TRUE)
 
 
+  return(request)
 
+}
 
 parse_oai_date <- function(date_string) {
   parsed_date <- as.POSIXct("Thu, 19 Jun 2025 09:28:47 GMT", format = "%a, %d %b %Y %H:%M:%S", tz = "GMT")
@@ -36,10 +38,28 @@ parse_oai_date <- function(date_string) {
   return(date)
 }
 
+tidy_oai_embedding <- function(response_data) {
 
+  # handles the single document case, or a batch of embeddings in a single response.
+
+   purrr::map(response_data, ~{
+    # input <- .x # we are *inside8 the map, so each object is an element of the list
+
+    index_list <- .x$index
+    embeddings_list <- .x$embedding
+
+    col_names <- paste0("V", seq_along(embeddings_list))
+    embeddings_list <- setNames(embeddings_list, col_names)
+
+    index_df <- data.frame(oai_batch_id = index_list)
+    embedding_df <- as.data.frame(embeddings_list)
+
+    bind_cols(index_df, embedding_df) |>
+      tibble::tibble()
+  }) |>
+    purrr::list_rbind()
 
 }
-
 
 oai_embed_text <- function(text,
                            model = "text-embedding-3-small",
