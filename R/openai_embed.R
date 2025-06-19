@@ -33,8 +33,8 @@ oai_build_embedding_request <- function(input,
 }
 
 parse_oai_date <- function(date_string) {
-  parsed_date <- as.POSIXct("Thu, 19 Jun 2025 09:28:47 GMT", format = "%a, %d %b %Y %H:%M:%S", tz = "GMT")
-  date <- as.date(parsed_date)
+  parsed_date <- as.POSIXct(date_string, format = "%a, %d %b %Y %H:%M:%S", tz = "GMT")
+  date <- as.Date(parsed_date)
   return(date)
 }
 
@@ -52,11 +52,8 @@ tidy_oai_embedding <- function(response_data) {
     col_names <- paste0("V", seq_along(embeddings_list))
     embeddings_list <- setNames(embeddings_list, col_names)
 
-    index_df <- data.frame(oai_batch_id = index_list)
-    embedding_df <- as.data.frame(embeddings_list)
+    tibble::tibble(oai_batch_id = index_list, !!!embeddings_list)
 
-    bind_cols(index_df, embedding_df) |>
-      tibble::tibble()
   }) |>
     purrr::list_rbind()
 
@@ -87,16 +84,26 @@ oai_embed_text <- function(text,
 
   status <- response$status_code
   date <- parse_oai_date(response$headers$date)
-  requests_remaining <- response$headers$`x-ratelimit-reset-requests`
+
+  # TODO: decide what to do about these rate limits and how best to handle them
+  requests_remaining <- response$headers$`x-ratelimit-remaining-requests`
   requests_reset_ms <- response$headers$`x-ratelimit-reset-requests`
 
   response_body_json <- httr2::resp_body_json(response) # object, data, model, usage
 
-  response_body_json_data <- response_json$data  # top-level = list -> object, index, embedding.
-  # fire this list into tidy_oai_embedding,
+  response_body_json_data <- response_body_json$data  # top-level = list -> object, index, embedding.
+  # fire this list into tidy_oai_embeddingy
 
+  tryCatch({
+    tidied_response <- tidy_oai_embedding(response_body_json_data)
+  }, error = function(e) {
+    cli::cli_abort("Error tidying embedding: {conditionMessage(e)}")
+  } )
 
+  text_df <- tibble::tibble(text = text, embedding_date = date)
 
+  result_df <- dplyr::bind_cols(text_df, tidied_response)
+  return(result_df)
 }
 
 # Checks that texts is a length > 1 vector, i.e. not single text
