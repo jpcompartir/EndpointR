@@ -192,11 +192,16 @@ Schema -\> Type relationship? e.g. schema_number has its own method which coerce
 
 # OpenAI Embeddings
 
--   [ ] Build Request
-    -   [ ] Dimensions parameter?
--   [ ] Text, List, DF High-level functions
+-   [x] Build Request
+    -   [x] Dimensions parameter?
+-   [ ] High-level funcs
+    -   [x] Text
+    -   [ ] List / Batch
+    -   [ ] DF
 -   [ ] Concurrency
 -   [ ] Batching
 -   [ ] Retries
 -   [ ] Error Handling
--   [ ] Output tidier(s)
+-   [x] Output tidier(s)
+-   [x] TikToken(?) Has a rust dependency so no for now.
+
