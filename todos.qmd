@@ -205,3 +205,7 @@ Schema -\> Type relationship? e.g. schema_number has its own method which coerce
 -   [x] Output tidier(s)
 -   [x] TikToken(?) Has a rust dependency so no for now.
 
+## Refactor:
+
+-   [ ] Tidy Function (unncessary tibble creation)
+-   [ ] Batch Function (large memory footprint, partly due to the tidy func, but also due to the size of the responses (1536 dims of fairly large FP values..))
