@@ -141,23 +141,44 @@ parse_oai_date <- function(date_string) {
   return(date)
 }
 
-tidy_oai_embedding <- function(response_data) {
+tidy_oai_embedding <- function(response) {
+
+  # tries to find the correct data object.
+
+  if (inherits(response, "httr2_response")) {
+    resp_json <- httr2::resp_body_json(response)
+  } else {
+    resp_json <- response
+  }
+
+  if (is.list(resp_json) && "data" %in% names(resp_json)) {
+    response_data <- resp_json$data
+  } else {
+    response_data <- resp_json
+  }
+
 
   # handles the single document case, or a batch of embeddings in a single response.
+  rows <- purrr::map(response_data, ~ {
 
-  purrr::map(response_data, ~{
-    # input <- .x # we are *inside8 the map, so each object is an element of the list
+    embedding_values <- unlist(.x$embedding)
 
-    index_list <- .x$index
-    embeddings_list <- .x$embedding
+    embedding_row <- embedding_values |>
+      as.list() |>
+      setNames(paste0("V", seq_along(embedding_values))) |>
+      tibble::as_tibble()
 
+    if (!is.null(.x$index)) {
+      row <- tibble::tibble(oai_index = .x$index) |>
+        dplyr::bind_cols(embedding_row)
+    } else {
+      row <- embedding_row
+    }
 
-    col_names <- paste0("V", seq_along(embeddings_list))
-    embeddings_list <- setNames(embeddings_list, col_names)
+    row
+  })
 
-    tibble::tibble(oai_batch_id = index_list, !!!embeddings_list)
+  result <- purrr::list_rbind(rows)
 
-  }) |>
-    purrr::list_rbind()
-
+  return(result)
 }
