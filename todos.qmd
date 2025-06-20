@@ -99,6 +99,7 @@ We can do it simply with the `path =` argument in `httr2::req_perform()`, but th
 -   [ ] `hf_classify_df()`
 -   [x] `tidy_classification_response()` - deal with label/score
 -   [x] `tidy_batch_classification_response()`
+-   \[WIP\] TESTS
 -   [ ] S7 models for Peaks & Pits, Sentiment?
 
 # OpenAI
@@ -188,3 +189,23 @@ Schema -\> Type relationship? e.g. schema_number has its own method which coerce
 -   [ ] Vignettes with real-world examples
 -   [ ] Vignette re-working/refining based on JH feedback
 -   [ ] Optional Fields and Schemas
+
+# OpenAI Embeddings
+
+-   [x] Build Request
+    -   [x] Dimensions parameter?
+-   [ ] High-level funcs
+    -   [x] Text
+    -   [ ] List / Batch
+    -   [ ] DF
+-   [ ] Concurrency
+-   [ ] Batching
+-   [ ] Retries
+-   [ ] Error Handling
+-   [x] Output tidier(s)
+-   [x] TikToken(?) Has a rust dependency so no for now.
+
+## Refactor:
+
+-   [ ] Tidy Function (unncessary tibble creation)
+-   [ ] Batch Function (large memory footprint, partly due to the tidy func, but also due to the size of the responses (1536 dims of fairly large FP values..))

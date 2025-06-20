@@ -1,0 +1,212 @@
+---
+title: "openai_embeddings"
+output: 
+  html_document:
+    toc: true
+    toc_float: true
+    toc_depth: 3
+    theme: flatly
+    number_sections: true
+    fig_caption: true
+    df_print: paged
+    highlight: tango
+    code_folding: show
+    anchor_sections: true
+---
+
+```{r}
+library(httr2)
+library(dplyr)
+library(tidyr)
+library(purrr)
+library(tibble)
+```
+
+# Embed Text
+
+## Single Req
+
+Quite similar to hugging face embeddings, except the part of the response we are interested in is an object with elements object, index, embedding. Whether batch or single embeddings we get this object - for single embeddings the index is 0
+
+```{r}
+x <- oai_build_embedding_request("hello")
+
+res <- httr2::req_perform(x)
+```
+
+```{r, single_text_hardcode}
+res_json <- res |> 
+  resp_body_json()
+
+col_names <- paste("V", seq_along(res_json$data[[1]][["embedding"]] ), sep = "")
+
+res_json$data[[1]][["index"]]
+
+res_json$data[[1]][["embedding"]] |> 
+  as.data.frame(col.names = col_names) |> 
+  as_tibble()
+
+# or in tidyv
+res_json |> 
+  pluck('data', 1, "embedding") |>
+  as.data.frame(col.names = col_names) |> 
+  as_tibble()
+```
+
+Test our function:
+
+```{r}
+x <- oai_embed_text("hello")
+
+low_dim_x <- oai_embed_text("Embed me", dimensions = 300)
+
+```
+
+## Batch Texts
+
+```{r, batch_hardcode}
+batch_req <- oai_build_embedding_request(list("hello", "goodbye"))
+
+batch_res <- batch_req$request |>  httr2::req_perform()
+
+batch_res_json <- batch_res |>resp_body_json()
+
+batch_res_json |>
+  pluck('data') |>
+  map(~{
+    x <- .x # for the environment stuff inside map/anonymous func
+    
+    browser()
+    
+    index <- x$index
+    embeddings <- x$embedding
+    
+    col_names <- paste("V", seq_along(embeddings), sep = "")
+    
+    setNames(embeddings, col_names)
+    
+    id_df <- data.frame(batch_id = index)
+    
+    embedding_df <- as.data.frame(embeddings, col.names = col_names)
+    
+    bind_cols(id_df, embedding_df) |> tibble()
+   }) 
+
+```
+
+Informally test our func:
+
+```{r}
+```
+
+# Batch Function
+
+## Generate Error Length
+
+```{r}
+long_text <- paste(rep("hello", 5000), collapse = " ")
+long_batch <- list(
+  long_text,
+  long_text
+)
+
+
+ex_long_batch<- oai_build_embedding_request_batch(
+  long_batch
+)
+
+attributes(ex_long_batch)
+```
+
+```{r}
+smol_batch <- paste(rep("hello", 20), collapse = " ")
+smol_batch <- rep(smol_batch, 10)
+
+ex_smol_batch <- oai_build_embedding_request_batch(
+  smol_batch
+)
+
+attributes(ex_smol_batch)
+```
+
+```{r}
+oai_build_embedding_request(input = smol_batch) |> attributes()
+
+```
+
+```{r}
+batch_resps <- oai_embed_batch(
+  smol_batch,
+  batch_size = 2,
+  concurrent_requests = 1
+)
+
+single_batch_embeddings <- oai_embed_batch(smol_batch, batch_size = 10)
+```
+
+```{r}
+single_resp_embeddings <- oai_embed_text("hello")
+single_resp <- oai_embed_text(smol_batch[[1]])
+
+purrr::map(smol_batch, oai_embed_text) |> 
+  purrr::list_rbind()
+```
+
+```{r}
+names(batch_resps) |>  tail()
+```
+
+```{r}
+bigger_batch <- rep(smol_batch, 10)
+
+bigger_batch_embeddings <- oai_embed_batch(bigger_batch, dimensions = 512, concurrent_requests = 10)
+```
+
+## Generate Error Empty String
+
+```{r}
+texts_with_empty <- c("hello", "goodbye", "nice", "")
+oai_embed_batch(texts_with_empty, batch_size = 2) # Error
+```
+
+## DF Trust Test Batch
+
+```{r}
+trust <- readr::read_csv("~/data/trust/trust_slice_spam_classification.csv")
+
+trust <- trust |> filter(text != "")
+trust_100 <- trust |>  slice(1:100)
+trust_1k <- trust |>  slice(1:1000)
+trust_10k <- trust |>  slice(1:10000)
+
+```
+
+```{r}
+trust_100_embeddings <- oai_embed_batch(trust_100$text, batch_size = 10, concurrent_requests = 5)
+```
+
+```{r}
+trust_1k_embeddings <- oai_embed_batch(trust_1k$text, batch_size = 10, concurrent_requests = 10)
+```
+
+```{r}
+library(profvis)
+mem_profile <- profvis({
+  trust_10k_embeddings <-  oai_embed_batch(trust_10k$text, batch_size = 10, concurrent_requests = 20)
+})
+```
+
+```{r}
+trust_10k_embeddings <-  oai_embed_batch(trust_10k$text, batch_size = 10, concurrent_requests = 50)
+trust_10k_embeddings |>  count(.error_message)
+```
+
+```{r}
+trust_10k_embeddings_1_batch <-  oai_embed_batch(trust_10k$text, batch_size = 1, concurrent_requests = 100)
+
+trust_10k_embeddings_1_batch |>  count(.error)
+```
+
+```{r}
+trust_10k_embeddings
+```

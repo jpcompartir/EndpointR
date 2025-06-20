@@ -163,7 +163,8 @@ hf_embed_text <- function(text,
 #'   )
 #' }
 # hf_embed_batch docs ----
-hf_embed_batch <- function(texts, endpoint_url,
+hf_embed_batch <- function(texts,
+                           endpoint_url,
                            key_name,
                            ...,
                            tidy_func = tidy_embedding_response,

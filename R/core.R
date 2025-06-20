@@ -90,12 +90,29 @@ process_response <- function(resp, indices, tidy_func) {
   }
 }
 
+# .create_error_tibble <- function(indices, error_message) {
+#
+#   tibble::tibble(
+#     response = rep(list(NA), length(indices)),
+#     original_index = indices,
+#     .error = TRUE,
+#     .error_message = error_message
+#   )
+# }
+
 .create_error_tibble <- function(indices, error_message) {
   # for consistent outputs with safely function(s)
-  tibble::tibble(
-    response = rep(list(NA), length(indices)),
+  if (!is.character(error_message)) {
+    if (inherits(error_message, "condition")) {
+      error_message <- conditionMessage(error_message)
+    } else {
+      error_message <- as.character(error_message)
+    }
+  }
+
+  return(tibble::tibble(
     original_index = indices,
     .error = TRUE,
     .error_message = error_message
-  )
+  ))
 }
