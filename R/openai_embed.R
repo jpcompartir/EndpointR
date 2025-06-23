@@ -45,7 +45,7 @@ tidy_oai_embedding <- function(response) {
 # Inputs (combined) cannot exceed 8092 tokens (max embed. length)
 # Can input dimensions
 # Don't need the batch embedding request for OpenAI really, at all.
-oai_build_embedding_request <- function(input, model = "text-embedding-3-small", dimensions = NULL, max_retries = 5, timeout = 20, endpoint_url = "https://api.openai.com/v1/embeddings", key_name = "OPENAI_API_KEY") {
+oai_build_embedding_request <- function(input, model = "text-embedding-3-small", dimensions = NULL, max_retries = 5, timeout = 20, endpoint_url = "https://api.openai.com/v1/embeddings", key_name = "OPENAI_API_KEY", verbose = FALSE) {
 
   stopifnot("endpoint_url must be provided" = !is.null(endpoint_url) && nchar(endpoint_url) > 0,
             "endpoint_url must be a character string" = is.character(endpoint_url),
@@ -71,6 +71,11 @@ oai_build_embedding_request <- function(input, model = "text-embedding-3-small",
     httr2::req_retry(max_tries = max_retries,
                      backoff = ~ 2 ^ .x,
                      retry_on_failure = TRUE)
+
+  if (verbose) {
+    request <- httr2::req_verbose(req = request,
+                                  info = TRUE, header_req = FALSE, header_resp = FALSE, redact_headers = TRUE, body_req = FALSE, body_resp = FALSE)
+  }
 
 
   attr(request, "total_chars") <- total_chars # so caller func(s) can access this and raise a warning if need be(?) may deprecate
@@ -109,6 +114,10 @@ oai_build_embedding_request_batch <- function(inputs, model = "text-embedding-3-
     httr2::req_retry(max_tries = max_retries,
                      backoff = ~2 ^ .x,
                      retry_on_failure = TRUE)
+
+  if (verbose) {
+    batch_request <- httr2::req_verbose(req = batch_request, info = TRUE)
+  }
 
   attr(batch_request, "total_chars") <- total_chars # so caller func(s) can access this and raise a warning if need be(?) may deprecate
 
