@@ -181,7 +181,7 @@ oai_embed_text <- function(text,
 # Checks texts is a length > 1 vector, i.e. not single text
 oai_embed_batch <- function(texts,
                             model = "text-embedding-3-small",
-                            dimensions = NULL,
+                            dimensions = 1536,
                             batch_size = 10,
                             concurrent_requests = 1,
                             max_retries = 5,
@@ -190,7 +190,8 @@ oai_embed_batch <- function(texts,
                             key_name = "OPENAI_API_KEY",
                             tidy_func = tidy_oai_embedding,
                             include_texts = TRUE,
-                            relocate_col = 2) {
+                            relocate_col = 2,
+                            verbose = FALSE) {
 
 
   if (length(texts) == 0) {
@@ -200,10 +201,12 @@ oai_embed_batch <- function(texts,
 
   stopifnot(
     "Texts must be a list or vector" = is.vector(texts),
-    "Texts must have length > 1" = length(texts) > 1,
+    # "Texts must have length > 1" = length(texts) > 1,
     "batch_size must be a positive integer" = is.numeric(batch_size) && batch_size > 0,
     "concurrent_requests must be a positive integer" = is.numeric(concurrent_requests) && concurrent_requests > 0
   )
+
+  n_texts <- length(texts)
 
   text_classes <- purrr::map(texts, class)
   text_not_empty <- purrr::map_lgl(texts, ~ .x != "")
@@ -223,7 +226,7 @@ oai_embed_batch <- function(texts,
       timeout = timeout,
       endpoint_url = endpoint_url,
       key_name = key_name,
-      concurrent_requests = concurrent_requests
+      verbose = verbose
     )
   )
 
@@ -233,25 +236,57 @@ oai_embed_batch <- function(texts,
     progress = TRUE
   )
 
-  processed_responses <- purrr::map2(
-    response_list,
-    batch_data$batch_indices,
-    ~ process_response(.x, .y, tidy_func)
-  )
+  # pre-allocate vectors for embeddings and errors/messages *and* maintain order
+  all_embeddings <- vector("list", n_texts)
+  errors <- rep(FALSE, n_texts)
+  error_msgs <- rep("", n_texts)
 
-  result <- purrr::list_rbind(processed_responses)
-  result <- dplyr::arrange(result, original_index)
+  # now iterate through responses and fill the embeddings and/or errors depending on status
+  for (i in seq_along(response_list)) {
+    batch_idx <- batch_data$batch_indices[[i]]
+
+    tryCatch({
+      resp <- httr2::resp_body_json(response_list[[i]])
+      if ("data" %in% names(resp)) {
+        for (j in seq_along(resp$data)) {
+          if (j <= length(batch_idx)) {
+            idx <- batch_idx[j]
+            emb <- resp$data[[j]]$embedding
+            # make the embedding (list of numerics) a vector of numerics
+            all_embeddings[[idx]] <- unlist(emb)
+          }
+        }
+      }
+    }, error = function(e) {
+      errors[batch_idx] <- TRUE
+      error_msgs[batch_idx] <- as.character(e$message)
+    })
+  }
+
+  mat_list <- purrr::map(all_embeddings, ~ {
+    if (is.null(.x) || length(.x) != dimensions) {
+      rep(NA_real_, dimensions) # fill with fake vecs if we don't have embeddings
+    } else {
+      as.numeric(.x)
+    }
+  })
+
+  # mem efficient route to emb edding matrix. Then just 1 conversion to tibble/df (not 1 per batch)
+  result_matrix <- do.call(rbind, mat_list)
+  colnames(result_matrix) <- paste0("V", seq_len(dimensions))
+
+  result <- tibble::as_tibble(result_matrix)
+
+  # add errors and messages to return df. FALSE and "" if no error.
+  result$.error <- errors
+  result$.error_message <- error_msgs
 
   if (include_texts) {
-    result$text <- texts[result$original_index]
+    result$text <- texts
     result <- dplyr::relocate(result, text, .before = 1)
   }
 
-  result$original_index <- NULL
-
-  if (all(c(".error", ".error_message") %in% names(result))) {
-    result <- dplyr::relocate(result, c(.error, .error_message), .before = dplyr::all_of(relocate_col))
-  }
+  result <- dplyr::relocate(result, c(.error, .error_message), .before = dplyr::all_of(relocate_col))
 
   return(result)
 }
