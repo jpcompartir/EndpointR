@@ -14,7 +14,7 @@ output:
     anchor_sections: true
 ---
 
-```{r}
+```{r, setup}
 library(httr2)
 library(dplyr)
 library(tidyr)
@@ -28,7 +28,7 @@ library(tibble)
 
 Quite similar to hugging face embeddings, except the part of the response we are interested in is an object with elements object, index, embedding. Whether batch or single embeddings we get this object - for single embeddings the index is 0
 
-```{r}
+```{r, build_single_req}
 x <- oai_build_embedding_request("hello")
 
 res <- httr2::req_perform(x)
@@ -55,7 +55,7 @@ res_json |>
 
 Test our function:
 
-```{r}
+```{r, test_embed_text_function}
 x <- oai_embed_text("hello")
 
 low_dim_x <- oai_embed_text("Embed me", dimensions = 300)
@@ -94,22 +94,16 @@ batch_res_json |>
 
 ```
 
-Informally test our func:
-
-```{r}
-```
-
 # Batch Function
 
 ## Generate Error Length
 
-```{r}
+```{r, error_length}
 long_text <- paste(rep("hello", 5000), collapse = " ")
 long_batch <- list(
   long_text,
   long_text
 )
-
 
 ex_long_batch<- oai_build_embedding_request_batch(
   long_batch
@@ -118,7 +112,7 @@ ex_long_batch<- oai_build_embedding_request_batch(
 attributes(ex_long_batch)
 ```
 
-```{r}
+```{r, check_attributes}
 smol_batch <- paste(rep("hello", 20), collapse = " ")
 smol_batch <- rep(smol_batch, 10)
 
@@ -129,34 +123,17 @@ ex_smol_batch <- oai_build_embedding_request_batch(
 attributes(ex_smol_batch)
 ```
 
-```{r}
-oai_build_embedding_request(input = smol_batch) |> attributes()
-
-```
-
-```{r}
+```{r, test_batch_embed}
 batch_resps <- oai_embed_batch(
   smol_batch,
-  batch_size = 2,
+  batch_size = 10,
   concurrent_requests = 1
 )
 
 single_batch_embeddings <- oai_embed_batch(smol_batch, batch_size = 10)
 ```
 
-```{r}
-single_resp_embeddings <- oai_embed_text("hello")
-single_resp <- oai_embed_text(smol_batch[[1]])
-
-purrr::map(smol_batch, oai_embed_text) |> 
-  purrr::list_rbind()
-```
-
-```{r}
-names(batch_resps) |>  tail()
-```
-
-```{r}
+```{r, larger_batch_test}
 bigger_batch <- rep(smol_batch, 10)
 
 bigger_batch_embeddings <- oai_embed_batch(bigger_batch, dimensions = 512, concurrent_requests = 10)
@@ -164,49 +141,112 @@ bigger_batch_embeddings <- oai_embed_batch(bigger_batch, dimensions = 512, concu
 
 ## Generate Error Empty String
 
-```{r}
+```{r, empty_errror}
 texts_with_empty <- c("hello", "goodbye", "nice", "")
 oai_embed_batch(texts_with_empty, batch_size = 2) # Error
 ```
 
-## DF Trust Test Batch
+## DF Trust Test Batch - Informal tests
 
-```{r}
+```{r, get_real_data}
 trust <- readr::read_csv("~/data/trust/trust_slice_spam_classification.csv")
 
 trust <- trust |> filter(text != "")
 trust_100 <- trust |>  slice(1:100)
+trust_100_2 <- trust |>  slice(20001:20100)
 trust_1k <- trust |>  slice(1:1000)
 trust_10k <- trust |>  slice(1:10000)
 
 ```
 
-```{r}
-trust_100_embeddings <- oai_embed_batch(trust_100$text, batch_size = 10, concurrent_requests = 5)
+```{r, test_with_concurrency}
+trust_100_embeddings <- oai_embed_batch(trust_100$text, batch_size = 100, concurrent_requests = 2)
 ```
 
-```{r}
-trust_1k_embeddings <- oai_embed_batch(trust_1k$text, batch_size = 10, concurrent_requests = 10)
+```{r, test_with_dimensions}
+trust_100_2_embeddings <- oai_embed_batch(trust_100_2$text, batch_size = 20, concurrent_requests = 2, dimensions = 360)
+trust_100_2_embeddings |>  count(.error)
 ```
 
-```{r}
+```{r, test_with_verbose}
+oai_embed_batch(trust_100$text, batch_size = 10, concurrent_requests = 5, verbose = TRUE)
+```
+
+```{r, test_1k}
+trust_1k_embeddings <- oai_embed_batch(trust_1k$text, batch_size =20, concurrent_requests = 50)
+```
+
+```{r, memory_profiling}
 library(profvis)
 mem_profile <- profvis({
   trust_10k_embeddings <-  oai_embed_batch(trust_10k$text, batch_size = 10, concurrent_requests = 20)
 })
 ```
 
-```{r}
-trust_10k_embeddings <-  oai_embed_batch(trust_10k$text, batch_size = 10, concurrent_requests = 50)
+```{r, test_10k}
+trust_10k_embeddings <-  oai_embed_batch(trust_10k$text, batch_size = 10, concurrent_requests = 50, verbose = FALSE)
 trust_10k_embeddings |>  count(.error_message)
 ```
 
-```{r}
-trust_10k_embeddings_1_batch <-  oai_embed_batch(trust_10k$text, batch_size = 1, concurrent_requests = 100)
+```{r, test_high_concurrency}
+trust_10k_embeddings_1_batch <-  oai_embed_batch(trust_10k$text, batch_size = 10, concurrent_requests = 100)
 
 trust_10k_embeddings_1_batch |>  count(.error)
 ```
 
-```{r}
+```{r, inspect_10k_embeddings}
 trust_10k_embeddings
+```
+
+```{r, trust_10k_2_time}
+trust_10k_2 <- trust |>
+  filter(text != "", !is.null(text))|>  slice(10001:20000)
+
+start <- Sys.time()
+trust_10k_2_embeddings <-
+  oai_embed_batch(trust_10k_2$text,
+                  batch_size = 5, concurrent_requests = 80)
+end <- Sys.time()
+
+start - end
+```
+
+# Efficiency of batching
+
+do.call vs pre-filling the matrix and iterating
+
+```{r}
+trust_2k_do_call <- trust |>  slice_sample(n = 20000)
+trust_2k_pre_fill <- trust |>  slice_sample(n = 20000)
+
+trust_2k_do_call |>  reframe(sl = mean(stringr::str_length(text)),
+                             n = n())
+trust_2k_pre_fill |>  reframe(sl = mean(stringr::str_length(text)),
+                              n = n())
+```
+
+When profiling it's *quite clear* that the choice of prefilling vs do.call isn't particularly relevant. The memory usage is almost exclusively in creating the reqeusts, performing them, and getting the embeddings out of the response's JSON. So we'll go with the do.call approach as it's simpler to understand and debug (IMO)
+
+```{r, do_call_profile}
+library(profvis)
+
+do_call_profile <- profvis({
+  do_call_embeddings <-oai_embed_batch_do_call(
+    trust_2k_do_call$text, 
+    batch_size = 10,
+    concurrent_requests = 50
+  )
+})
+
+
+```
+
+```{r, pre_fill_profile}
+pre_fill_profile <- profvis({
+  pre_filll_embeddings <-oai_embed_batch_prefill(
+    trust_2k_pre_fill$text, 
+    batch_size = 10,
+    concurrent_requests = 50
+  )
+})
 ```

@@ -1,3 +1,34 @@
+#' Process OpenAI embedding API response into a tidy format
+#'
+#' @description
+#' Converts the nested list response from an OpenAI embedding API
+#' request into a tidy tibble with embedding vectors as columns.
+#'
+#' @details
+#' This function handles both single document and batch embedding responses.
+#' It extracts the embedding vectors and converts them into a wide format
+#' tibble where each column (V1, V2, ..., Vn) represents one dimension
+#' of the embedding vector. If the response includes index information,
+#' it adds an `oai_index` column to preserve the ordering.
+#'
+#' @param response An httr2 response object or the parsed JSON response
+#'   from OpenAI's embedding API
+#'
+#' @return A tibble containing the embedding vectors as columns (V1, V2, etc.)
+#'   and optionally an `oai_index` column if present in the response
+#' @export
+#'
+#' @examples
+#' \dontrun{
+#'   # Process response from httr2 request
+#'   req <- oai_build_embedding_request("Hello world")
+#'   resp <- httr2::req_perform(req)
+#'   embeddings <- tidy_oai_embedding(resp)
+#'
+#'   # Process already parsed JSON
+#'   resp_json <- httr2::resp_body_json(resp)
+#'   embeddings <- tidy_oai_embedding(resp_json)
+#' }
 tidy_oai_embedding <- function(response) {
 
   # tries to find the correct data object.
@@ -40,12 +71,52 @@ tidy_oai_embedding <- function(response) {
 }
 
 
-# oai_build_embedding_request ----
-# Cannot input empty string
-# Inputs (combined) cannot exceed 8092 tokens (max embed. length)
-# Can input dimensions
-# Don't need the batch embedding request for OpenAI really, at all.
-oai_build_embedding_request <- function(input, model = "text-embedding-3-small", dimensions = NULL, max_retries = 5, timeout = 20, endpoint_url = "https://api.openai.com/v1/embeddings", key_name = "OPENAI_API_KEY") {
+#' Build OpenAI embedding API request
+#'
+#' @description
+#' Creates an httr2 request object configured for OpenAI's embedding API.
+#' This is a lower-level function that handles request configuration
+#' including authentication, retries, and timeouts.
+#'
+#' @details
+#' This function builds the HTTP request but does not execute it. The request
+#' can then be performed using `httr2::req_perform()` or the package's
+#' `hf_perform_request()` function.
+#'
+#' Note that OpenAI has limits on input length - individual inputs cannot
+#' exceed the model's token limit (typically 8192 tokens for embedding models).
+#' Empty strings are not allowed as input.
+#'
+#' @param input Character vector of text(s) to embed
+#' @param model OpenAI embedding model to use (default: "text-embedding-3-small")
+#' @param dimensions Number of embedding dimensions (NULL uses model default)
+#' @param max_retries Maximum retry attempts for failed requests (default: 5)
+#' @param timeout Request timeout in seconds (default: 20)
+#' @param endpoint_url OpenAI API endpoint URL (default: OpenAI's embedding endpoint)
+#' @param key_name Name of environment variable containing the API key (default: "OPENAI_API_KEY")
+#' @param verbose Whether to enable verbose request logging (default: FALSE)
+#'
+#' @return An httr2 request object configured for the OpenAI embedding API.
+#'   The request object includes a `total_chars` attribute containing the
+#'   total character count of the input texts.
+#' @export
+#'
+#' @examples
+#' \dontrun{
+#'   # Build a simple request
+#'   req <- oai_build_embedding_request("Hello world")
+#'   
+#'   # Build request with custom dimensions
+#'   req <- oai_build_embedding_request(
+#'     input = "Hello world",
+#'     dimensions = 512,
+#'     model = "text-embedding-3-large"
+#'   )
+#'   
+#'   # Perform the request
+#'   response <- httr2::req_perform(req)
+#' }
+oai_build_embedding_request <- function(input, model = "text-embedding-3-small", dimensions = NULL, max_retries = 5, timeout = 20, endpoint_url = "https://api.openai.com/v1/embeddings", key_name = "OPENAI_API_KEY", verbose = FALSE) {
 
   stopifnot("endpoint_url must be provided" = !is.null(endpoint_url) && nchar(endpoint_url) > 0,
             "endpoint_url must be a character string" = is.character(endpoint_url),
@@ -71,6 +142,11 @@ oai_build_embedding_request <- function(input, model = "text-embedding-3-small",
     httr2::req_retry(max_tries = max_retries,
                      backoff = ~ 2 ^ .x,
                      retry_on_failure = TRUE)
+
+  if (verbose) {
+    request <- httr2::req_verbose(req = request,
+                                  info = TRUE, header_req = FALSE, header_resp = FALSE, redact_headers = TRUE, body_req = FALSE, body_resp = FALSE)
+  }
 
 
   attr(request, "total_chars") <- total_chars # so caller func(s) can access this and raise a warning if need be(?) may deprecate
@@ -110,6 +186,10 @@ oai_build_embedding_request_batch <- function(inputs, model = "text-embedding-3-
                      backoff = ~2 ^ .x,
                      retry_on_failure = TRUE)
 
+  if (verbose) {
+    batch_request <- httr2::req_verbose(req = batch_request, info = TRUE)
+  }
+
   attr(batch_request, "total_chars") <- total_chars # so caller func(s) can access this and raise a warning if need be(?) may deprecate
 
   return(batch_request)
@@ -117,8 +197,52 @@ oai_build_embedding_request_batch <- function(inputs, model = "text-embedding-3-
 }
 
 
-# oai_embed_text ----
-# Checks that text is a length 1 vector, i.e. not batch
+#' Generate embeddings for a single text using OpenAI
+#'
+#' @description
+#' High-level function to generate embeddings for a single text string using
+#' OpenAI's embedding API. This function handles the entire process from request
+#' creation to response processing.
+#'
+#' @details
+#' This function is designed for single text inputs. For processing multiple
+#' texts, use `oai_embed_batch()` which is more efficient for batch operations.
+#'
+#' The function automatically handles API authentication, request retries,
+#' and error handling. By default, it returns a tidy tibble with embedding
+#' vectors as columns, but you can get the raw response by setting `tidy = FALSE`.
+#'
+#' @param text Character string to generate embeddings for (must be non-empty)
+#' @param model OpenAI embedding model to use (default: "text-embedding-3-small")
+#' @param dimensions Number of embedding dimensions (NULL uses model default)
+#' @param max_retries Maximum retry attempts for failed requests (default: 5)
+#' @param timeout Request timeout in seconds (default: 20)
+#' @param endpoint_url OpenAI API endpoint URL (default: OpenAI's embedding endpoint)
+#' @param key_name Name of environment variable containing the API key (default: "OPENAI_API_KEY")
+#' @param tidy Whether to return a tidy tibble format (default: TRUE)
+#'
+#' @return If `tidy = TRUE`, returns a tibble with embedding vectors as columns
+#'   (V1, V2, etc.). If `tidy = FALSE`, returns the raw httr2 response object.
+#' @export
+#'
+#' @examples
+#' \dontrun{
+#'   # Generate embeddings for a single text
+#'   embeddings <- oai_embed_text("Hello world")
+#'   
+#'   # Use a different model with custom dimensions
+#'   embeddings <- oai_embed_text(
+#'     text = "Hello world",
+#'     model = "text-embedding-3-large",
+#'     dimensions = 1024
+#'   )
+#'   
+#'   # Get raw response instead of tidy format
+#'   raw_response <- oai_embed_text(
+#'     text = "Hello world",
+#'     tidy = FALSE
+#'   )
+#' }
 oai_embed_text <- function(text,
                            model = "text-embedding-3-small",
                            dimensions = NULL,
@@ -168,20 +292,85 @@ oai_embed_text <- function(text,
 }
 
 
-# oai_embed_batch ----
-# Checks texts is a length > 1 vector, i.e. not single text
+#' Generate embeddings for multiple texts using OpenAI
+#'
+#' @description
+#' High-level function to generate embeddings for multiple text strings using
+#' OpenAI's embedding API. This function handles batching, concurrent requests,
+#' error handling, and provides progress reporting for large collections of texts.
+#'
+#' @details
+#' This function efficiently processes multiple texts by:
+#' 1. Splitting texts into batches of the specified size
+#' 2. Creating concurrent requests (if configured) for faster processing
+#' 3. Handling individual batch failures gracefully
+#' 4. Pre-allocating memory for embeddings to improve performance
+#' 5. Providing detailed success/failure reporting
+#'
+#' If a batch fails, only the documents in that specific batch will be marked
+#' as failed, not all documents across all batches. Failed embeddings will be
+#' filled with NA values and marked with error information.
+#'
+#' The function returns a tibble with embedding columns (V1, V2, ..., Vn),
+#' error tracking columns (.error, .error_message), and optionally the
+#' original texts.
+#'
+#' @param texts Vector or list of character strings to generate embeddings for
+#' @param model OpenAI embedding model to use (default: "text-embedding-3-small")
+#' @param dimensions Number of embedding dimensions (default: 1536 for text-embedding-3-small)
+#' @param batch_size Number of texts to process in one API request (default: 10)
+#' @param concurrent_requests Number of requests to send simultaneously (default: 1)
+#' @param max_retries Maximum retry attempts for failed requests (default: 5)
+#' @param timeout Request timeout in seconds (default: 20)
+#' @param endpoint_url OpenAI API endpoint URL (default: OpenAI's embedding endpoint)
+#' @param key_name Name of environment variable containing the API key (default: "OPENAI_API_KEY")
+#' @param include_texts Whether to include original texts in the result (default: TRUE)
+#' @param relocate_col Column position to place error columns (default: 2)
+#' @param verbose Whether to enable verbose request logging (default: FALSE)
+#'
+#' @return A tibble containing:
+#'   - Embedding vectors as columns (V1, V2, ..., Vn)
+#'   - .error: Logical column indicating if embedding failed
+#'   - .error_message: Character column with error details
+#'   - text: Original texts (if include_texts = TRUE)
+#' @export
+#'
+#' @examples
+#' \dontrun{
+#'   # Basic batch embedding
+#'   texts <- c("First text", "Second text", "Third text")
+#'   embeddings <- oai_embed_batch(texts)
+#'   
+#'   # Large-scale processing with concurrent requests
+#'   large_texts <- rep("Sample text", 100)
+#'   embeddings <- oai_embed_batch(
+#'     texts = large_texts,
+#'     batch_size = 20,
+#'     concurrent_requests = 5,
+#'     dimensions = 512
+#'   )
+#'   
+#'   # Custom model and settings
+#'   embeddings <- oai_embed_batch(
+#'     texts = texts,
+#'     model = "text-embedding-3-large",
+#'     dimensions = 1024,
+#'     include_texts = FALSE,
+#'     timeout = 30
+#'   )
+#' }
 oai_embed_batch <- function(texts,
                             model = "text-embedding-3-small",
-                            dimensions = NULL,
+                            dimensions = 1536,
                             batch_size = 10,
                             concurrent_requests = 1,
                             max_retries = 5,
                             timeout = 20,
                             endpoint_url = "https://api.openai.com/v1/embeddings",
                             key_name = "OPENAI_API_KEY",
-                            tidy_func = tidy_oai_embedding,
                             include_texts = TRUE,
-                            relocate_col = 2) {
+                            relocate_col = 2,
+                            verbose = FALSE) {
 
 
   if (length(texts) == 0) {
@@ -189,12 +378,15 @@ oai_embed_batch <- function(texts,
     return(tibble::tibble())
   }
 
+  # 1. Input Validation ----
   stopifnot(
     "Texts must be a list or vector" = is.vector(texts),
-    "Texts must have length > 1" = length(texts) > 1,
+    # "Texts must have length > 1" = length(texts) > 1,
     "batch_size must be a positive integer" = is.numeric(batch_size) && batch_size > 0,
     "concurrent_requests must be a positive integer" = is.numeric(concurrent_requests) && concurrent_requests > 0
   )
+
+  n_texts <- length(texts)
 
   text_classes <- purrr::map(texts, class)
   text_not_empty <- purrr::map_lgl(texts, ~ .x != "")
@@ -202,6 +394,7 @@ oai_embed_batch <- function(texts,
   stopifnot("Each individual text must be a character vector" = all(text_classes == "character"),
             "Text must not be an empty string" = all(text_not_empty))
 
+  # 2. Creating Batches of Requests ----
   batch_data <- batch_vector(texts, batch_size) # same as hf_*
 
   batch_requests <- purrr::map(
@@ -214,35 +407,91 @@ oai_embed_batch <- function(texts,
       timeout = timeout,
       endpoint_url = endpoint_url,
       key_name = key_name,
-      concurrent_requests = concurrent_requests
+      verbose = verbose
     )
   )
 
+
+ # 3. Performing Requests ----
   response_list <- perform_requests_with_strategy(
     requests = batch_requests,
     concurrent_requests = concurrent_requests,
     progress = TRUE
   )
 
-  processed_responses <- purrr::map2(
-    response_list,
-    batch_data$batch_indices,
-    ~ process_response(.x, .y, tidy_func)
-  )
+  # 4. Tidying Responses:  Matrix -> Data Frame ----
+  # pre-allocate vectors for embeddings and errors/messages *and* maintain order
+  all_embeddings <- vector("list", n_texts)
+  errors <- rep(FALSE, n_texts)
+  error_msgs <- rep("", n_texts)
 
-  result <- purrr::list_rbind(processed_responses)
-  result <- dplyr::arrange(result, original_index)
+  # now iterate through responses and fill the embeddings and/or errors depending on status
+  # works because perform_requests_with_strategy guarantees that we get out responses back in order, despite 'parallelism'
+  for (i in seq_along(response_list)) {
+    batch_idx <- batch_data$batch_indices[[i]]
+
+    tryCatch({
+      resp <- httr2::resp_body_json(response_list[[i]])
+      if ("data" %in% names(resp)) {
+        for (j in seq_along(resp$data)) {
+          if (j <= length(batch_idx)) {
+            idx <- batch_idx[j]
+            emb <- resp$data[[j]]$embedding
+            # make the embedding (list of numerics) a vector of numerics
+            all_embeddings[[idx]] <- unlist(emb)
+          }
+        }
+      }
+    }, error = function(e) {
+      errors[batch_idx] <- TRUE
+      error_msgs[batch_idx] <- as.character(e$message)
+    })
+  }
+
+  mat_list <- purrr::map(all_embeddings, ~ {
+    if (is.null(.x) || length(.x) != dimensions) {
+      rep(NA_real_, dimensions) # fill with fake vecs if we don't have embeddings
+    } else {
+      as.numeric(.x) # possibly dangerous coercion to vec? Just means the cells in the DF are values not lists.
+    }
+  })
+
+  # mem efficient route to emb edding matrix. Then just 1 conversion to tibble/df (not 1 per batch)
+  result_matrix <- do.call(rbind, mat_list)
+  colnames(result_matrix) <- paste0("V", seq_len(dimensions))
+
+  result <- tibble::as_tibble(result_matrix)
+
+
+  # 5. Adding Error Information to Data Frame ----
+  # add errors and messages to return df. FALSE and "" if no error.
+  result$.error <- errors
+  result$.error_message <- error_msgs
+
+  n_failed <- sum(result$.error)
+  n_succeeded <- n_texts - n_failed
+
+
+  if (n_failed > 0) {
+    cli::cli_div(theme = list(span.fail = list(color = "red", "font-weight" = "bold"),
+                              span.success = list(color = "green")))
+    cli::cli_alert_warning("Embedding completed with {.fail {n_failed}} failure{?s}")
+    cli::cli_bullets(c(
+      "v" = "{.success Successfully embedded: {n_succeeded}} ({round(n_succeeded/n_texts * 100, 1)}%)",
+      "x" = "{.fail Failed: {n_failed}} ({round(n_failed/n_texts * 100, 1)}%)"
+    ))
+    cli::cli_end()
+  } else {
+    cli::cli_alert_success("{.strong All {n_texts} documents successfully embedded!} {cli::symbol$tick}")
+  }
 
   if (include_texts) {
-    result$text <- texts[result$original_index]
+    result$text <- texts
     result <- dplyr::relocate(result, text, .before = 1)
   }
 
-  result$original_index <- NULL
-
-  if (all(c(".error", ".error_message") %in% names(result))) {
-    result <- dplyr::relocate(result, c(.error, .error_message), .before = dplyr::all_of(relocate_col))
-  }
+  # 6. Relocating Cols and Returning ----
+  result <- dplyr::relocate(result, c(.error, .error_message), .before = dplyr::all_of(relocate_col))
 
   return(result)
 }
@@ -254,11 +503,157 @@ oai_embed_df <- function(df, text_var, id_var, model = "text-embedding-3-small",
 
 
 
+#' Generate embeddings for texts in a data frame using OpenAI
+#'
+#' @description
+#' High-level function to generate embeddings for texts in a data frame using
+#' OpenAI's embedding API. This function handles the entire process from request
+#' creation to response processing, with options for batching & concurrent requests.
+#'
+#' @details
+#' This function extracts texts from a specified column, generates embeddings using
+#' `oai_embed_batch()`, and joins the results back to the original data frame using
+#' a specified ID column.
+#'
+#' The function preserves the original data frame structure and adds new columns
+#' for embedding dimensions (V1, V2, ..., Vn). If the number of rows doesn't match
+#' after processing (due to errors), it returns the results with a warning.
+#'
+#' OpenAI's embedding API allows you to specify the number of dimensions for the
+#' output embeddings, which can be useful for reducing memory usage, storage cost,s or matching
+#' specific downstream requirements. The default is model-specific (1536 for
+#' text-embedding-3-small). \href{https://openai.com/index/new-embedding-models-and-api-updates/}{OpenAI Embedding Updates}
+#'
+#' @param df Data frame containing texts to embed
+#' @param text_var Column name (unquoted) containing texts to embed
+#' @param id_var Column name (unquoted) for unique row identifiers
+#' @param model OpenAI embedding model to use (default: "text-embedding-3-small")
+#' @param dimensions Number of embedding dimensions (NULL uses model default)
+#' @param key_name Name of environment variable containing the API key
+#' @param batch_size Number of texts to process in one batch (default: 10)
+#' @param concurrent_requests Number of concurrent requests (default: 1)
+#' @param max_retries Maximum retry attempts per request (default: 5)
+#' @param timeout Request timeout in seconds (default: 20)
+#' @param endpoint_url OpenAI API endpoint URL
+#' @param progress Whether to display a progress bar (default: TRUE)
+#'
+#' @return Original data frame with additional columns for embeddings (V1, V2, etc.),
+#'   plus .error and .error_message columns indicating any failures
+#'
+#' @export
+#'
+#' @examples
+#' \dontrun{
+#'   df <- data.frame(
+#'     id = 1:3,
+#'     text = c("First example", "Second example", "Third example")
+#'   )
+#'
+#'   # Generate embeddings with default dimensions
+#'   embeddings_df <- oai_embed_df(
+#'     df = df,
+#'     text_var = text,
+#'     id_var = id
+#'   )
+#'
+#'   # Generate embeddings with custom dimensions
+#'   embeddings_df <- oai_embed_df(
+#'     df = df,
+#'     text_var = text,
+#'     id_var = id,
+#'     dimensions = 360,  # smaller embeddings
+#'     batch_size = 5
+#'   )
+#'
+#'   # Use with concurrent requests for faster processing
+#'   embeddings_df <- oai_embed_df(
+#'     df = df,
+#'     text_var = text,
+#'     id_var = id,
+#'     model = "text-embedding-3-large",
+#'     concurrent_requests = 3
+#'   )
+#' }
+oai_embed_df <- function(df,
+                         text_var,
+                         id_var,
+                         model = "text-embedding-3-small",
+                         dimensions = 1536,
+                         key_name = "OPENAI_API_KEY",
+                         batch_size = 10,
+                         concurrent_requests = 1,
+                         max_retries = 5,
+                         timeout = 20,
+                         endpoint_url = "https://api.openai.com/v1/embeddings",
+                         progress = TRUE) {
+
+  text_sym <- rlang::ensym(text_var)
+  id_sym <- rlang::ensym(id_var)
+
+  stopifnot(
+    "df must be a data frame" = is.data.frame(df),
+    "endpoint_url must be provided" = !is.null(endpoint_url) && nchar(endpoint_url) > 0,
+    "concurrent_requests must be a number greater than 0" = is.numeric(concurrent_requests) && concurrent_requests > 0,
+    "batch_size must be a number greater than 0" = is.numeric(batch_size) && batch_size > 0
+  )
+
+  if (!rlang::as_string(text_sym) %in% names(df)) {
+    cli::cli_abort("Column {.code {rlang::as_string(text_sym)}} not found in data frame")
+  }
+
+  if (!rlang::as_string(id_sym) %in% names(df)) {
+    cli::cli_abort("Column {.code {rlang::as_string(id_sym)}} not found in data frame")
+  }
+
+  original_num_rows <- nrow(df)
+
+  # pull texts & ids into vectors for batch function
+  texts <- dplyr::pull(df, !!text_sym)
+  indices <- dplyr::pull(df, !!id_sym)
+
+  batch_size <- if(is.null(batch_size) || batch_size <= 1) 1 else batch_size
+
+  embeddings_tbl <- oai_embed_batch(
+    texts = texts,
+    model = model,
+    dimensions = dimensions,
+    batch_size = batch_size,
+    concurrent_requests = concurrent_requests,
+    max_retries = max_retries,
+    timeout = timeout,
+    endpoint_url = endpoint_url,
+    key_name = key_name,
+    include_texts = FALSE,
+    relocate_col = 1
+  )
+
+  df_with_row_id <- df |> dplyr::mutate(.row_id = dplyr::row_number())
+
+  embeddings_tbl <- embeddings_tbl |>
+    dplyr::mutate(.row_id = dplyr::row_number())
+
+  result_df <- df_with_row_id |>
+    dplyr::left_join(embeddings_tbl, by = ".row_id") |>
+    dplyr::select(-.row_id)
+
+  # sanity check and alert user if there's a mismatch
+  final_num_rows <- nrow(result_df)
+
+  if(final_num_rows != original_num_rows){
+    cli::cli_warn("Rows in original data frame and returned data frame do not match:")
+    cli::cli_bullets(text = c(
+      "Rows in original data frame: {original_num_rows}",
+      "Rows in returned data frame: {final_num_rows}"
+    ))
+  }
+
+  return(result_df)
+}
+
 # helper funcs (may move to utils or something) ----
 parse_oai_date <- function(date_string) {
   parsed_date <- as.POSIXct(date_string, format = "%a, %d %b %Y %H:%M:%S", tz = "GMT")
   date <- as.Date(parsed_date)
   return(date)
 }
-
 

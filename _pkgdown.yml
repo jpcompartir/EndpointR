@@ -31,11 +31,12 @@ navbar:
       - text: Structured Outputs with JSON Schema
         href: articles/structured_outputs_json_schema.html
       - text: "---"
+      - text: Embeddings
+        href: articles/embeddings_providers.html
+      - text: "---"
       - text: Advanced Topics
       - text: Improving Performance
         href: articles/improving_performance.html
-      - text: Embeddings Providers
-        href: articles/embeddings_providers.html
 
 reference:
 - title: "Getting Started"
@@ -69,13 +70,21 @@ reference:
   - hf_build_request_df
   - hf_perform_request
 
-- title: "OpenAI Integration"
+- title: "OpenAI Completions"
   desc: "Functions for working with OpenAI's APIs including structured outputs"
   contents:
   - oai_build_completions_request
   - oai_build_completions_request_list
   - oai_complete_df
 
+- title: "OpenAI Embeddings"
+  desc: "Functions for extracting embeddings with OpenAI's text embedding models"
+  contents:
+  - oai_build_embedding_request
+  - oai_embed_text
+  - oai_embed_batch
+  - oai_embed_df
+  - tidy_oai_embedding
 - title: "JSON Schema for Structured Outputs"
   desc: "Type-safe schema creation and validation for structured LLM outputs"
   contents:
@@ -105,6 +114,11 @@ reference:
   desc: "Datasets included with the package for examples and testing"
   contents:
   - batch_concurrent_benchmark
+  - sentiment_classification_example
+  - df_sentiment_classification_example
+  - single_embedding_hf
+  - df_embeddings_hf
+
 
 authors:
   Jack Penzer:
