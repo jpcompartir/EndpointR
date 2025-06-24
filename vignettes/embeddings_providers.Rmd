@@ -114,4 +114,26 @@ glimpse(batch_embeddings[1,1:10 ]) # truncated for ease
 ```
 
 The result includes: - `text`: your original text - `.error` and `.error_message`: error tracking - `V1` to `V768`: the embedding dimensions
+
+## Data Frame Integration
+
+Most commonly, you'll want to embed a column from a data frame:
+
+```{r}
+embedded_df <- hf_embed_df(
+  df = sample_texts,
+  text_var = text,      # column containing text
+  id_var = id,          # unique identifier column
+  endpoint_url = embed_url,
+  key_name = "HF_TEST_API_KEY",
+  batch_size = 3,
+  concurrent_requests = 1
+)
+
+# Original data + embeddings
+names(embedded_df)[1:10]  # shows: id, text, category, .error, .error_message, V1, V2...
+
+embedded_df
+```
+
 ```
