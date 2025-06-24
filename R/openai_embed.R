@@ -179,6 +179,7 @@ oai_embed_text <- function(text,
 
 # oai_embed_batch ----
 # Checks texts is a length > 1 vector, i.e. not single text
+# If a batch fails, all docs in that *batch* fails. I.e. not all docs in all batches, just docs in that batch.
 oai_embed_batch <- function(texts,
                             model = "text-embedding-3-small",
                             dimensions = 1536,
@@ -188,7 +189,6 @@ oai_embed_batch <- function(texts,
                             timeout = 20,
                             endpoint_url = "https://api.openai.com/v1/embeddings",
                             key_name = "OPENAI_API_KEY",
-                            tidy_func = tidy_oai_embedding,
                             include_texts = TRUE,
                             relocate_col = 2,
                             verbose = FALSE) {
@@ -199,6 +199,7 @@ oai_embed_batch <- function(texts,
     return(tibble::tibble())
   }
 
+  # 1. Input Validation ----
   stopifnot(
     "Texts must be a list or vector" = is.vector(texts),
     # "Texts must have length > 1" = length(texts) > 1,
@@ -214,6 +215,7 @@ oai_embed_batch <- function(texts,
   stopifnot("Each individual text must be a character vector" = all(text_classes == "character"),
             "Text must not be an empty string" = all(text_not_empty))
 
+  # 2. Creating Batches of Requests ----
   batch_data <- batch_vector(texts, batch_size) # same as hf_*
 
   batch_requests <- purrr::map(
@@ -230,18 +232,22 @@ oai_embed_batch <- function(texts,
     )
   )
 
+
+ # 3. Performing Requests ----
   response_list <- perform_requests_with_strategy(
     requests = batch_requests,
     concurrent_requests = concurrent_requests,
     progress = TRUE
   )
 
+  # 4. Tidying Responses:  Matrix -> Data Frame ----
   # pre-allocate vectors for embeddings and errors/messages *and* maintain order
   all_embeddings <- vector("list", n_texts)
   errors <- rep(FALSE, n_texts)
   error_msgs <- rep("", n_texts)
 
   # now iterate through responses and fill the embeddings and/or errors depending on status
+  # works because perform_requests_with_strategy guarantees that we get out responses back in order, despite 'parallelism'
   for (i in seq_along(response_list)) {
     batch_idx <- batch_data$batch_indices[[i]]
 
@@ -267,7 +273,7 @@ oai_embed_batch <- function(texts,
     if (is.null(.x) || length(.x) != dimensions) {
       rep(NA_real_, dimensions) # fill with fake vecs if we don't have embeddings
     } else {
-      as.numeric(.x)
+      as.numeric(.x) # possibly dangerous coercion to vec? Just means the cells in the DF are values not lists.
     }
   })
 
@@ -277,15 +283,31 @@ oai_embed_batch <- function(texts,
 
   result <- tibble::as_tibble(result_matrix)
 
+
+  # 5. Adding Error Information to Data Frame ----
   # add errors and messages to return df. FALSE and "" if no error.
   result$.error <- errors
   result$.error_message <- error_msgs
+
+  n_failed <- sum(result$.error)
+  n_succeeded <- n_texts - n_failed
+
+  if (n_failed > 0) {
+    cli::cli_warn("Some embeddings failed:")
+    cli::cli_bullets(c(
+      "v" = "Successfully embedded: {n_succeeded}",
+      "x" = "Failed: {n_failed}"
+    ))
+  } else {
+    cli::cli_inform("No errors detected, all documents successfully embedded")
+  }
 
   if (include_texts) {
     result$text <- texts
     result <- dplyr::relocate(result, text, .before = 1)
   }
 
+  # 6. Relocating Cols and Returning ----
   result <- dplyr::relocate(result, c(.error, .error_message), .before = dplyr::all_of(relocate_col))
 
   return(result)
