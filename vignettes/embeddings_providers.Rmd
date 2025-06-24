@@ -60,6 +60,19 @@ sample_texts <- tibble(
 )
 ```
 
+# Provider Comparison
+
+Before diving into code, let's understand the key differences:
+
+| Feature | Hugging Face | OpenAI |
+|----|----|----|
+| **Models** | Many open-source models | text-embedding-3-small/large, ada-002 |
+| **Dimensions** | Model-dependent (often 384, 768) | Configurable (512-3072) |
+| **Pricing** | Free tier available, pay for dedicated | Pay per token |
+| **Rate Limits** | Varies by tier | Generous for most use cases |
+| **Max Input** | Model-dependent | 8,192 tokens per request |
+| **Batching** | Supported | Supported (multiple texts per request) |
+
 # Hugging Face Embeddings
 
 ## Setting Up
@@ -91,7 +104,9 @@ embedding
 
 ## Batch Processing
 
-For multiple texts, use `hf_embed_batch()` which handles batching automatically:
+For multiple texts, use `hf_embed_batch()` which handles batching automatically. We feed in a vector of inputs and a `batch_size`, and the function takes care of batching our vector into as many batches as necessary.
+
+> **TIP**: We can send many batches with `hf_embed_batch()`!s
 
 ```{r}
 texts_to_embed <- c(
@@ -136,4 +151,80 @@ names(embedded_df)[1:10]  # shows: id, text, category, .error, .error_message, V
 embedded_df
 ```
 
+# OpenAI Embeddings
+
+## Setting Up
+
+Get your API key from the [OpenAI](https://platform.openai.com/api-keys) website and set it:
+
+```{r}
+set_api_key("OPENAI_API_KEY")
+```
+
+## Single Text
+
+OpenAI offers configurable embedding dimensions:
+
+```{r}
+# Default dimensions (1536 for text-embedding-3-small)
+embedding <- oai_embed_text(
+  text = "I want to understand the meaning of this sentence"
+)
+
+# Custom dimensions for smaller embeddings
+small_embedding <- oai_embed_text(
+  text = "I want to understand the meaning of this sentence",
+  model = "text-embedding-3-small",
+  dimensions = 512  # reduce size by ~67%
+)
+
+dim(small_embedding)  # 1 row, 512 columns
+```
+
+## Batch Processing
+
+OpenAI allows multiple texts in a single API call, which `oai_embed_batch()` leverages.
+
+```{r}
+texts_to_embed <- c(
+  "First document about machine learning",
+  "Second document about deep learning",
+  "Third document about neural networks",
+  "Fourth document about data science"
+)
+
+batch_embeddings <- oai_embed_batch(
+  texts = texts_to_embed,
+  model = "text-embedding-3-small",
+  dimensions = 1536,  # default for this model
+  batch_size = 10,    # texts per API request
+  concurrent_requests = 3  # parallel requests
+)
+
+
+batch_embeddings |>
+  reframe(
+    total = n(),
+    succeeded = sum(!.error),
+    failed = sum(.error)
+  )
+```
+
+## Data Frame Integration
+
+```{r}
+embedded_df <- oai_embed_df(
+  df = sample_texts,
+  text_var = text,
+  id_var = id,
+  model = "text-embedding-3-large",  # higher quality embeddings
+  dimensions = 3072,  # maximum dimensions for this model
+  batch_size = 20,
+  concurrent_requests = 5
+)
+
+# Extract just the embeddings for downstream use
+embedded_df |> 
+  select(starts_with("V")) 
+```
 ```
