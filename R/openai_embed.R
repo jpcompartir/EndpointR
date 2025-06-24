@@ -292,14 +292,18 @@ oai_embed_batch <- function(texts,
   n_failed <- sum(result$.error)
   n_succeeded <- n_texts - n_failed
 
+
   if (n_failed > 0) {
-    cli::cli_warn("Some embeddings failed:")
+    cli::cli_div(theme = list(span.fail = list(color = "red", "font-weight" = "bold"),
+                              span.success = list(color = "green")))
+    cli::cli_alert_warning("Embedding completed with {.fail {n_failed}} failure{?s}")
     cli::cli_bullets(c(
-      "v" = "Successfully embedded: {n_succeeded}",
-      "x" = "Failed: {n_failed}"
+      "v" = "{.success Successfully embedded: {n_succeeded}} ({round(n_succeeded/n_texts * 100, 1)}%)",
+      "x" = "{.fail Failed: {n_failed}} ({round(n_failed/n_texts * 100, 1)}%)"
     ))
+    cli::cli_end()
   } else {
-    cli::cli_inform("No errors detected, all documents successfully embedded")
+    cli::cli_alert_success("{.strong All {n_texts} documents successfully embedded!} {cli::symbol$tick}")
   }
 
   if (include_texts) {
@@ -320,11 +324,157 @@ oai_embed_df <- function(df, text_var, id_var, model = "text-embedding-3-small",
 
 
 
+#' Generate embeddings for texts in a data frame using OpenAI
+#'
+#' @description
+#' High-level function to generate embeddings for texts in a data frame using
+#' OpenAI's embedding API. This function handles the entire process from request
+#' creation to response processing, with options for batching & concurrent requests.
+#'
+#' @details
+#' This function extracts texts from a specified column, generates embeddings using
+#' `oai_embed_batch()`, and joins the results back to the original data frame using
+#' a specified ID column.
+#'
+#' The function preserves the original data frame structure and adds new columns
+#' for embedding dimensions (V1, V2, ..., Vn). If the number of rows doesn't match
+#' after processing (due to errors), it returns the results with a warning.
+#'
+#' OpenAI's embedding API allows you to specify the number of dimensions for the
+#' output embeddings, which can be useful for reducing memory usage, storage cost,s or matching
+#' specific downstream requirements. The default is model-specific (1536 for
+#' text-embedding-3-small). \href{https://openai.com/index/new-embedding-models-and-api-updates/}{OpenAI Embedding Updates}
+#'
+#' @param df Data frame containing texts to embed
+#' @param text_var Column name (unquoted) containing texts to embed
+#' @param id_var Column name (unquoted) for unique row identifiers
+#' @param model OpenAI embedding model to use (default: "text-embedding-3-small")
+#' @param dimensions Number of embedding dimensions (NULL uses model default)
+#' @param key_name Name of environment variable containing the API key
+#' @param batch_size Number of texts to process in one batch (default: 10)
+#' @param concurrent_requests Number of concurrent requests (default: 1)
+#' @param max_retries Maximum retry attempts per request (default: 5)
+#' @param timeout Request timeout in seconds (default: 20)
+#' @param endpoint_url OpenAI API endpoint URL
+#' @param progress Whether to display a progress bar (default: TRUE)
+#'
+#' @return Original data frame with additional columns for embeddings (V1, V2, etc.),
+#'   plus .error and .error_message columns indicating any failures
+#'
+#' @export
+#'
+#' @examples
+#' \dontrun{
+#'   df <- data.frame(
+#'     id = 1:3,
+#'     text = c("First example", "Second example", "Third example")
+#'   )
+#'
+#'   # Generate embeddings with default dimensions
+#'   embeddings_df <- oai_embed_df(
+#'     df = df,
+#'     text_var = text,
+#'     id_var = id
+#'   )
+#'
+#'   # Generate embeddings with custom dimensions
+#'   embeddings_df <- oai_embed_df(
+#'     df = df,
+#'     text_var = text,
+#'     id_var = id,
+#'     dimensions = 360,  # smaller embeddings
+#'     batch_size = 5
+#'   )
+#'
+#'   # Use with concurrent requests for faster processing
+#'   embeddings_df <- oai_embed_df(
+#'     df = df,
+#'     text_var = text,
+#'     id_var = id,
+#'     model = "text-embedding-3-large",
+#'     concurrent_requests = 3
+#'   )
+#' }
+oai_embed_df <- function(df,
+                         text_var,
+                         id_var,
+                         model = "text-embedding-3-small",
+                         dimensions = NULL,
+                         key_name = "OPENAI_API_KEY",
+                         batch_size = 10,
+                         concurrent_requests = 1,
+                         max_retries = 5,
+                         timeout = 20,
+                         endpoint_url = "https://api.openai.com/v1/embeddings",
+                         progress = TRUE) {
+
+  text_sym <- rlang::ensym(text_var)
+  id_sym <- rlang::ensym(id_var)
+
+  stopifnot(
+    "df must be a data frame" = is.data.frame(df),
+    "endpoint_url must be provided" = !is.null(endpoint_url) && nchar(endpoint_url) > 0,
+    "concurrent_requests must be a number greater than 0" = is.numeric(concurrent_requests) && concurrent_requests > 0,
+    "batch_size must be a number greater than 0" = is.numeric(batch_size) && batch_size > 0
+  )
+
+  if (!rlang::as_string(text_sym) %in% names(df)) {
+    cli::cli_abort("Column {.code {rlang::as_string(text_sym)}} not found in data frame")
+  }
+
+  if (!rlang::as_string(id_sym) %in% names(df)) {
+    cli::cli_abort("Column {.code {rlang::as_string(id_sym)}} not found in data frame")
+  }
+
+  original_num_rows <- nrow(df)
+
+  # pull texts & ids into vectors for batch function
+  texts <- dplyr::pull(df, !!text_sym)
+  indices <- dplyr::pull(df, !!id_sym)
+
+  batch_size <- if(is.null(batch_size) || batch_size <= 1) 1 else batch_size
+
+  embeddings_tbl <- oai_embed_batch(
+    texts = texts,
+    model = model,
+    dimensions = dimensions,
+    batch_size = batch_size,
+    concurrent_requests = concurrent_requests,
+    max_retries = max_retries,
+    timeout = timeout,
+    endpoint_url = endpoint_url,
+    key_name = key_name,
+    include_texts = FALSE,
+    relocate_col = 1
+  )
+
+  df_with_row_id <- df |> dplyr::mutate(.row_id = dplyr::row_number())
+
+  embeddings_tbl <- embeddings_tbl |>
+    dplyr::mutate(.row_id = dplyr::row_number())
+
+  result_df <- df_with_row_id |>
+    dplyr::left_join(embeddings_tbl, by = ".row_id") |>
+    dplyr::select(-.row_id)
+
+  # sanity check and alert user if there's a mismatch
+  final_num_rows <- nrow(result_df)
+
+  if(final_num_rows != original_num_rows){
+    cli::cli_warn("Rows in original data frame and returned data frame do not match:")
+    cli::cli_bullets(text = c(
+      "Rows in original data frame: {original_num_rows}",
+      "Rows in returned data frame: {final_num_rows}"
+    ))
+  }
+
+  return(result_df)
+}
+
 # helper funcs (may move to utils or something) ----
 parse_oai_date <- function(date_string) {
   parsed_date <- as.POSIXct(date_string, format = "%a, %d %b %Y %H:%M:%S", tz = "GMT")
   date <- as.Date(parsed_date)
   return(date)
 }
-
 
