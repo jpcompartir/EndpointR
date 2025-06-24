@@ -43,9 +43,10 @@
     <li><a class="dropdown-item" href="../articles/llm_providers.html">Working with Major LLM Providers</a></li>
     <li><a class="dropdown-item" href="../articles/structured_outputs_json_schema.html">Structured Outputs with JSON Schema</a></li>
     <li><hr class="dropdown-divider"></li>
+    <li><a class="dropdown-item" href="../articles/embeddings_providers.html">Embeddings</a></li>
+    <li><hr class="dropdown-divider"></li>
     <li><h6 class="dropdown-header" data-toc-skip>Advanced Topics</h6></li>
     <li><a class="dropdown-item" href="../articles/improving_performance.html">Improving Performance</a></li>
-    <li><a class="dropdown-item" href="../articles/embeddings_providers.html">Embeddings Providers</a></li>
   </ul>
 </li>
 <li class="nav-item dropdown">
@@ -84,9 +85,522 @@
 
     
     
+<p>This vignette shows how to generate text embeddings using EndpointR
+with both Hugging Face and OpenAI providers.</p>
+<div class="section level2">
+<h2 id="what-are-text-embeddings">What are Text Embeddings?<a class="anchor" aria-label="anchor" href="#what-are-text-embeddings"></a>
+</h2>
+<p>Text embeddings are numerical representations of text that capture
+semantic meaning. Think of them as coordinates in a high-dimensional
+space where similar texts are closer together. They’re the foundation
+for:</p>
+<ul>
+<li>Semantic search</li>
+<li>Clustering similar documents<br>
+</li>
+<li>Finding duplicates</li>
+<li>Building recommendation systems</li>
+<li>Powering RAG (Retrieval-Augmented Generation) applications</li>
+</ul>
+<p>EndpointR makes it easy to generate embeddings from your text data
+using either Hugging Face or OpenAI APIs.</p>
+</div>
+<div class="section level2">
+<h2 id="setup">Setup<a class="anchor" aria-label="anchor" href="#setup"></a>
+</h2>
 <div class="sourceCode" id="cb1"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://jpcompartir.github.io/EndpointR/">EndpointR</a></span><span class="op">)</span></span></code></pre></div>
-  </main>
+<code class="sourceCode R"><span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://jpcompartir.github.io/EndpointR/">EndpointR</a></span><span class="op">)</span></span>
+<span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://dplyr.tidyverse.org" class="external-link">dplyr</a></span><span class="op">)</span></span>
+<span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://tibble.tidyverse.org/" class="external-link">tibble</a></span><span class="op">)</span></span>
+<span></span>
+<span><span class="va">sample_texts</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://tibble.tidyverse.org/reference/tibble.html" class="external-link">tibble</a></span><span class="op">(</span></span>
+<span>  id <span class="op">=</span> <span class="fl">1</span><span class="op">:</span><span class="fl">3</span>,</span>
+<span>  text <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span></span>
+<span>    <span class="st">"Machine learning is transforming how we process information"</span>,</span>
+<span>    <span class="st">"I love building applications with embeddings"</span>, </span>
+<span>    <span class="st">"Natural language processing enables computers to understand text"</span></span>
+<span>  <span class="op">)</span>,</span>
+<span>  category <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"ML"</span>, <span class="st">"embeddings"</span>, <span class="st">"NLP"</span><span class="op">)</span></span>
+<span><span class="op">)</span></span></code></pre></div>
+</div>
+<div class="section level2">
+<h2 id="provider-comparison">Provider Comparison<a class="anchor" aria-label="anchor" href="#provider-comparison"></a>
+</h2>
+<p>Before diving into code, let’s understand the key differences:</p>
+<table class="table">
+<colgroup>
+<col width="33%">
+<col width="33%">
+<col width="33%">
+</colgroup>
+<thead><tr class="header">
+<th>Feature</th>
+<th>Hugging Face</th>
+<th>OpenAI</th>
+</tr></thead>
+<tbody>
+<tr class="odd">
+<td><strong>Models</strong></td>
+<td>Many open-source models</td>
+<td>text-embedding-3-small/large, ada-002</td>
+</tr>
+<tr class="even">
+<td><strong>Dimensions</strong></td>
+<td>Model-dependent (often 384, 768)</td>
+<td>Configurable (512-3072)</td>
+</tr>
+<tr class="odd">
+<td><strong>Pricing</strong></td>
+<td>Free tier available, pay for dedicated</td>
+<td>Pay per token</td>
+</tr>
+<tr class="even">
+<td><strong>Rate Limits</strong></td>
+<td>Varies by tier</td>
+<td>Generous for most use cases</td>
+</tr>
+<tr class="odd">
+<td><strong>Max Input</strong></td>
+<td>Model-dependent</td>
+<td>8,192 tokens per request</td>
+</tr>
+<tr class="even">
+<td><strong>Batching</strong></td>
+<td>Supported</td>
+<td>Supported (multiple texts per request)</td>
+</tr>
+</tbody>
+</table>
+</div>
+<div class="section level2">
+<h2 id="hugging-face-embeddings">Hugging Face Embeddings<a class="anchor" aria-label="anchor" href="#hugging-face-embeddings"></a>
+</h2>
+<div class="section level3">
+<h3 id="setting-up">Setting Up<a class="anchor" aria-label="anchor" href="#setting-up"></a>
+</h3>
+<p>First, get your API key from <a href="https://huggingface.co/settings/tokens" class="external-link">Hugging Face</a> and set
+it:</p>
+<div class="sourceCode" id="cb2"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="fu"><a href="../reference/set_api_key.html">set_api_key</a></span><span class="op">(</span><span class="st">"HF_TEST_API_KEY"</span><span class="op">)</span></span>
+<span></span>
+<span><span class="va">embed_url</span> <span class="op">&lt;-</span>  <span class="st">"https://router.huggingface.co/hf-inference/models/sentence-transformers/all-mpnet-base-v2/pipeline/feature-extraction"</span></span></code></pre></div>
+</div>
+<div class="section level3">
+<h3 id="single-text">Single Text<a class="anchor" aria-label="anchor" href="#single-text"></a>
+</h3>
+<p>The simplest case - embed one piece of text:</p>
+<div class="sourceCode" id="cb3"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">embedding</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/hf_embed_text.html">hf_embed_text</a></span><span class="op">(</span></span>
+<span>  text <span class="op">=</span> <span class="st">"I want to understand the meaning of this sentence"</span>,</span>
+<span>  endpoint_url <span class="op">=</span> <span class="va">embed_url</span>,</span>
+<span>  key_name <span class="op">=</span> <span class="st">"HF_TEST_API_KEY"</span></span>
+<span><span class="op">)</span></span>
+<span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/base/dim.html" class="external-link">dim</a></span><span class="op">(</span><span class="va">embedding</span><span class="op">)</span> <span class="co"># result: a tibble with 768 columns (V1 to V768)</span></span>
+<span></span>
+<span><span class="va">embedding</span></span></code></pre></div>
+</div>
+<div class="section level3">
+<h3 id="batch-processing">Batch Processing<a class="anchor" aria-label="anchor" href="#batch-processing"></a>
+</h3>
+<p>For multiple texts, use <code><a href="../reference/hf_embed_batch.html">hf_embed_batch()</a></code> which handles
+batching automatically. We feed in a vector of inputs and a
+<code>batch_size</code>, and the function takes care of batching our
+vector into as many batches as necessary.</p>
+<blockquote>
+<p><strong>TIP</strong>: We can send many batches with
+<code><a href="../reference/hf_embed_batch.html">hf_embed_batch()</a></code>!s</p>
+</blockquote>
+<div class="sourceCode" id="cb4"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">texts_to_embed</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span></span>
+<span>  <span class="st">"First document about machine learning"</span>,</span>
+<span>  <span class="st">"Second document about deep learning"</span>,</span>
+<span>  <span class="st">"Third document about neural networks"</span>,</span>
+<span>  <span class="st">"Fourth document about data science"</span></span>
+<span><span class="op">)</span></span>
+<span></span>
+<span><span class="va">batch_embeddings</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/hf_embed_batch.html">hf_embed_batch</a></span><span class="op">(</span></span>
+<span>  texts <span class="op">=</span> <span class="va">texts_to_embed</span>,</span>
+<span>  endpoint_url <span class="op">=</span> <span class="va">embed_url</span>,</span>
+<span>  key_name <span class="op">=</span> <span class="st">"HF_TEST_API_KEY"</span>,</span>
+<span>  batch_size <span class="op">=</span> <span class="fl">2</span>,  <span class="co"># process 2 texts per API call</span></span>
+<span>  concurrent_requests <span class="op">=</span> <span class="fl">2</span>  <span class="co"># run 2 requests in parallel</span></span>
+<span><span class="op">)</span></span>
+<span></span>
+<span><span class="co"># Check results</span></span>
+<span><span class="fu"><a href="https://pillar.r-lib.org/reference/glimpse.html" class="external-link">glimpse</a></span><span class="op">(</span><span class="va">batch_embeddings</span><span class="op">[</span><span class="fl">1</span>,<span class="fl">1</span><span class="op">:</span><span class="fl">10</span> <span class="op">]</span><span class="op">)</span> <span class="co"># truncated for ease</span></span></code></pre></div>
+<p>The result includes: - <code>text</code>: your original text -
+<code>.error</code> and <code>.error_message</code>: error tracking -
+<code>V1</code> to <code>V768</code>: the embedding dimensions</p>
+</div>
+<div class="section level3">
+<h3 id="data-frame-integration">Data Frame Integration<a class="anchor" aria-label="anchor" href="#data-frame-integration"></a>
+</h3>
+<p>Most commonly, you’ll want to embed a column from a data frame:</p>
+<div class="sourceCode" id="cb5"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">embedded_df</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/hf_embed_df.html">hf_embed_df</a></span><span class="op">(</span></span>
+<span>  df <span class="op">=</span> <span class="va">sample_texts</span>,</span>
+<span>  text_var <span class="op">=</span> <span class="va">text</span>,      <span class="co"># column containing text</span></span>
+<span>  id_var <span class="op">=</span> <span class="va">id</span>,          <span class="co"># unique identifier column</span></span>
+<span>  endpoint_url <span class="op">=</span> <span class="va">embed_url</span>,</span>
+<span>  key_name <span class="op">=</span> <span class="st">"HF_TEST_API_KEY"</span>,</span>
+<span>  batch_size <span class="op">=</span> <span class="fl">3</span>,</span>
+<span>  concurrent_requests <span class="op">=</span> <span class="fl">1</span></span>
+<span><span class="op">)</span></span>
+<span></span>
+<span><span class="co"># Original data + embeddings</span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/base/names.html" class="external-link">names</a></span><span class="op">(</span><span class="va">embedded_df</span><span class="op">)</span><span class="op">[</span><span class="fl">1</span><span class="op">:</span><span class="fl">10</span><span class="op">]</span>  <span class="co"># shows: id, text, category, .error, .error_message, V1, V2...</span></span>
+<span></span>
+<span><span class="va">embedded_df</span></span></code></pre></div>
+</div>
+</div>
+<div class="section level2">
+<h2 id="openai-embeddings">OpenAI Embeddings<a class="anchor" aria-label="anchor" href="#openai-embeddings"></a>
+</h2>
+<div class="section level3">
+<h3 id="setting-up-1">Setting Up<a class="anchor" aria-label="anchor" href="#setting-up-1"></a>
+</h3>
+<p>Get your API key from the <a href="https://platform.openai.com/api-keys" class="external-link">OpenAI</a> website and set
+it:</p>
+<div class="sourceCode" id="cb6"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="fu"><a href="../reference/set_api_key.html">set_api_key</a></span><span class="op">(</span><span class="st">"OPENAI_API_KEY"</span><span class="op">)</span></span></code></pre></div>
+</div>
+<div class="section level3">
+<h3 id="single-text-1">Single Text<a class="anchor" aria-label="anchor" href="#single-text-1"></a>
+</h3>
+<p>OpenAI offers configurable embedding dimensions:</p>
+<div class="sourceCode" id="cb7"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="co"># Default dimensions (1536 for text-embedding-3-small)</span></span>
+<span><span class="va">embedding</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/oai_embed_text.html">oai_embed_text</a></span><span class="op">(</span></span>
+<span>  text <span class="op">=</span> <span class="st">"I want to understand the meaning of this sentence"</span></span>
+<span><span class="op">)</span></span>
+<span></span>
+<span><span class="co"># Custom dimensions for smaller embeddings</span></span>
+<span><span class="va">small_embedding</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/oai_embed_text.html">oai_embed_text</a></span><span class="op">(</span></span>
+<span>  text <span class="op">=</span> <span class="st">"I want to understand the meaning of this sentence"</span>,</span>
+<span>  model <span class="op">=</span> <span class="st">"text-embedding-3-small"</span>,</span>
+<span>  dimensions <span class="op">=</span> <span class="fl">512</span>  <span class="co"># reduce size by ~67%</span></span>
+<span><span class="op">)</span></span>
+<span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/base/dim.html" class="external-link">dim</a></span><span class="op">(</span><span class="va">small_embedding</span><span class="op">)</span>  <span class="co"># 1 row, 512 embedding columns + index</span></span></code></pre></div>
+</div>
+<div class="section level3">
+<h3 id="batch-processing-1">Batch Processing<a class="anchor" aria-label="anchor" href="#batch-processing-1"></a>
+</h3>
+<p>OpenAI allows multiple texts in a single API call, which
+<code><a href="../reference/oai_embed_batch.html">oai_embed_batch()</a></code> leverages.</p>
+<div class="sourceCode" id="cb8"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">texts_to_embed</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span></span>
+<span>  <span class="st">"First document about machine learning"</span>,</span>
+<span>  <span class="st">"Second document about deep learning"</span>,</span>
+<span>  <span class="st">"Third document about neural networks"</span>,</span>
+<span>  <span class="st">"Fourth document about data science"</span></span>
+<span><span class="op">)</span></span>
+<span></span>
+<span><span class="va">batch_embeddings</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/oai_embed_batch.html">oai_embed_batch</a></span><span class="op">(</span></span>
+<span>  texts <span class="op">=</span> <span class="va">texts_to_embed</span>,</span>
+<span>  model <span class="op">=</span> <span class="st">"text-embedding-3-small"</span>,</span>
+<span>  dimensions <span class="op">=</span> <span class="fl">1536</span>,  <span class="co"># default for this model</span></span>
+<span>  batch_size <span class="op">=</span> <span class="fl">10</span>,    <span class="co"># texts per API request</span></span>
+<span>  concurrent_requests <span class="op">=</span> <span class="fl">3</span>  <span class="co"># parallel requests</span></span>
+<span><span class="op">)</span></span>
+<span></span>
+<span></span>
+<span><span class="va">batch_embeddings</span> <span class="op">|&gt;</span></span>
+<span>  <span class="fu"><a href="https://dplyr.tidyverse.org/reference/reframe.html" class="external-link">reframe</a></span><span class="op">(</span></span>
+<span>    total <span class="op">=</span> <span class="fu"><a href="https://dplyr.tidyverse.org/reference/context.html" class="external-link">n</a></span><span class="op">(</span><span class="op">)</span>,</span>
+<span>    succeeded <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/sum.html" class="external-link">sum</a></span><span class="op">(</span><span class="op">!</span><span class="va">.error</span><span class="op">)</span>,</span>
+<span>    failed <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/sum.html" class="external-link">sum</a></span><span class="op">(</span><span class="va">.error</span><span class="op">)</span></span>
+<span>  <span class="op">)</span></span></code></pre></div>
+</div>
+<div class="section level3">
+<h3 id="data-frame-integration-1">Data Frame Integration<a class="anchor" aria-label="anchor" href="#data-frame-integration-1"></a>
+</h3>
+<div class="sourceCode" id="cb9"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">embedded_df</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/oai_embed_df.html">oai_embed_df</a></span><span class="op">(</span></span>
+<span>  df <span class="op">=</span> <span class="va">sample_texts</span>,</span>
+<span>  text_var <span class="op">=</span> <span class="va">text</span>,</span>
+<span>  id_var <span class="op">=</span> <span class="va">id</span>,</span>
+<span>  model <span class="op">=</span> <span class="st">"text-embedding-3-large"</span>,  <span class="co"># higher quality embeddings</span></span>
+<span>  dimensions <span class="op">=</span> <span class="fl">3072</span>,  <span class="co"># maximum dimensions for this model</span></span>
+<span>  batch_size <span class="op">=</span> <span class="fl">20</span>,</span>
+<span>  concurrent_requests <span class="op">=</span> <span class="fl">5</span></span>
+<span><span class="op">)</span></span>
+<span></span>
+<span><span class="co"># Extract just the embeddings for downstream use</span></span>
+<span><span class="va">embedded_df</span> <span class="op">|&gt;</span> </span>
+<span>  <span class="fu"><a href="https://dplyr.tidyverse.org/reference/select.html" class="external-link">select</a></span><span class="op">(</span><span class="fu"><a href="https://tidyselect.r-lib.org/reference/starts_with.html" class="external-link">starts_with</a></span><span class="op">(</span><span class="st">"V"</span><span class="op">)</span><span class="op">)</span> </span></code></pre></div>
+</div>
+</div>
+<div class="section level2">
+<h2 id="handling-sequence-length">Handling Sequence Length<a class="anchor" aria-label="anchor" href="#handling-sequence-length"></a>
+</h2>
+<div class="section level3">
+<h3 id="openai-limits">OpenAI Limits<a class="anchor" aria-label="anchor" href="#openai-limits"></a>
+</h3>
+<p>OpenAI has a token limit of 8,192 per request. Since 1 token
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mo>≈</mo><annotation encoding="application/x-tex">\approx</annotation></semantics></math>
+4 characters:</p>
+<div class="sourceCode" id="cb10"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">long_texts</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://tibble.tidyverse.org/reference/tibble.html" class="external-link">tibble</a></span><span class="op">(</span></span>
+<span>  id <span class="op">=</span> <span class="fl">1</span><span class="op">:</span><span class="fl">3</span>,</span>
+<span>  text <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span></span>
+<span>    <span class="fu"><a href="https://rdrr.io/r/base/paste.html" class="external-link">paste</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/rep.html" class="external-link">rep</a></span><span class="op">(</span><span class="st">"word"</span>, <span class="fl">100</span><span class="op">)</span>, collapse <span class="op">=</span> <span class="st">" "</span><span class="op">)</span>,    <span class="co"># ~400 chars, safe</span></span>
+<span>    <span class="fu"><a href="https://rdrr.io/r/base/paste.html" class="external-link">paste</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/rep.html" class="external-link">rep</a></span><span class="op">(</span><span class="st">"word"</span>, <span class="fl">8000</span><span class="op">)</span>, collapse <span class="op">=</span> <span class="st">" "</span><span class="op">)</span>,   <span class="co"># ~32k chars, near limit  </span></span>
+<span>    <span class="fu"><a href="https://rdrr.io/r/base/paste.html" class="external-link">paste</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/rep.html" class="external-link">rep</a></span><span class="op">(</span><span class="st">"word"</span>, <span class="fl">10000</span><span class="op">)</span>, collapse <span class="op">=</span> <span class="st">" "</span><span class="op">)</span>   <span class="co"># ~40k chars, too long!</span></span>
+<span>  <span class="op">)</span></span>
+<span><span class="op">)</span></span>
+<span></span>
+<span><span class="va">long_texts</span> <span class="op">|&gt;</span></span>
+<span>  <span class="fu"><a href="https://dplyr.tidyverse.org/reference/mutate.html" class="external-link">mutate</a></span><span class="op">(</span></span>
+<span>    char_count <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/nchar.html" class="external-link">nchar</a></span><span class="op">(</span><span class="va">text</span><span class="op">)</span>,</span>
+<span>    approx_tokens <span class="op">=</span> <span class="va">char_count</span> <span class="op">/</span> <span class="fl">4</span>,</span>
+<span>    will_fail <span class="op">=</span> <span class="va">approx_tokens</span> <span class="op">&gt;</span> <span class="fl">8192</span></span>
+<span>  <span class="op">)</span></span></code></pre></div>
+<p>We can truncate our texts with the substr() function but in practice
+we would of course want to use a more intelligent splitting
+procedure.</p>
+<div class="sourceCode" id="cb11"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="co"># truncation (data / information loss happens!)</span></span>
+<span><span class="va">long_texts</span> <span class="op">|&gt;</span></span>
+<span>  <span class="fu"><a href="https://dplyr.tidyverse.org/reference/mutate.html" class="external-link">mutate</a></span><span class="op">(</span></span>
+<span>    text <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/ifelse.html" class="external-link">ifelse</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/nchar.html" class="external-link">nchar</a></span><span class="op">(</span><span class="va">text</span><span class="op">)</span> <span class="op">&gt;</span> <span class="fl">32000</span>, </span>
+<span>                  <span class="fu"><a href="https://rdrr.io/r/base/substr.html" class="external-link">substr</a></span><span class="op">(</span><span class="va">text</span>, <span class="fl">1</span>, <span class="fl">32000</span><span class="op">)</span>, </span>
+<span>                  <span class="va">text</span><span class="op">)</span></span>
+<span>  <span class="op">)</span> <span class="op">|&gt;</span></span>
+<span>  <span class="fu"><a href="https://dplyr.tidyverse.org/reference/mutate.html" class="external-link">mutate</a></span><span class="op">(</span></span>
+<span>    char_count <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/nchar.html" class="external-link">nchar</a></span><span class="op">(</span><span class="va">text</span><span class="op">)</span>,</span>
+<span>    approx_tokens <span class="op">=</span> <span class="va">char_count</span> <span class="op">/</span> <span class="fl">4</span>,</span>
+<span>    will_fail <span class="op">=</span> <span class="va">approx_tokens</span> <span class="op">&gt;</span> <span class="fl">8192</span></span>
+<span>  <span class="op">)</span></span></code></pre></div>
+</div>
+<div class="section level3">
+<h3 id="hugging-face-limits">Hugging Face Limits<a class="anchor" aria-label="anchor" href="#hugging-face-limits"></a>
+</h3>
+<p>When using the Inference API, limits vary by model. Check the model’s
+documentation. Most models handle ~512 tokens well. More modern models
+can handle more (check model card). Dedicated Inference Endpoints will
+receive as many requests as the assigned hardware is able to handle.</p>
+<p>This code chunk shows you how to chunk up your texts if you’re
+finding errors due to payload size:</p>
+<div class="sourceCode" id="cb12"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">chunk_text</span> <span class="op">&lt;-</span> <span class="kw">function</span><span class="op">(</span><span class="va">text</span>, <span class="va">max_chars</span> <span class="op">=</span> <span class="fl">2000</span><span class="op">)</span> <span class="op">{</span></span>
+<span>  <span class="kw">if</span> <span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/nchar.html" class="external-link">nchar</a></span><span class="op">(</span><span class="va">text</span><span class="op">)</span> <span class="op">&lt;=</span> <span class="va">max_chars</span><span class="op">)</span> <span class="kw"><a href="https://rdrr.io/r/base/function.html" class="external-link">return</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span><span class="va">text</span><span class="op">)</span><span class="op">)</span></span>
+<span>  </span>
+<span>  <span class="co"># v. simple chunking (consider sentence boundaries/ more intelligent chunking in production)</span></span>
+<span>  <span class="va">chunks</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/substr.html" class="external-link">substring</a></span><span class="op">(</span><span class="va">text</span>, </span>
+<span>                     <span class="fu"><a href="https://rdrr.io/r/base/seq.html" class="external-link">seq</a></span><span class="op">(</span><span class="fl">1</span>, <span class="fu"><a href="https://rdrr.io/r/base/nchar.html" class="external-link">nchar</a></span><span class="op">(</span><span class="va">text</span><span class="op">)</span>, <span class="va">max_chars</span><span class="op">)</span>, </span>
+<span>                     <span class="fu"><a href="https://rdrr.io/r/base/seq.html" class="external-link">seq</a></span><span class="op">(</span><span class="va">max_chars</span>, <span class="fu"><a href="https://rdrr.io/r/base/nchar.html" class="external-link">nchar</a></span><span class="op">(</span><span class="va">text</span><span class="op">)</span> <span class="op">+</span> <span class="va">max_chars</span> <span class="op">-</span> <span class="fl">1</span>, <span class="va">max_chars</span><span class="op">)</span><span class="op">)</span></span>
+<span>  <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">as.list</a></span><span class="op">(</span><span class="va">chunks</span><span class="op">[</span><span class="fu"><a href="https://rdrr.io/r/base/nchar.html" class="external-link">nchar</a></span><span class="op">(</span><span class="va">chunks</span><span class="op">)</span> <span class="op">&gt;</span> <span class="fl">0</span><span class="op">]</span><span class="op">)</span></span>
+<span><span class="op">}</span></span></code></pre></div>
+</div>
+</div>
+<div class="section level2">
+<h2 id="best-practices">Best Practices<a class="anchor" aria-label="anchor" href="#best-practices"></a>
+</h2>
+<div class="section level3">
+<h3 id="error-handling">Error Handling<a class="anchor" aria-label="anchor" href="#error-handling"></a>
+</h3>
+<p>Always check for errors in your results. This chunk shows you how to
+send off your failures in another batch request, but beware you’ll need
+to handle the resulting data frames.</p>
+<div class="sourceCode" id="cb13"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">results</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/oai_embed_batch.html">oai_embed_batch</a></span><span class="op">(</span>texts <span class="op">=</span> <span class="va">texts_to_embed</span><span class="op">)</span></span>
+<span></span>
+<span><span class="co"># Check overall success</span></span>
+<span><span class="kw">if</span> <span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/any.html" class="external-link">any</a></span><span class="op">(</span><span class="va">results</span><span class="op">$</span><span class="va">.error</span><span class="op">)</span><span class="op">)</span> <span class="op">{</span></span>
+<span>  <span class="va">failed</span> <span class="op">&lt;-</span> <span class="va">results</span> <span class="op">|&gt;</span> </span>
+<span>    <span class="fu"><a href="https://dplyr.tidyverse.org/reference/filter.html" class="external-link">filter</a></span><span class="op">(</span><span class="va">.error</span><span class="op">)</span> <span class="op">|&gt;</span></span>
+<span>    <span class="fu"><a href="https://dplyr.tidyverse.org/reference/select.html" class="external-link">select</a></span><span class="op">(</span><span class="va">text</span>, <span class="va">.error_message</span><span class="op">)</span></span>
+<span>  </span>
+<span>  <span class="fu"><a href="https://rdrr.io/r/base/print.html" class="external-link">print</a></span><span class="op">(</span><span class="va">failed</span><span class="op">)</span></span>
+<span>  </span>
+<span>  <span class="co"># Retry failed texts with adjusted parameters</span></span>
+<span>  <span class="va">retry_texts</span> <span class="op">&lt;-</span> <span class="va">failed</span><span class="op">$</span><span class="va">text</span></span>
+<span>  <span class="va">retry_results</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/oai_embed_batch.html">oai_embed_batch</a></span><span class="op">(</span></span>
+<span>    texts <span class="op">=</span> <span class="va">retry_texts</span>,</span>
+<span>    batch_size <span class="op">=</span> <span class="fl">1</span>,  <span class="co"># one at a time</span></span>
+<span>    timeout <span class="op">=</span> <span class="fl">30</span>     <span class="co"># longer timeout</span></span>
+<span>  <span class="op">)</span></span>
+<span><span class="op">}</span></span></code></pre></div>
+</div>
+<div class="section level3">
+<h3 id="performance-tips">Performance Tips<a class="anchor" aria-label="anchor" href="#performance-tips"></a>
+</h3>
+<ol style="list-style-type: decimal">
+<li>
+<strong>Start small</strong>: Begin with <code>batch_size = 5</code>
+and <code>concurrent_requests = 1</code>.</li>
+<li>
+<strong>Scale gradually</strong>: Increase parameters whilst
+monitoring errors</li>
+<li>
+<strong>Model selection</strong>:
+<ul>
+<li>Hugging Face: <code>all-MiniLM-L6-v2</code> for speed (384
+dims)</li>
+<li>OpenAI: <code>text-embedding-3-small</code> with custom dimensions
+for flexibility</li>
+</ul>
+</li>
+<li>
+<strong>Consider dedicated endpoints</strong> for production Hugging
+Face deployments</li>
+</ol>
+<blockquote>
+<p><strong>TIP</strong>: Check your organisation’s tier on OpenAI, tier
+5 organisatons can send many more requests than tier 1. <a href="https://platform.openai.com/settings/organization/limits" class="external-link">OpenAI
+Rate Limits</a></p>
+</blockquote>
+</div>
+<div class="section level3">
+<h3 id="cost-optimisation">Cost Optimisation<a class="anchor" aria-label="anchor" href="#cost-optimisation"></a>
+</h3>
+<p>OpenAI: Reduce dimensions to save storage and computation</p>
+<div class="sourceCode" id="cb14"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">compact_embeddings</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/oai_embed_batch.html">oai_embed_batch</a></span><span class="op">(</span></span>
+<span>  texts <span class="op">=</span> <span class="va">texts_to_embed</span>,</span>
+<span>  model <span class="op">=</span> <span class="st">"text-embedding-3-small"</span>,</span>
+<span>  dimensions <span class="op">=</span> <span class="fl">360</span></span>
+<span><span class="op">)</span></span></code></pre></div>
+<blockquote>
+<p><strong>WARNING</strong>: You’ll need to compare performance vs size
+trade-off for your particular use-case.</p>
+</blockquote>
+</div>
+</div>
+<div class="section level2">
+<h2 id="common-use-cases">Common Use Cases<a class="anchor" aria-label="anchor" href="#common-use-cases"></a>
+</h2>
+<div class="section level3">
+<h3 id="semantic-search">Semantic Search<a class="anchor" aria-label="anchor" href="#semantic-search"></a>
+</h3>
+<p>A very basic implementation of semantic search (AKA dense
+embedding/vector search AKA neural search )</p>
+<ol style="list-style-type: decimal">
+<li>Embed your document corpus</li>
+<li>Embed search query</li>
+<li>Find similar documents (cosine similarity)</li>
+<li>Extract top 5 most similar</li>
+</ol>
+<p>TODO: add code or not?</p>
+<blockquote>
+<p><strong>NOTE</strong>: For most use-cases a hybrid approach
+comprising full-text search and semantic search will yield the best
+result</p>
+</blockquote>
+</div>
+<div class="section level3">
+<h3 id="clustering">Clustering<a class="anchor" aria-label="anchor" href="#clustering"></a>
+</h3>
+<ol style="list-style-type: decimal">
+<li>Generate embeddings</li>
+<li>Extract embeddings matrix for clustering algorithm</li>
+<li>Run clustering algorithm</li>
+<li>Add clusters to data frame</li>
+</ol>
+<div class="sourceCode" id="cb15"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">embeddings_for_clustering</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/hf_embed_df.html">hf_embed_df</a></span><span class="op">(</span></span>
+<span>  df <span class="op">=</span> <span class="va">sample_texts</span>,</span>
+<span>  text_var <span class="op">=</span> <span class="va">text</span>,</span>
+<span>  id_var <span class="op">=</span> <span class="va">id</span>,</span>
+<span>  endpoint_url <span class="op">=</span> <span class="va">embed_url</span>,</span>
+<span>  key_name <span class="op">=</span> <span class="st">"HF_TEST_API_KEY"</span></span>
+<span><span class="op">)</span></span>
+<span></span>
+<span><span class="va">embedding_matrix</span> <span class="op">&lt;-</span> <span class="va">embeddings_for_clustering</span> <span class="op">|&gt;</span></span>
+<span>  <span class="fu"><a href="https://dplyr.tidyverse.org/reference/select.html" class="external-link">select</a></span><span class="op">(</span><span class="fu"><a href="https://tidyselect.r-lib.org/reference/starts_with.html" class="external-link">starts_with</a></span><span class="op">(</span><span class="st">"V"</span><span class="op">)</span><span class="op">)</span> <span class="op">|&gt;</span></span>
+<span>  <span class="fu"><a href="https://rdrr.io/r/base/matrix.html" class="external-link">as.matrix</a></span><span class="op">(</span><span class="op">)</span></span>
+<span></span>
+<span><span class="va">kmeans_result</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/stats/kmeans.html" class="external-link">kmeans</a></span><span class="op">(</span><span class="va">embedding_matrix</span>, centers <span class="op">=</span> <span class="fl">2</span><span class="op">)</span></span>
+<span></span>
+<span><span class="va">clustered_texts</span> <span class="op">&lt;-</span> <span class="va">sample_texts</span> <span class="op">|&gt;</span></span>
+<span>  <span class="fu"><a href="https://dplyr.tidyverse.org/reference/mutate.html" class="external-link">mutate</a></span><span class="op">(</span>cluster <span class="op">=</span> <span class="va">kmeans_result</span><span class="op">$</span><span class="va">cluster</span><span class="op">)</span></span></code></pre></div>
+<blockquote>
+<p><strong>TIP</strong>: In practice you need to inspect the outputs of
+the clustering model and tune it. The code to run the model is only a
+small part of the modelling process</p>
+</blockquote>
+</div>
+</div>
+<div class="section level2">
+<h2 id="troubleshooting">Troubleshooting<a class="anchor" aria-label="anchor" href="#troubleshooting"></a>
+</h2>
+<div class="section level3">
+<h3 id="rate-limits">Rate Limits<a class="anchor" aria-label="anchor" href="#rate-limits"></a>
+</h3>
+<p>Use fewer concurrent_requests if you’re running into rate limit
+issues.</p>
+<div class="sourceCode" id="cb16"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">results</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/hf_embed_batch.html">hf_embed_batch</a></span><span class="op">(</span></span>
+<span>  texts <span class="op">=</span> <span class="va">large_text_collection</span>,</span>
+<span>  batch_size <span class="op">=</span> <span class="fl">3</span>,</span>
+<span>  concurrent_requests <span class="op">=</span> <span class="fl">1</span>  <span class="co"># sequential processing</span></span>
+<span><span class="op">)</span></span>
+<span></span>
+<span><span class="va">results</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/oai_embed_batch.html">oai_embed_batch</a></span><span class="op">(</span></span>
+<span>  texts <span class="op">=</span> <span class="va">large_text_collection</span>,</span>
+<span>  batch_size <span class="op">=</span> <span class="fl">5</span>, <span class="co"># fewer requests with larger batch size</span></span>
+<span>  concurrent_requests <span class="op">=</span> <span class="fl">2</span></span>
+<span><span class="op">)</span></span></code></pre></div>
+<p>Some rate limits are by request, others are by tokens. If you’re
+running into token limits, the solution is to wait longer between
+requests. If you’re running into request limits, you could increase
+batch_size, to embed more data with fewer requests.</p>
+</div>
+<div class="section level3">
+<h3 id="timeouts">Timeouts<a class="anchor" aria-label="anchor" href="#timeouts"></a>
+</h3>
+<p>Increase value of timeout parameter if sending many requests, or
+responses begin timing out.</p>
+<div class="sourceCode" id="cb17"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span></span>
+<span><span class="va">results</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/oai_embed_batch.html">oai_embed_batch</a></span><span class="op">(</span></span>
+<span>  texts <span class="op">=</span> <span class="va">texts_to_embed</span>,</span>
+<span>  timeout <span class="op">=</span> <span class="fl">60</span>, </span>
+<span>  max_retries <span class="op">=</span> <span class="fl">5</span></span>
+<span><span class="op">)</span></span></code></pre></div>
+</div>
+<div class="section level3">
+<h3 id="memory-issues">Memory Issues<a class="anchor" aria-label="anchor" href="#memory-issues"></a>
+</h3>
+<p>Process in chunks for very large datasets</p>
+<div class="sourceCode" id="cb18"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span></span>
+<span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://purrr.tidyverse.org/" class="external-link">purrr</a></span><span class="op">)</span></span>
+<span></span>
+<span><span class="va">text_chunks</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/split.html" class="external-link">split</a></span><span class="op">(</span><span class="va">large_text_vector</span>, </span>
+<span>                     <span class="fu"><a href="https://rdrr.io/r/base/Round.html" class="external-link">ceiling</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/seq.html" class="external-link">seq_along</a></span><span class="op">(</span><span class="va">large_text_vector</span><span class="op">)</span> <span class="op">/</span> <span class="fl">1000</span><span class="op">)</span><span class="op">)</span></span>
+<span></span>
+<span><span class="va">all_embeddings</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://purrr.tidyverse.org/reference/map.html" class="external-link">map</a></span><span class="op">(</span><span class="va">text_chunks</span>, <span class="op">~</span><span class="op">{</span></span>
+<span>  <span class="fu"><a href="../reference/oai_embed_batch.html">oai_embed_batch</a></span><span class="op">(</span><span class="va">.x</span>, batch_size <span class="op">=</span> <span class="fl">10</span><span class="op">)</span></span>
+<span><span class="op">}</span><span class="op">)</span> <span class="op">|&gt;</span></span>
+<span>  <span class="fu"><a href="https://purrr.tidyverse.org/reference/list_c.html" class="external-link">list_rbind</a></span><span class="op">(</span><span class="op">)</span></span></code></pre></div>
+<blockquote>
+<p><strong>TIP</strong>: You could also write your splits to individual
+files, and iterate through the files to avoid reading your data into
+memory all at once.</p>
+</blockquote>
+</div>
+</div>
+<div class="section level2">
+<h2 id="next-steps">Next Steps<a class="anchor" aria-label="anchor" href="#next-steps"></a>
+</h2>
+<ul>
+<li>See the <a href="improving_performance.html">Improving
+Performance</a> vignette for optimisation tips</li>
+<li>Check out <a href="hugging_face_inference.html">Hugging Face
+Inference</a> for classification tasks</li>
+<li>Explore different embedding models for your specific use case</li>
+</ul>
+<blockquote>
+<p><strong>Remember</strong>: embeddings are the foundation for many NLP
+applications. Choose your provider based on your needs for quality,
+speed, cost, and flexibility.</p>
+</blockquote>
+</div>
+  </main><aside class="col-md-3"><nav id="toc" aria-label="Table of contents"><h2>On this page</h2>
+    </nav></aside>
 </div>
 
 

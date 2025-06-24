@@ -43,9 +43,10 @@
     <li><a class="dropdown-item" href="../articles/llm_providers.html">Working with Major LLM Providers</a></li>
     <li><a class="dropdown-item" href="../articles/structured_outputs_json_schema.html">Structured Outputs with JSON Schema</a></li>
     <li><hr class="dropdown-divider"></li>
+    <li><a class="dropdown-item" href="../articles/embeddings_providers.html">Embeddings</a></li>
+    <li><hr class="dropdown-divider"></li>
     <li><h6 class="dropdown-header" data-toc-skip>Advanced Topics</h6></li>
     <li><a class="dropdown-item" href="../articles/improving_performance.html">Improving Performance</a></li>
-    <li><a class="dropdown-item" href="../articles/embeddings_providers.html">Embeddings Providers</a></li>
   </ul>
 </li>
 <li class="nav-item dropdown">
@@ -643,7 +644,7 @@ wanted to do this.</p>
 <span>  <span class="fu"><a href="https://dplyr.tidyverse.org/reference/mutate.html" class="external-link">mutate</a></span><span class="op">(</span>chunk_index <span class="op">=</span> <span class="fu"><a href="https://dplyr.tidyverse.org/reference/row_number.html" class="external-link">row_number</a></span><span class="op">(</span><span class="op">)</span> <span class="op"><a href="https://rdrr.io/r/base/Arithmetic.html" class="external-link">%%</a></span> <span class="va">total_chunks</span> <span class="op">+</span> <span class="fl">1</span><span class="op">)</span></span>
 <span></span>
 <span><span class="va">benchmark_results</span> <span class="op">&lt;-</span> <span class="va">benchmark_params</span> <span class="op">|&gt;</span></span>
-<span>  <span class="fu"><a href="https://dplyr.tidyverse.org/reference/mutate.html" class="external-link">mutate</a></span><span class="op">(</span>result <span class="op">=</span> <span class="fu">pmap</span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span><span class="va">batch_size</span>, <span class="va">concurrent_requests</span>, <span class="va">chunk_index</span><span class="op">)</span>, <span class="kw">function</span><span class="op">(</span><span class="va">bs</span>, <span class="va">cr</span>, <span class="va">ci</span><span class="op">)</span> <span class="op">{</span></span>
+<span>  <span class="fu"><a href="https://dplyr.tidyverse.org/reference/mutate.html" class="external-link">mutate</a></span><span class="op">(</span>result <span class="op">=</span> <span class="fu"><a href="https://purrr.tidyverse.org/reference/pmap.html" class="external-link">pmap</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span><span class="va">batch_size</span>, <span class="va">concurrent_requests</span>, <span class="va">chunk_index</span><span class="op">)</span>, <span class="kw">function</span><span class="op">(</span><span class="va">bs</span>, <span class="va">cr</span>, <span class="va">ci</span><span class="op">)</span> <span class="op">{</span></span>
 <span>    <span class="va">current_chunk</span> <span class="op">&lt;-</span> <span class="va">trust_chunks</span><span class="op">[[</span><span class="va">ci</span><span class="op">]</span><span class="op">]</span></span>
 <span></span>
 <span>    <span class="va">start_time</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/Sys.time.html" class="external-link">Sys.time</a></span><span class="op">(</span><span class="op">)</span></span>

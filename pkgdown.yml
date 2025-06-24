@@ -8,7 +8,7 @@ articles:
   improving_performance: improving_performance.html
   llm_providers: llm_providers.html
   structured_outputs_json_schema: structured_outputs_json_schema.html
-last_built: 2025-06-20T13:29Z
+last_built: 2025-06-24T14:59Z
 urls:
   reference: https://jpcompartir.github.io/EndpointR/reference
   article: https://jpcompartir.github.io/EndpointR/articles

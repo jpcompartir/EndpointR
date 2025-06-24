@@ -17,6 +17,8 @@
 <url><loc>https://jpcompartir.github.io/EndpointR/reference/batch_concurrent_benchmark.html</loc></url>
 <url><loc>https://jpcompartir.github.io/EndpointR/reference/chunk_dataframe.html</loc></url>
 <url><loc>https://jpcompartir.github.io/EndpointR/reference/create_json_schema.html</loc></url>
+<url><loc>https://jpcompartir.github.io/EndpointR/reference/df_embeddings_hf.html</loc></url>
+<url><loc>https://jpcompartir.github.io/EndpointR/reference/df_sentiment_classification_example.html</loc></url>
 <url><loc>https://jpcompartir.github.io/EndpointR/reference/get_api_key.html</loc></url>
 <url><loc>https://jpcompartir.github.io/EndpointR/reference/hf_build_request.html</loc></url>
 <url><loc>https://jpcompartir.github.io/EndpointR/reference/hf_build_request_batch.html</loc></url>
@@ -33,7 +35,11 @@
 <url><loc>https://jpcompartir.github.io/EndpointR/reference/json_schema.html</loc></url>
 <url><loc>https://jpcompartir.github.io/EndpointR/reference/oai_build_completions_request.html</loc></url>
 <url><loc>https://jpcompartir.github.io/EndpointR/reference/oai_build_completions_request_list.html</loc></url>
+<url><loc>https://jpcompartir.github.io/EndpointR/reference/oai_build_embedding_request.html</loc></url>
 <url><loc>https://jpcompartir.github.io/EndpointR/reference/oai_complete_df.html</loc></url>
+<url><loc>https://jpcompartir.github.io/EndpointR/reference/oai_embed_batch.html</loc></url>
+<url><loc>https://jpcompartir.github.io/EndpointR/reference/oai_embed_df.html</loc></url>
+<url><loc>https://jpcompartir.github.io/EndpointR/reference/oai_embed_text.html</loc></url>
 <url><loc>https://jpcompartir.github.io/EndpointR/reference/safely_perform_request.html</loc></url>
 <url><loc>https://jpcompartir.github.io/EndpointR/reference/schema_array.html</loc></url>
 <url><loc>https://jpcompartir.github.io/EndpointR/reference/schema_boolean.html</loc></url>
@@ -42,9 +48,12 @@
 <url><loc>https://jpcompartir.github.io/EndpointR/reference/schema_number.html</loc></url>
 <url><loc>https://jpcompartir.github.io/EndpointR/reference/schema_object.html</loc></url>
 <url><loc>https://jpcompartir.github.io/EndpointR/reference/schema_string.html</loc></url>
+<url><loc>https://jpcompartir.github.io/EndpointR/reference/sentiment_classification_example.html</loc></url>
 <url><loc>https://jpcompartir.github.io/EndpointR/reference/set_api_key.html</loc></url>
+<url><loc>https://jpcompartir.github.io/EndpointR/reference/single_embedding_hf.html</loc></url>
 <url><loc>https://jpcompartir.github.io/EndpointR/reference/tidy_classification_response.html</loc></url>
 <url><loc>https://jpcompartir.github.io/EndpointR/reference/tidy_embedding_response.html</loc></url>
+<url><loc>https://jpcompartir.github.io/EndpointR/reference/tidy_oai_embedding.html</loc></url>
 <url><loc>https://jpcompartir.github.io/EndpointR/reference/validate_hf_endpoint.html</loc></url>
 <url><loc>https://jpcompartir.github.io/EndpointR/reference/validate_response.html</loc></url>
 </urlset>
