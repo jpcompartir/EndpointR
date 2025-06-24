@@ -44,5 +44,74 @@ EndpointR makes it easy to generate embeddings from your text data using either 
 
 # Setup
 
+```{r setup, eval=TRUE}
 library(EndpointR)
+library(dplyr)
+library(tibble)
+
+sample_texts <- tibble(
+  id = 1:3,
+  text = c(
+    "Machine learning is transforming how we process information",
+    "I love building applications with embeddings", 
+    "Natural language processing enables computers to understand text"
+  ),
+  category = c("ML", "embeddings", "NLP")
+)
+```
+
+# Hugging Face Embeddings
+
+## Setting Up
+
+First, get your API key from [Hugging Face](https://huggingface.co/settings/tokens) and set it:
+
+```{r}
+set_api_key("HF_TEST_API_KEY")
+
+embed_url <-  "https://router.huggingface.co/hf-inference/models/sentence-transformers/all-mpnet-base-v2/pipeline/feature-extraction"
+
+```
+
+## Single Text
+
+The simplest case - embed one piece of text:
+
+```{r}
+embedding <- hf_embed_text(
+  text = "I want to understand the meaning of this sentence",
+  endpoint_url = embed_url,
+  key_name = "HF_TEST_API_KEY"
+)
+
+dim(embedding) # result: a tibble with 768 columns (V1 to V768)
+
+embedding
+```
+
+## Batch Processing
+
+For multiple texts, use `hf_embed_batch()` which handles batching automatically:
+
+```{r}
+texts_to_embed <- c(
+  "First document about machine learning",
+  "Second document about deep learning",
+  "Third document about neural networks",
+  "Fourth document about data science"
+)
+
+batch_embeddings <- hf_embed_batch(
+  texts = texts_to_embed,
+  endpoint_url = embed_url,
+  key_name = "HF_TEST_API_KEY",
+  batch_size = 2,  # process 2 texts per API call
+  concurrent_requests = 2  # run 2 requests in parallel
+)
+
+# Check results
+glimpse(batch_embeddings[1,1:10 ]) # truncated for ease
+```
+
+The result includes: - `text`: your original text - `.error` and `.error_message`: error tracking - `V1` to `V768`: the embedding dimensions
 ```
