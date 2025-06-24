@@ -1,6 +1,17 @@
 ---
 title: "Embeddings Providers"
-output: rmarkdown::html_vignette
+output: 
+  html_document:
+    toc: true
+    toc_float: true
+    toc_depth: 3
+    theme: flatly
+    number_sections: true
+    fig_caption: true
+    df_print: paged
+    highlight: tango
+    code_folding: show
+    anchor_sections: true
 vignette: >
   %\VignetteIndexEntry{Embeddings Providers}
   %\VignetteEngine{knitr::rmarkdown}
@@ -10,10 +21,28 @@ vignette: >
 ```{r, include = FALSE}
 knitr::opts_chunk$set(
   collapse = TRUE,
-  comment = "#>"
+  comment = "#>",
+  eval = FALSE,
+  message = FALSE,
+  warning = FALSE
 )
 ```
 
-```{r setup}
+This vignette shows how to generate text embeddings using EndpointR with both Hugging Face and OpenAI providers.
+
+# What are Text Embeddings?
+
+Text embeddings are numerical representations of text that capture semantic meaning. Think of them as coordinates in a high-dimensional space where similar texts are closer together. They're the foundation for:
+
+-   Semantic search
+-   Clustering similar documents\
+-   Finding duplicates
+-   Building recommendation systems
+-   Powering RAG (Retrieval-Augmented Generation) applications
+
+EndpointR makes it easy to generate embeddings from your text data using either Hugging Face or OpenAI APIs.
+
+# Setup
+
 library(EndpointR)
 ```
