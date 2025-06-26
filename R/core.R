@@ -1,4 +1,22 @@
-# core functions that will be re-used with different providers.
+#' Create a base HTTP POST request for API endpoints
+#'
+#' @description
+#' Constructs a base httr2 POST request object with common headers and authentication.
+#' This function sets up the foundation for API requests with standard configuration.
+#'
+#' @param endpoint_url Character string containing the API endpoint URL
+#' @param api_key Character string containing the API authentication key
+#'
+#' @return An httr2_request object configured with POST method, JSON content type, and bearer token authentication
+#'
+#' @examples
+#' \dontrun{
+#'   # Create a base POST request for an API endpoint
+#'   req <- base_request(
+#'     endpoint_url = "https://api.example.com/v1/endpoint",
+#'     api_key = "your-api-key-here"
+#'   )
+#' }
 base_request <- function(endpoint_url, api_key){
   # let other functions handle the input checks for now.
 
@@ -37,7 +55,36 @@ perform_request_or_return_error <- function(request) {
 }
 
 
-#  WIP - deal with ugly chunk in embed_batch_df ----
+#' Perform multiple requests with configurable concurrency strategy
+#'
+#' @description
+#' Executes a list of HTTP requests either sequentially or in parallel.
+#' Automatically chooses sequential processing when concurrent_requests = 1
+#' or when there's only one request.
+#'
+#' @details returns responses in the order that requests were sent, and returns errors in a predictable format.
+#'
+#' @param requests List of httr2_request objects to perform
+#' @param concurrent_requests Integer specifying maximum number of simultaneous requests (default: 1)
+#' @param progress Logical indicating whether to show progress bar (default: TRUE)
+#'
+#' @return List of httr2_response objects or error objects for failed requests
+#'
+#' @examples
+#' \dontrun{
+#'   # Sequential processing
+#'   responses <- perform_requests_with_strategy(
+#'     requests = my_requests,
+#'     concurrent_requests = 1
+#'   )
+#'
+#'   # Parallel processing with 5 concurrent requests
+#'   responses <- perform_requests_with_strategy(
+#'     requests = my_requests,
+#'     concurrent_requests = 5,
+#'     progress = TRUE
+#'   )
+#' }
 perform_requests_with_strategy <- function(requests,
                                            concurrent_requests = 1,
                                            progress = TRUE) {
@@ -71,6 +118,32 @@ perform_requests_with_strategy <- function(requests,
   return(responses)
 }
 
+#' Process API response with error handling
+#'
+#' @description
+#' Higher-order function that applies a tidying function to an API response.
+#' Handles both successful responses and errors, returning a consistent tibble structure. The `tidy_func` parameter allows you to provide the necessary function for your particular workflow.
+#'
+#'
+#' @param resp An httr2_response object or error object from a failed request
+#' @param indices Vector of indices to track original position of requests
+#' @param tidy_func Function to process/tidy successful API responses
+#'
+#' @return A tibble with processed results or error information, including:
+#'   - original_index: Position in original request batch
+#'   - .error: Logical indicating if an error occurred
+#'   - .error_message: Character description of any error
+#'   - Additional columns from tidy_func output
+#'
+#' @examples
+#' \dontrun{
+#'   # Process a response with custom tidying function
+#'   result <- process_response(
+#'     resp = api_response,
+#'     indices = c(1, 2, 3),
+#'     tidy_func = function(r) { tibble::tibble(data = httr2::resp_body_json(r)) }
+#'   )
+#' }
 process_response <- function(resp, indices, tidy_func) {
   #higher-order function for processing (takes function as inputs)
   if (inherits(resp, "httr2_response")) {
@@ -90,16 +163,21 @@ process_response <- function(resp, indices, tidy_func) {
   }
 }
 
-# .create_error_tibble <- function(indices, error_message) {
-#
-#   tibble::tibble(
-#     response = rep(list(NA), length(indices)),
-#     original_index = indices,
-#     .error = TRUE,
-#     .error_message = error_message
-#   )
-# }
-
+#' Create standardised error tibble for failed requests
+#'
+#' @description
+#' Internal function to create a consistent error tibble structure.
+#' Ensures uniform error reporting across different failure modes.
+#'
+#' @param indices Vector of indices indicating original request positions
+#' @param error_message Character string or condition object describing the error
+#'
+#' @return A tibble with columns:
+#'   - original_index: Position in original request batch
+#'   - .error: Always TRUE for error tibbles
+#'   - .error_message: Character description of the error
+#'
+#' @keywords internal
 .create_error_tibble <- function(indices, error_message) {
   # for consistent outputs with safely function(s)
   if (!is.character(error_message)) {

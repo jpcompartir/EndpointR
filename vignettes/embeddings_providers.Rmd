@@ -71,13 +71,13 @@ Before diving into code, let's understand the key differences:
 | **Pricing** | Free tier available, pay for dedicated | Pay per token |
 | **Rate Limits** | Varies by tier | Generous for most use cases |
 | **Max Input** | Model-dependent | 8,192 tokens per request |
-| **Batching** | Supported | Supported (multiple texts per request) |
+| **Batching (multiple documents per request)** | Supported | Supported |
 
 # Hugging Face Embeddings
 
 ## Setting Up
 
-First, get your API key from [Hugging Face](https://huggingface.co/settings/tokens) and set it:
+First, get your API key from [Hugging Face](https://huggingface.co/settings/tokens) and set it. Then set your endpoint's URL. Here we've chosen an endpoint for accessing embeddings from the `all-mpnet-base-v2` model.
 
 ```{r}
 set_api_key("HF_TEST_API_KEY")
@@ -105,8 +105,6 @@ embedding
 ## Batch Processing
 
 For multiple texts, use `hf_embed_batch()` which handles batching automatically. We feed in a vector of inputs and a `batch_size`, and the function takes care of batching our vector into as many batches as necessary.
-
-> **TIP**: We can send many batches with `hf_embed_batch()`!s
 
 ```{r}
 texts_to_embed <- c(

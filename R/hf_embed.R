@@ -197,13 +197,15 @@ hf_embed_batch <- function(texts,
   # preparing batches ----
   batch_data <- batch_vector(texts, batch_size) # returns $batch_indices, $batch_inputs
 
-  batch_reqs <- purrr::map(batch_data$batch_inputs, ~hf_build_request_batch(.x,
-                                                                            endpoint_url,
-                                                                            key_name,
-                                                                            parameters = parameters,
-                                                                            max_retries = max_retries,
-                                                                            timeout = timeout,
-                                                                            validate = FALSE))
+  batch_reqs <- purrr::map(
+    batch_data$batch_inputs,
+    ~hf_build_request_batch(.x,
+                            endpoint_url,
+                            key_name,
+                            parameters = parameters,
+                            max_retries = max_retries,
+                            timeout = timeout,
+                            validate = FALSE))
 
   response_list <- perform_requests_with_strategy(
     requests = batch_reqs,

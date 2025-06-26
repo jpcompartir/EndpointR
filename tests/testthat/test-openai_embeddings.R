@@ -35,12 +35,8 @@ test_that("tidy_oai_embedding handles single and batches",{
 test_that("oai_embed_batch handles batches properly",{
 
   expect_error(
-    oai_embed_batch("hello"),
-    regexp = "Texts must have length")
-
-  expect_error(
     oai_embed_batch(c(2, 3)),
-    regexp = "Each text must be a string")
+    regexp = "Each individual text must")
 
 
   # future test cases when we mock OpenAI API

@@ -1,3 +1,4 @@
+# oai_build_completions_request docs ----
 #' Build an OpenAI API Chat Completions request
 #'
 #' This function constructs a httr2 request object specifically tailored for
@@ -34,6 +35,7 @@
 #' @return An httr2 request object
 #' @export
 #' @seealso \href{https://platform.openai.com/docs/guides/responses-vs-chat-completions}{Completions vs Responses API}
+# oai_build_completions_request docs ----
 oai_build_completions_request <- function(
     input,
     model = "gpt-4.1-nano",
@@ -106,6 +108,7 @@ oai_build_completions_request <- function(
   return(request)
 }
 
+# oai_build_completions_request_list docs ----
 #' Build OpenAI requests for batch processing
 #'
 #' @param inputs Character vector of text inputs
@@ -121,6 +124,7 @@ oai_build_completions_request <- function(
 #'
 #' @return List of httr2 request objects
 #' @export
+# oai_build_completions_request_list docs ----
 oai_build_completions_request_list <- function(
     inputs,
     model = "gpt-4.1-nano",
@@ -161,6 +165,8 @@ oai_build_completions_request_list <- function(
 }
 
 
+
+# oai_complete_df docs ----
 #' Process a data frame through OpenAI's Chat Completions API
 #'
 #' This function takes a data frame with text inputs and processes each row through
@@ -245,6 +251,7 @@ oai_build_completions_request_list <- function(
 #' )
 #'
 #' }
+# oai_complete_df docs ----
 oai_complete_df <- function(df,
                             text_var,
                             id_var,
@@ -339,7 +346,7 @@ oai_complete_df <- function(df,
       !!id_sym := ids[!is_valid_request],
       status = NA_integer_,
       content = NA_character_,
-      error_msg = "Failed to create valid request"
+      .error_msg = "Failed to create valid request"
     )
 
     results_df <- dplyr::bind_rows(results_df, invalid_df)
@@ -348,7 +355,7 @@ oai_complete_df <- function(df,
   # final cleanup ----
   results_df <- results_df |>
     dplyr::mutate(
-      .error = !is.na(error_msg),
+      .error = !is.na(.error_msg),
       !!text_sym := inputs[match(!!id_sym, ids)]  # add original text back
     ) |>
     dplyr::arrange(!!id_sym) |>
@@ -380,7 +387,7 @@ oai_complete_df <- function(df,
     return(list(
       status = NA_integer_,
       content = NA_character_,
-      error_msg = "Invalid response object"
+      .error_msg = "Invalid response object"
     ))
   }
 
@@ -395,10 +402,10 @@ oai_complete_df <- function(df,
     return(list(
       status = status,
       content = content,
-      error_msg = NA_character_
+      .error_msg = NA_character_
     ))
   } else {
-    error_msg <- tryCatch(
+    .error_msg <- tryCatch(
       httr2::resp_body_json(response)$error$message,
       error = function(e) paste("HTTP", status)
     )
@@ -406,7 +413,7 @@ oai_complete_df <- function(df,
     return(list(
       status = status,
       content = NA_character_,
-      error_msg = error_msg
+      .error_msg = .error_msg
     ))
   }
 }

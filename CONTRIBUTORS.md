@@ -44,3 +44,12 @@
 -   Don't commit code you don't understand
 -   If AI writes the code, you better write the tests. If AI writes the tests, you better write the code.
 -   Let AI help you with docs, but make sure you keep them up-to-date. You will only be able to do this if you know what's in the code, and the docs.
+
+## Git Branches
+
+Provide descriptive names where possible
+
+-   feature/\*\*
+-   bugfix/\*\*
+-   documentation/\*\*
+-   tests/\*\*

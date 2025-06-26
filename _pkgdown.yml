@@ -1,9 +1,19 @@
 url: https://jpcompartir.github.io/EndpointR/
 template:
   bootstrap: 5
-  bslib:
-    primary: "#0073e6"
-    navbar-bg: "#f8f9fa"
+  params:
+    toc: true
+    toc_depth: 3
+    toc_float:
+      collapsed: false
+      smooth_scroll: true
+      side: left
+    bootswatch: "flatly"
+    highlight: "tango"
+    code_folding: "show"
+    anchor_sections: true
+    search: true
+
 
 home:
   title: "EndpointR"
@@ -32,6 +42,7 @@ navbar:
         href: articles/structured_outputs_json_schema.html
       - text: "---"
       - text: Embeddings
+      - text: Embeddings Providers
         href: articles/embeddings_providers.html
       - text: "---"
       - text: Advanced Topics
@@ -44,7 +55,6 @@ reference:
   contents:
   - set_api_key
   - get_api_key
-  - validate_hf_endpoint
 
 - title: "Hugging Face - Text Embeddings"
   desc: "Functions for generating text embeddings using Hugging Face endpoints"
@@ -109,6 +119,11 @@ reference:
   contents:
   - safely_perform_request
   - chunk_dataframe
+  - perform_requests_with_strategy
+  - process_response
+  - hf_perform_request
+  - validate_hf_endpoint
+  - base_request
 
 - title: "Sample Data"
   desc: "Datasets included with the package for examples and testing"
@@ -123,6 +138,11 @@ reference:
 authors:
   Jack Penzer:
     href: https://github.com/jpcompartir
+
+repo:
+  url:
+    home: https://github.com/jpcompartir/EndpointR
+    source: https://github.com/jpcompartir/EndpointR/tree/main
 
 development:
   mode: auto

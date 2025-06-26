@@ -177,21 +177,6 @@ validate_hf_endpoint <- function(endpoint_url, key_name) {
   })
 }
 
-
-#' Safely perform an embedding request with error handling
-#'
-#' @description
-#' Wrapper around httr2::req_perform that handles errors gracefully.
-#'
-#' @param request An httr2 request object
-#'
-#' @return A list with components $result and $error
-#' @export
-safely_perform_request <- function(request) {
-  purrr::safely(httr2::req_perform)(request)
-}
-
-
 # chunk_dataframe docs ----
 #' Split a data frame into chunks for batch processing
 #'

@@ -108,7 +108,12 @@ batch_result <- hf_embed_batch(
 )
 ```
 
-The result includes: - `text`: your original text - `.error`: TRUE if something went wrong - `.error_message`: what went wrong (if anything) - `V1` to `V384`: the embedding values
+The result includes:
+
+-   `text`: your original text
+-   `.error`: TRUE if something went wrong
+-   `.error_message`: what went wrong (if anything)
+-   `V1` to `V384`: the embedding values
 
 ## Data Frame
 
@@ -164,9 +169,14 @@ classification_result <- hf_classify_df(
 )
 ```
 
-The result includes: - Your original `id` column - Classification labels (e.g., POSITIVE, NEGATIVE) - Confidence scores - Error tracking columns.
+The result includes:
 
-> **NOTE**: Classification labels are model specific.
+-   Your original `id` column
+-   Classification labels (e.g., POSITIVE, NEGATIVE)
+-   Confidence scores
+-   Error tracking columns.
+
+> **NOTE**: Classification labels are model and task specific.
 
 # Using Dedicated Endpoints
 
