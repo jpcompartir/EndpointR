@@ -2,15 +2,16 @@ url: https://jpcompartir.github.io/EndpointR/
 template:
   bootstrap: 5
   params:
-    hljs:
-      style: "tango"
     toc: true
     toc_depth: 3
     toc_float:
       collapsed: false
       smooth_scroll: true
       side: left
-    theme: "flatly"
+    bootswatch: "flatly"
+    highlight: "tango"
+    code_folding: "show"
+    anchor_sections: true
     search: true
 
 
@@ -122,6 +123,7 @@ reference:
   - process_response
   - hf_perform_request
   - validate_hf_endpoint
+  - base_request
 
 - title: "Sample Data"
   desc: "Datasets included with the package for examples and testing"
