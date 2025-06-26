@@ -1,3 +1,4 @@
+# oai_build_completions_request docs ----
 #' Build an OpenAI API Chat Completions request
 #'
 #' This function constructs a httr2 request object specifically tailored for
@@ -34,6 +35,7 @@
 #' @return An httr2 request object
 #' @export
 #' @seealso \href{https://platform.openai.com/docs/guides/responses-vs-chat-completions}{Completions vs Responses API}
+# oai_build_completions_request docs ----
 oai_build_completions_request <- function(
     input,
     model = "gpt-4.1-nano",
@@ -106,6 +108,7 @@ oai_build_completions_request <- function(
   return(request)
 }
 
+# oai_build_completions_request_list docs ----
 #' Build OpenAI requests for batch processing
 #'
 #' @param inputs Character vector of text inputs
@@ -121,6 +124,7 @@ oai_build_completions_request <- function(
 #'
 #' @return List of httr2 request objects
 #' @export
+# oai_build_completions_request_list docs ----
 oai_build_completions_request_list <- function(
     inputs,
     model = "gpt-4.1-nano",
@@ -161,6 +165,8 @@ oai_build_completions_request_list <- function(
 }
 
 
+
+# oai_complete_df docs ----
 #' Process a data frame through OpenAI's Chat Completions API
 #'
 #' This function takes a data frame with text inputs and processes each row through
@@ -245,6 +251,7 @@ oai_build_completions_request_list <- function(
 #' )
 #'
 #' }
+# oai_complete_df docs ----
 oai_complete_df <- function(df,
                             text_var,
                             id_var,
