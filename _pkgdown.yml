@@ -110,6 +110,9 @@ reference:
   contents:
   - safely_perform_request
   - chunk_dataframe
+  - perform_requests_with_strategy
+  - process_response
+  - hf_perform_request
 
 - title: "Sample Data"
   desc: "Datasets included with the package for examples and testing"
