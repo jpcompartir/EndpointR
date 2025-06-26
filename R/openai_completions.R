@@ -346,7 +346,7 @@ oai_complete_df <- function(df,
       !!id_sym := ids[!is_valid_request],
       status = NA_integer_,
       content = NA_character_,
-      error_msg = "Failed to create valid request"
+      .error_msg = "Failed to create valid request"
     )
 
     results_df <- dplyr::bind_rows(results_df, invalid_df)
@@ -355,7 +355,7 @@ oai_complete_df <- function(df,
   # final cleanup ----
   results_df <- results_df |>
     dplyr::mutate(
-      .error = !is.na(error_msg),
+      .error = !is.na(.error_msg),
       !!text_sym := inputs[match(!!id_sym, ids)]  # add original text back
     ) |>
     dplyr::arrange(!!id_sym) |>
@@ -387,7 +387,7 @@ oai_complete_df <- function(df,
     return(list(
       status = NA_integer_,
       content = NA_character_,
-      error_msg = "Invalid response object"
+      .error_msg = "Invalid response object"
     ))
   }
 
@@ -402,10 +402,10 @@ oai_complete_df <- function(df,
     return(list(
       status = status,
       content = content,
-      error_msg = NA_character_
+      .error_msg = NA_character_
     ))
   } else {
-    error_msg <- tryCatch(
+    .error_msg <- tryCatch(
       httr2::resp_body_json(response)$error$message,
       error = function(e) paste("HTTP", status)
     )
@@ -413,7 +413,7 @@ oai_complete_df <- function(df,
     return(list(
       status = status,
       content = NA_character_,
-      .error_msg = error_msg
+      .error_msg = .error_msg
     ))
   }
 }
