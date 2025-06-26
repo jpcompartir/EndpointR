@@ -95,12 +95,12 @@ We can do it simply with the `path =` argument in `httr2::req_perform()`, but th
 ### Hugging Face Classification checklist
 
 -   [x] `hf_classify_text()`
--   \[WIP\] `hf_classify_batch()`
--   [ ] `hf_classify_df()`
+-   [x] `hf_classify_batch()`
+-   [x] `hf_classify_df()`
 -   [x] `tidy_classification_response()` - deal with label/score
 -   [x] `tidy_batch_classification_response()`
 -   \[WIP\] TESTS
--   [ ] S7 models for Peaks & Pits, Sentiment?
+-   [x] S7 models for Peaks & Pits, Sentiment? Via schemas for now
 
 # OpenAI
 
@@ -108,7 +108,7 @@ Headliners:
 
 -   [x] Completions API Requests & Responses
 -   [ ] Responses API Requests & Responses
--   [ ] Name Functions - don't have as clear a naming structure as `hf_classify/hf_embed`
+-   [x] Name Functions - don't have as clear a naming structure as `hf_classify/hf_embed`
 
 ## Vignette
 
@@ -118,7 +118,7 @@ Headliners:
         -   [x] Sequential
         -   [x] Parallel
     -   [ ] DF
-    -   Structured Output
+    -   [x] Structured Output
 -   [ ] Responses
 
 ## Completions API
@@ -127,12 +127,14 @@ Headliners:
     -   [x] Single Req
     -   [x] List of Reqs (can't send batches like we can with HF Inf)
     -   [ ] Refactor this to get the API just right...
-    -   [ ] Data Frame of Reqs
+    -   [x] Data Frame of Reqs
 -   [ ] Responses
 -   [x] Structured Outputs
 -   [x] JSON Schema
 -   [x] S7 Objects (Like Pydantic)
 -   [ ] Dynamic Rate Limit Management (From info in response headers)
+
+Whether to introduce `oai_complete_text()` and `oai_complete_batch()` or stick with `oai_complete_df()`? Torn becasue for consistency it would make sense to have text and batch, but I'm not sure we really need it.
 
 ## Responses API
 
@@ -196,16 +198,16 @@ Schema -\> Type relationship? e.g. schema_number has its own method which coerce
     -   [x] Dimensions parameter?
 -   [ ] High-level funcs
     -   [x] Text
-    -   [ ] List / Batch
-    -   [ ] DF
--   [ ] Concurrency
--   [ ] Batching
--   [ ] Retries
+    -   [x] List / Batch
+    -   [x] DF
+-   [x] Concurrency
+-   [x] Batching
+-   [x] Retries
 -   [ ] Error Handling
 -   [x] Output tidier(s)
 -   [x] TikToken(?) Has a rust dependency so no for now.
 
 ## Refactor:
 
--   [ ] Tidy Function (unncessary tibble creation)
--   [ ] Batch Function (large memory footprint, partly due to the tidy func, but also due to the size of the responses (1536 dims of fairly large FP values..))
+-   [x] Tidy Function (unncessary tibble creation)
+-   [x] Batch Function (large memory footprint, partly due to the tidy func, but also due to the size of the responses (1536 dims of fairly large FP values..))

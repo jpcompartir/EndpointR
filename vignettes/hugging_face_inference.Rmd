@@ -176,7 +176,7 @@ The result includes:
 -   Confidence scores
 -   Error tracking columns.
 
-> **NOTE**: Classification labels are model specific.
+> **NOTE**: Classification labels are model and task specific.
 
 # Using Dedicated Endpoints
 

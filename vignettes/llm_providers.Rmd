@@ -31,6 +31,8 @@ knitr::opts_chunk$set(
 ```{r setup}
 library(EndpointR)
 library(httr2)
+library(purrr)
+library(dplyr)
 ```
 
 This vignette details how we can use EndpointR to interact with services hosted by major model providers, such as Anthropic, Google, and OpenAI. The focus is on sending texts for a specific, one-off purpose - similar to how traditional Machine Learning endpoints work. Though, we will see that it's not always straightforward to get LLMs to do what we want them to do!
@@ -152,7 +154,13 @@ Second run:
 
 > "The sentiment of the text is quite negative. The speaker appears frustrated and exasperated, expressing dissatisfaction with the situation."
 
-Whilst both responses are directionally/approximately accurate, at least in a qualitative sense, the inconsistent output can be very unpleasant to work with. If we wanted the response to conform to the usual sentiment categories, we would need to write a custom parser to extract 'negative', 'neutral', or 'positive' from each output. Looking at the first output, it's clear the parser would need to be reasonably sophisticated. Or we could send another request, asking our model to please output only 'positive', 'negative', or 'neutral' [^5].
+Third run:
+
+> ""The sentiment of the text is quite negative. The speaker appears frustrated and exasperated, expressing dissatisfaction and impatience with the situation."
+
+Whilst the responses are directionally/approximately accurate, the inconsistent output can be very unpleasant to work with. When scaled to hundreds or thousands of requests, this inconsistency can be extremely draining, and productivity reducing.
+
+If we wanted the response to conform to the usual sentiment categories, we would need to write a custom parser to extract 'negative', 'neutral', or 'positive' from each output. Looking at the first output, it's clear the parser would need to be reasonably sophisticated. Or we could send another request, asking our model to please output only 'positive', 'negative', or 'neutral' [^5].
 
 [^5]: or go to jail
 
@@ -248,22 +256,25 @@ classical_responses |>
 ### Data Frame of Texts
 
 ```{r}
-mapped_responses <- tibble(
+df_classical_texts <- tibble(
+  id = 1:10,
   text = classical_texts
-) |> 
-  mutate(request = map(text, ~ oai_build_completions_request(input = .x, system_prompt = updated_sentiment_prompt)
-  )) |> 
-  mutate(response = map(request, perform_request_or_return_error, .progress = TRUE)) 
+)
 ```
+
+We have a function `oai_complete_df()` which takes a data frame, an id variable, and a text variable as input, and returns a data fraem with the `id`, `text`, `status`, `content`, `.error_msg`, `.error`.
+
+The function attempts to handle errors, and this aspect will improve over time, as more of the common failure modes become apparent). You can speed up processing by submitting multiple requests in parallel, using the `concurrent_requests` parameter, but be careful not to hit rate limits!
 
 ```{r}
-pluck_text <- function(x) pluck(x, "choices", 1, "message", "content")
-
-mapped_responses |> 
-  pluck("response", 1) |> 
-  resp_body_json() |> 
-  pluck_text()
+oai_complete_df(df_classical_texts, 
+                text_var = text, 
+                id_var = id,
+                concurrent_requests = 5
+                )
 ```
+
+`oai_complete_df()`reports on progress as it happens, and provides a summary of failures and successes directly in your console.
 
 ## OpenAI Structured Outputs {#openai-structured-outputs}
 
@@ -278,4 +289,3 @@ TBC
 # Google
 
 TBC
-
