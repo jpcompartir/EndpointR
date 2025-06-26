@@ -142,7 +142,31 @@ Whether to introduce `oai_complete_text()` and `oai_complete_batch()` or stick w
 
 for the classifier use-case / just generally accessing the v powerful (but large) embeddings OAI offer.
 
-# JSON Schema
+# OpenAI Embeddings
+
+-   [x] Build Request
+    -   [x] Dimensions parameter?
+-   [ ] High-level funcs
+    -   [x] Text
+    -   [x] List / Batch
+    -   [x] DF
+-   [x] Concurrency
+-   [x] Batching
+-   [x] Retries
+-   [ ] Error Handling
+-   [x] Output tidier(s)
+-   [x] TikToken(?) Has a rust dependency so no for now.
+
+## Refactor:
+
+-   [x] Tidy Function (unncessary tibble creation)
+-   [x] Batch Function (large memory footprint, partly due to the tidy func, but also due to the size of the responses (1536 dims of fairly large FP values..))
+
+# Structured Outputs
+
+Via JSON Schemas
+
+## JSON Schema
 
 ## Core S7 Class Architecture
 
@@ -188,26 +212,6 @@ Schema -\> Type relationship? e.g. schema_number has its own method which coerce
 -   [x] Unit tests for all schema builders
 -   [ ] Integration tests with actual LLM APIs
 -   [ ] Performance benchmarks for large schemas
--   [ ] Vignettes with real-world examples
--   [ ] Vignette re-working/refining based on JH feedback
+-   [x] Vignettes with real-world examples
+-   [x] Vignette re-working/refining based on JH feedback
 -   [ ] Optional Fields and Schemas
-
-# OpenAI Embeddings
-
--   [x] Build Request
-    -   [x] Dimensions parameter?
--   [ ] High-level funcs
-    -   [x] Text
-    -   [x] List / Batch
-    -   [x] DF
--   [x] Concurrency
--   [x] Batching
--   [x] Retries
--   [ ] Error Handling
--   [x] Output tidier(s)
--   [x] TikToken(?) Has a rust dependency so no for now.
-
-## Refactor:
-
--   [x] Tidy Function (unncessary tibble creation)
--   [x] Batch Function (large memory footprint, partly due to the tidy func, but also due to the size of the responses (1536 dims of fairly large FP values..))

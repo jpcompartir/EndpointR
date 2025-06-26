@@ -1,9 +1,18 @@
 url: https://jpcompartir.github.io/EndpointR/
 template:
   bootstrap: 5
-  bslib:
-    primary: "#0073e6"
-    navbar-bg: "#f8f9fa"
+  params:
+    hljs:
+      style: "tango"
+    toc: true
+    toc_depth: 3
+    toc_float:
+      collapsed: false
+      smooth_scroll: true
+      side: left
+    theme: "flatly"
+    search: true
+
 
 home:
   title: "EndpointR"
