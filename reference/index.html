@@ -3,7 +3,7 @@
     <a href="#main" class="visually-hidden-focusable">Skip to contents</a>
 
 
-    <nav class="navbar navbar-expand-lg fixed-top bg-light" data-bs-theme="light" aria-label="Site navigation"><div class="container">
+    <nav class="navbar navbar-expand-lg fixed-top bg-primary" data-bs-theme="dark" aria-label="Site navigation"><div class="container">
 
     <a class="navbar-brand me-2" href="../index.html">EndpointR</a>
 
@@ -28,7 +28,8 @@
     <li><a class="dropdown-item" href="../articles/llm_providers.html">Working with Major LLM Providers</a></li>
     <li><a class="dropdown-item" href="../articles/structured_outputs_json_schema.html">Structured Outputs with JSON Schema</a></li>
     <li><hr class="dropdown-divider"></li>
-    <li><a class="dropdown-item" href="../articles/embeddings_providers.html">Embeddings</a></li>
+    <li><h6 class="dropdown-header" data-toc-skip>Embeddings</h6></li>
+    <li><a class="dropdown-item" href="../articles/embeddings_providers.html">Embeddings Providers</a></li>
     <li><hr class="dropdown-divider"></li>
     <li><h6 class="dropdown-header" data-toc-skip>Advanced Topics</h6></li>
     <li><a class="dropdown-item" href="../articles/improving_performance.html">Improving Performance</a></li>
@@ -42,6 +43,7 @@
   </ul></li>
       </ul><ul class="navbar-nav"><li class="nav-item"><form class="form-inline" role="search">
  <input class="form-control" type="search" name="search-input" id="search-input" autocomplete="off" aria-label="Search site" placeholder="Search for" data-search-index="../search.json"></form></li>
+<li class="nav-item"><a class="external-link nav-link" href="https://github.com/jpcompartir/EndpointR" aria-label="GitHub"><span class="fa fab fa-github fa-lg"></span></a></li>
       </ul></div>
 
 
@@ -76,12 +78,6 @@
 
         </dt>
         <dd>Retrieve an API key which has been stored as an Environment Variable.</dd>
-      </dl><dl><dt>
-
-          <code><a href="validate_hf_endpoint.html">validate_hf_endpoint()</a></code>
-
-        </dt>
-        <dd>Validate that a Hugging Face Inference Endpoint is available</dd>
       </dl></div><div class="section level2">
       <h2 id="hugging-face-text-embeddings">Hugging Face - Text Embeddings<a class="anchor" aria-label="anchor" href="#hugging-face-text-embeddings"></a></h2>
 
@@ -368,6 +364,36 @@
 
         </dt>
         <dd>Split a data frame into chunks for batch processing</dd>
+      </dl><dl><dt>
+
+          <code><a href="perform_requests_with_strategy.html">perform_requests_with_strategy()</a></code>
+
+        </dt>
+        <dd>Perform multiple requests with configurable concurrency strategy</dd>
+      </dl><dl><dt>
+
+          <code><a href="process_response.html">process_response()</a></code>
+
+        </dt>
+        <dd>Process API response with error handling</dd>
+      </dl><dl><dt>
+
+          <code><a href="hf_perform_request.html">hf_perform_request()</a></code>
+
+        </dt>
+        <dd>Execute a single embedding request and process the response</dd>
+      </dl><dl><dt>
+
+          <code><a href="validate_hf_endpoint.html">validate_hf_endpoint()</a></code>
+
+        </dt>
+        <dd>Validate that a Hugging Face Inference Endpoint is available</dd>
+      </dl><dl><dt>
+
+          <code><a href="base_request.html">base_request()</a></code>
+
+        </dt>
+        <dd>Create a base HTTP POST request for API endpoints</dd>
       </dl></div><div class="section level2">
       <h2 id="sample-data">Sample Data<a class="anchor" aria-label="anchor" href="#sample-data"></a></h2>
 
