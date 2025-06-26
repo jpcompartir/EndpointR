@@ -128,6 +128,11 @@ authors:
   Jack Penzer:
     href: https://github.com/jpcompartir
 
+repo:
+  url:
+    home: https://github.com/jpcompartir/EndpointR
+    source: https://github.com/jpcompartir/EndpointR/tree/main
+
 development:
   mode: auto
 
