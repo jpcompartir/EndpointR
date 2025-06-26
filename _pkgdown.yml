@@ -45,7 +45,6 @@ reference:
   contents:
   - set_api_key
   - get_api_key
-  - validate_hf_endpoint
 
 - title: "Hugging Face - Text Embeddings"
   desc: "Functions for generating text embeddings using Hugging Face endpoints"
@@ -113,6 +112,7 @@ reference:
   - perform_requests_with_strategy
   - process_response
   - hf_perform_request
+  - validate_hf_endpoint
 
 - title: "Sample Data"
   desc: "Datasets included with the package for examples and testing"

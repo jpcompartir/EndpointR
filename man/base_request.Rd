@@ -20,7 +20,7 @@ This function sets up the foundation for API requests with standard configuratio
 }
 \examples{
 \dontrun{
-  # Create a base request for an API endpoint
+  # Create a base POST request for an API endpoint
   req <- base_request(
     endpoint_url = "https://api.example.com/v1/endpoint",
     api_key = "your-api-key-here"

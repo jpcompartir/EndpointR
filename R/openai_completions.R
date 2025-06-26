@@ -413,7 +413,7 @@ oai_complete_df <- function(df,
     return(list(
       status = status,
       content = NA_character_,
-      error_msg = error_msg
+      .error_msg = error_msg
     ))
   }
 }
