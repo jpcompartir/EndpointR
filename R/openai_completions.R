@@ -164,7 +164,137 @@ oai_build_completions_request_list <- function(
   return(requests)
 }
 
+# oai_complete_text docs ----
+#' Generate a completion for a single text using OpenAI's Chat Completions API
+#'
+#' @description
+#' High-level function to generate a completion for a single text string.
+#' This function handles the entire process from request creation to
+#' response processing, with optional structured output support.
+#'
+#' @param text Character string to send to the model
+#' @param model OpenAI model to use (default: "gpt-4.1-nano")
+#' @param system_prompt Optional system prompt to guide the model's behaviour
+#' @param schema Optional JSON schema for structured output (json_schema object or list)
+#' @param temperature Sampling temperature (0-2), lower = more deterministic (default: 0)
+#' @param max_tokens Maximum tokens in response (default: 500)
+#' @param key_name Environment variable name for API key (default: "OPENAI_API_KEY")
+#' @param endpoint_url OpenAI API endpoint URL
+#' @param max_retries Maximum retry attempts for failed requests (default: 5)
+#' @param timeout Request timeout in seconds (default: 30)
+#' @param tidy Whether to attempt to parse structured output (default: TRUE)
+#'
+#' @return Character string containing the model's response, or parsed JSON if schema provided
+#' @export
+#'
+#' @examples
+#' \dontrun{
+#'   # Simple completion
+#'   response <- oai_complete_text(
+#'     text = "Explain quantum computing in simple terms",
+#'     temperature = 0.7
+#'   )
+#'
+#'   # With system prompt
+#'   response <- oai_complete_text(
+#'     text = "What are the main benefits?",
+#'     system_prompt = "You are an expert in renewable energy",
+#'     max_tokens = 200
+#'   )
+#'
+#'   # Structured output with schema
+#'   sentiment_schema <- create_json_schema(
+#'     name = "sentiment_analysis",
+#'     schema = schema_object(
+#'       sentiment = schema_string("positive, negative, or neutral"),
+#'       confidence = schema_number("confidence score between 0 and 1"),
+#'       required = list("sentiment", "confidence")
+#'     )
+#'   )
+#'
+#'   result <- oai_complete_text(
+#'     text = "I absolutely loved this product!",
+#'     schema = sentiment_schema,
+#'     temperature = 0
+#'   )
+#' }
+# oai_complete_text docs ----
+oai_complete_text <- function(text,
+                              model = "gpt-4.1-nano",
+                              system_prompt = NULL,
+                              schema = NULL,
+                              temperature = 0,
+                              max_tokens = 500L,
+                              key_name = "OPENAI_API_KEY",
+                              endpoint_url = "https://api.openai.com/v1/chat/completions",
+                              max_retries = 5L,
+                              timeout = 30,
+                              tidy = TRUE) {
 
+  stopifnot(
+    "text must be a single, non-empty character string" = is.character(text) &&
+      length(text) == 1 &&
+      nchar(text) > 0
+  )
+
+  req <- oai_build_completions_request(
+    input = text,
+    model = model,
+    temperature = temperature,
+    max_tokens = max_tokens,
+    schema = schema,
+    system_prompt = system_prompt,
+    key_name = key_name,
+    endpoint_url = endpoint_url,
+    timeout = timeout,
+    max_retries = max_retries
+  )
+
+
+  tryCatch({
+    response <- httr2::req_perform(req)
+  }, error = function(e) {
+    cli::cli_abort(c(
+      "Failed to generate completion",
+      "i" = "Text: {cli::cli_vec(text, list('vec-trunc' = 50, 'vec-sep' = ''))}",
+      "x" = "Error: {conditionMessage(e)}"
+    ))
+  })
+
+  # basic request sending with non-comprehensive error handling
+  if (httr2::resp_status(response) != 200) {
+    error_msg <- tryCatch(
+      httr2::resp_body_json(response)$error$message,
+      error = function(e) paste("HTTP", httr2::resp_status(response))
+    )
+    cli::cli_abort(c(
+      "API request failed",
+      "x" = error_msg
+    ))
+  }
+
+  # status is 200 (success) if we got here, so we should be able to pluck response
+  content <- .extract_oai_completion_content(response)
+
+  if (!is.null(schema) && tidy && !is.na(content)) {
+    content <- tryCatch({
+      parsed <- jsonlite::fromJSON(content, simplifyVector = FALSE)
+      if (!is.null(schema)) {
+        validate_response(schema, content)
+      }
+      parsed
+    }, error = function(e) {
+      cli::cli_warn(c(
+        "Failed to parse structured output",
+        "i" = "Returning raw response",
+        "x" = conditionMessage(e)
+      ))
+      content
+    })
+  }
+
+  return(content)
+}
 
 # oai_complete_df docs ----
 #' Process a data frame through OpenAI's Chat Completions API
