@@ -30,18 +30,23 @@ remotes::install_github("jpcompartir/EndpointR")
 
 ## Hugging Face - embeddings
 
-Securely set your API key:
+Securely set your API key
 
 ``` r
 set_api_key("HF_API_KEY")
+```
 
-endpoint_url <- httr2::secret_decrypt("kcZCsc92Ty7PuAk7_FdCcdOU_dlDpvWdDyfpwCWg-wW80eJxJPdQ68nz4V_0922SzSwM5_dYfpTOqsZ-GodUpLN4PQbwE73wlZkBCWIaIXc15g", "ENDPOINTR_KEY") # encrypted - for demo purposes
+Point to an endpoint - this is for the ‘all-mpnet-base-v2’ model with
+feature extraction (embeddings)
+
+``` r
+endpoint_url <- "https://router.huggingface.co/hf-inference/models/sentence-transformers/all-mpnet-base-v2/pipeline/feature-extraction" 
 ```
 
 Embed a single text:
 
 ``` r
-embeddings <- hf_embed_text(
+ hf_embed_text(
   text = "Convert this text to embeddings",
   endpoint_url = endpoint_url,
   key_name = "HF_API_KEY"
@@ -51,8 +56,16 @@ embeddings <- hf_embed_text(
 Embed a list of texts in batches:
 
 ``` r
-results <- hf_embed_batch(
-  texts = c("Text one", "Text two", "Text three"),
+review_texts <-c(
+    "Absolutely fantastic service! The staff were incredibly helpful and friendly.",
+    "Terrible experience. Food was cold and the waiter was rude.",
+    "Pretty good overall, but nothing special. Average food and service.",
+    "Outstanding meal! Best restaurant I've been to in years. Highly recommend!",
+    "Disappointed with the long wait times. Food was okay when it finally arrived."
+  )
+
+hf_embed_batch(
+  texts = review_texts,
   endpoint_url = endpoint_url,
   key_name = "HF_API_KEY",
   batch_size = 10,
@@ -63,8 +76,15 @@ results <- hf_embed_batch(
 Embed a data frame of texts:
 
 ``` r
-df_with_embeddings <- hf_embed_df(
-  df = your_data,
+review_data <- tibble::tibble(
+  review_id = 1:5,
+  review_text = review_texts
+)
+```
+
+``` r
+hf_embed_df(
+  df = review_data,
   text_var = review_text,
   id_var = review_id,
   endpoint_url = endpoint_url,
@@ -74,29 +94,46 @@ df_with_embeddings <- hf_embed_df(
 
 ## Hugging Face - Classification
 
-Classify a single text:
+Select a Classification Endpoint URL
 
 ``` r
-classification <- hf_classify_text(
-  text = "This restaurant has terrible service",
-  endpoint_url = your_classification_endpoint,
+sentiment_endpoint <- "https://router.huggingface.co/hf-inference/models/cardiffnlp/twitter-roberta-base-sentiment"
+```
+
+Classify a single text:
+
+You’ll need to grab the label2id mapping from the model’s card: [Cardiff
+NLP model
+info](https://huggingface.co/cardiffnlp/twitter-roberta-base-sentiment/blob/main/README.md)
+
+``` r
+labelid_2class <- function() {
+  return(list(negative = "LABEL_0",
+              neutral = "LABEL_1",
+              positive = "LABEL_2"))
+} # you need to get this information for the model card, if the API does not return the labels.
+
+ hf_classify_text(
+  text = review_texts[[1]],
+  endpoint_url = sentiment_endpoint,
   key_name = "HF_API_KEY"
-)
+) |> 
+   dplyr::rename(!!!labelid_2class())
 ```
 
 Classify a data frame:
 
 ``` r
-
-classified_df <- hf_classify_df(
-  df = customer_reviews,
+hf_classify_df(
+  df = review_data,
   text_var = review_text,
   id_var = review_id,
-  endpoint_url = your_classification_endpoint,
+  endpoint_url = sentiment_endpoint,
   key_name = "HF_API_KEY",
   batch_size = 8,
   concurrent_requests = 3
-)
+) |>
+  dplyr::rename(!!!labelid_2class())
 ```
 
 Read the [Hugging Face Inference
@@ -106,25 +143,64 @@ Inference API from Hugging Face.
 
 ## OpenAI - Chat Completions API
 
+Make sure you’ve set your API key:
+
+``` r
+set_api_key("OPENAI_API_KEY")
+```
+
 Complete a single text:
 
 ``` r
-library(EndpointR)
+oai_complete_text(
+  text = review_texts[[2]],
+  system_prompt = "Classify the sentiment of the following text: "
+)
+```
 
-set_api_key("OPENAI_API_KEY")
+Complete a single text with a schema and tidy:
 
-oai_complete_text(input = "Oh man, that's absolutely terrible.",
-                  system_prompt = "Classify the sentiment of the following text: ")
+``` r
+sentiment_schema <- create_json_schema(
+  name = "sentiment_analysis",
+  schema = schema_object(
+    sentiment = schema_string("positive, negative, or neutral"),
+    confidence = schema_number("confidence score between 0 and 1"), # we don't necessarily reciommend asking a model for its confidence score, this is mainly a schema-construction demo!
+    required = list("sentiment", "confidence")
+  )
+)
+
+oai_complete_text(
+  text = review_texts[[2]],
+  system_prompt = "Classify the sentiment of the following text: ",
+  schema = sentiment_schema,
+  tidy = TRUE
+) |> 
+  tibble::as_tibble()
 ```
 
 Complete a Data Frame of texts:
 
 ``` r
 oai_complete_df(
-  df = customer_reviews,
+  df = review_data,
   text_var = review_text,
   id_var = review_id,
   system_prompt = "Classify the following review:",
+  key_name = "OPENAI_API_KEY",
+  concurrent_requests = 5 # send 5 rows of data simultaneously
+)
+```
+
+Complete a Data Frame of texts with schema:
+
+``` r
+oai_complete_df(
+  df = review_data,
+  text_var = review_text,
+  id_var = review_id,
+  system_prompt = "Classify the following review:",
+  schema = sentiment_schema,
   key_name = "OPENAI_API_KEY",
   concurrent_requests = 5 # send 5 rows of data simultaneously
 )
