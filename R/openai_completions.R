@@ -280,7 +280,7 @@ oai_complete_text <- function(text,
     content <- tryCatch({
       parsed <- jsonlite::fromJSON(content, simplifyVector = FALSE)
       if (!is.null(schema)) {
-        validate_response(schema, content)
+        parsed <- validate_response(schema, content)
       }
       parsed
     }, error = function(e) {
