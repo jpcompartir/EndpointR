@@ -452,22 +452,42 @@ oai_complete_df <- function(df,
     tidyr::unnest_wider(extracted) |>
     dplyr::select(-response)
 
-  # if a schema was provided, validate and unnest the JSON content directly
+
+  # validate against schema ----
+  # in the old implementation, if the schema didn't validate we'd error - and lose any susccessful requests too. This is more complex, but it handles the edge cases better.
+
   if (!is.null(schema)) {
+    # validate and track errors to make sure we don't try to unnest data that doesn't exist, and maintain homogeneity in output shape
+    validation_errors <- purrr::map_chr(results_df$content, ~{
+      if (!is.na(.x)) {
+        tryCatch({
+          validate_response(schema, .x)
+          NA_character_
+        }, error = function(e) as.character(e$message))
+      } else {
+        NA_character_
+      }
+    })
+
     results_df <- results_df |>
-      dplyr::mutate(
-        content = purrr::map(content, ~{
-          if (!is.na(.x)) {
-            tryCatch(
-              validate_response(schema, .x),
-              error = function(e) .x  # if validation fails, return original content
-            )
-          } else {
-            .x
-          }
-        })
-      ) |>
-      tidyr::unnest_wider(content)
+      dplyr::mutate(.error_msg = dplyr::coalesce(.error_msg, validation_errors))
+
+
+    n_validation_errors <- sum(!is.na(validation_errors))
+
+    if (n_validation_errors > 0) {
+      cli::cli_warn(c(
+        "{n_validation_errors} response{?s} failed schema validation",
+        "i" = "Returning raw JSON in 'content' column for all rows"
+      ))
+    } else {
+      # can only unnest safely if ALL validations passed, or we'd want to create a 'content' column for unsuccessful validations, and, e.g. 'sentiment' for successful validatons in the simple sentiment case...
+      results_df <- results_df |>
+        dplyr::mutate(
+          content = purrr::map(content, ~validate_response(schema, .x))
+        ) |>
+        tidyr::unnest_wider(content)
+    }
   }
 
   # add invalid requests back ----
@@ -496,6 +516,7 @@ oai_complete_df <- function(df,
   n_failed <- sum(results_df$.error)
 
   cli::cli_alert_success("Completed: {n_success} successful, {n_failed} failed")
+
 
   return(results_df)
 }

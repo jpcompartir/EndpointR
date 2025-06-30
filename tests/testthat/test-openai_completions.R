@@ -168,5 +168,121 @@ test_that("oai_complete_df takes single row, multi-row data frames as inputs", {
   })
 
 
-test_that("oai_complete_df takes a schema as input and validates")
+test_that("oai_complete_df takes a schema as input and validates", {
 
+  sentiment_schema <- create_json_schema(
+    name = "sentiment_test",
+    schema = schema_object(
+      sentiment = schema_enum(
+        values = c("positive", "negative", "neutral"),
+        description = "Sentiment classification for the document",
+        type = "string"
+      ),
+      required = list("sentiment"),
+      additional_properties = FALSE
+    )
+  )
+
+  invalid_sentiment_schema <- create_json_schema(
+    name = "sentiment_test",
+    schema = schema_object(
+      sentiment = schema_enum(
+        values = c("positif", "negatif", "nootral"),
+        description = "Sentiment classification for the document",
+        type = "string"
+      ),
+      required = list("sentiment"),
+      additional_properties = FALSE
+    )
+  )
+
+  review_df <- get_review_df()
+
+  # server$start()
+  endpoint_url <- server$url("/test_complete_df_schema")
+
+  withr::with_envvar(
+    c("OPENAI_API_KEY" = "gibberish"),
+    successful_response <- expect_no_error(
+      oai_complete_df(review_df,
+                      review_text,
+                      id,
+                      endpoint_url = endpoint_url,
+                      concurrent_requests = 1,
+                      max_retries = 1,
+                      schema = sentiment_schema
+                      )
+
+    )
+  )
+
+
+  # this does error as expected.
+  withr::with_envvar(
+    c("OPENAI_API_KEY" = "gibberish"),
+    not_validated_response <- expect_no_error(
+      oai_complete_df(review_df,
+                      review_text,
+                      id,
+                      endpoint_url = endpoint_url,
+                      concurrent_requests = 1,
+                      max_retries = 1,
+                      schema = invalid_sentiment_schema
+      )
+    )
+  )
+
+
+
+})
+
+
+test_that("oai_complete_df handles mixed validation success/failure", {
+
+  review_df <- get_review_df()
+
+
+  sentiment_schema <- create_json_schema(
+    name = "sentiment_test_mixed",
+    schema = schema_object(
+      sentiment = schema_enum(
+        values = c("positive", "negative", "neutral"),
+        description = "Sentiment classification for the document",
+        type = "string"
+        )
+    )
+  )
+
+  #  reset counter JIC - should get torn down with the defer call in testthat setup
+  if (exists(".request_counter")) rm(.request_counter, envir = .GlobalEnv)
+
+  endpoint_url <- server$url("/test_complete_df_mixed")
+
+  # should get alternating successes and failures
+  withr::with_envvar(
+    c("OPENAI_API_KEY" = "gibberish"),
+    {
+      expect_warning(
+        results <- oai_complete_df(
+          review_df,
+          review_text,
+          id,
+          endpoint_url = endpoint_url,
+          concurrent_requests = 1,
+          max_retries = 1,
+          schema = sentiment_schema
+        ),
+        regexp = "responses failed schema"
+      )
+    }
+  )
+
+  expect_s3_class(results, "data.frame")
+  expect_equal(nrow(results), 5)
+
+  expect_true("content" %in% names(results))
+  expect_false("sentiment" %in% names(results))
+
+
+  expect_true(all(grepl("sentiment", results$content)))
+})
