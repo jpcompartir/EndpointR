@@ -111,4 +111,62 @@ test_that("oai_complete_text handles a schema appropriately", {
 
 })
 
-# test_that("", {})
+test_that("oai_complete_df takes single row, multi-row data frames as inputs", {
+  expect_error(oai_complete_df("hello"),
+               regexp = "df must be")
+
+  review_df <- get_review_df()
+
+  server$start()
+  endpoint_url <- server$url("/test_complete_df_review")
+
+  withr::with_envvar(
+    c("OPENAI_API_KEY" = "gibberish"),
+    successful_response <- expect_no_error(
+      oai_complete_df(review_df,
+                      review_text,
+                      id,
+                      endpoint_url = endpoint_url,
+                      concurrent_requests = 1,
+                      max_retries = 1)
+
+      )
+    )
+
+  expect_setequal(names(successful_response),
+                  c("id", "review_text", "status", "content", ".error_msg", ".error"))
+  expect_setequal(unique(successful_response$content), "positive")
+
+  withr::with_envvar(
+    c("OPENAI_API_KEY" = "gibberish"),
+    expect_message(object =
+      oai_complete_df(review_df,
+                      review_text,
+                      id,
+                      endpoint_url = endpoint_url,
+                      concurrent_requests = 1,
+                      max_retries = 1),
+
+      regexp = "Performing 5 requests sequentially"
+    )
+  )
+
+  # check we at least get the status update of concurrency - even if we can't properly test it here.
+  withr::with_envvar(
+    c("OPENAI_API_KEY" = "gibberish"),
+    expect_message(object =
+                     oai_complete_df(review_df,
+                                     review_text,
+                                     id,
+                                     endpoint_url = endpoint_url,
+                                     concurrent_requests = 5,
+                                     max_retries = 1),
+
+                   regexp = "with 5 concurrent requests"
+    )
+  )
+  })
+
+
+test_that("oai_complete_df takes a schema as input and validates")
+
