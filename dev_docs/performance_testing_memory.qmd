@@ -34,8 +34,9 @@ There are a few problems with the current oai_complete_df implementation:
 4.  Response objects are much heavier than expected, and as they're complex, nested lists they take a long time to serialise/write with saveRDS. ---\> So we want to write just the response_body once it's been validated, which requires not firing off all requests and getting all responses
 5.  Validating responses against the schema is a more costly operation than first appreciated
 6.  Error handling isn't solid - NA for content coming back in the schema case can break everything (loss of data)
-7.  There was quadratic scaling in a match call
+7.  There was quadratic scaling in the match call
 8.  Request creation is quite heavy with the schema dump - in the list case we should probably only dump the schema once.
+9.  resp_body_json() uses *a lot* of memory
 
 Solution(s):
 
@@ -45,13 +46,24 @@ Solution(s):
 Process/algorithm:
 
 1.  Input Validation
+
+-   If \> 10,000 rows -\> chunk
+
 2.  Convert Texts and IDs to vectors so they can benefit from parallel requests, and be chunked efficiently
 3.  Chunk texts and IDs into \~1k sizes (could do this prior to converting texts and IDs to vectors? But not sure it'll actually make any difference)
-4.  If there's a schema, dump the schema once. Then build the requests for the batch with the system prompt + schema, then each individual input
+4.  If there's a schema, dump the schema once and supply that to all requests. Then build the requests for the chunk with the system prompt + schema, and each individual input
+5.  Perform the requests in parallel - handle each chunk's responses as they come in
+
+-   check status
+    -   if status == 200 extract the body with resp_body_json()
+    -   pluck the content and stream this content to a jsonl file (to avoid dirty writes etc.), making sure ID goes with it
+    -   do not try to unnest or validate here (?)
+    -   or if we do, then we need to check for schema, and we should make sure to check for NA content and avoid trying to validate NAs
+    -   if there was a schema, then validate against the schema here
+    -   now write the validated data to file if we validated, or just the content as a string
 
 # Hugging Face
 
 ## Embeddings
 
 With \~210k documents we did get fairly high memory usage (peaking at \~12-15gb) which does hint at some inefficiency, as the all-mini-lm embeddings are quite small
-
