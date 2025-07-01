@@ -1,0 +1,57 @@
+---
+title: "performance_testing_memory"
+output: 
+  html_document:
+    toc: true
+    toc_float: true
+    toc_depth: 3
+    theme: flatly
+    number_sections: true
+    fig_caption: true
+    df_print: paged
+    highlight: tango
+    code_folding: show
+    anchor_sections: true
+---
+
+```{r, setup}
+library(EndpointR)
+library(tidyverse)
+library(here)
+library(httr2)
+library(furrr)
+library(purrr)
+library(profvis)
+```
+
+# oai_complete_df
+
+There are a few problems with the current oai_complete_df implementation:
+
+1.  Too much copying of data throughout, and dealing with entire lists/vectors/data frames - we could do with generator style data structure
+2.  Need to write to files to minimise risk of responses being lost
+3.  Not enough batching/chunking for processing
+4.  Response objects are much heavier than expected, and as they're complex, nested lists they take a long time to serialise/write with saveRDS. ---\> So we want to write just the response_body once it's been validated, which requires not firing off all requests and getting all responses
+5.  Validating responses against the schema is a more costly operation than first appreciated
+6.  Error handling isn't solid - NA for content coming back in the schema case can break everything (loss of data)
+7.  There was quadratic scaling in a match call
+8.  Request creation is quite heavy with the schema dump - in the list case we should probably only dump the schema once.
+
+Solution(s):
+
+-   We want to make sure that we batch things up properly. That likely means sacrificing some time for stability. For example, we won't be able to just fire off all of the requests in parallel. We'll need to prepare batches, deal with that batch's requests/responses in parallel, tidy/validate them, and *then* move to the next batch. Each batch's
+-   We don't need all of the headers and additional information in any response list/data frame, we should extract just the message/content that contains the information we're after
+
+Process/algorithm:
+
+1.  Input Validation
+2.  Convert Texts and IDs to vectors so they can benefit from parallel requests, and be chunked efficiently
+3.  Chunk texts and IDs into \~1k sizes (could do this prior to converting texts and IDs to vectors? But not sure it'll actually make any difference)
+4.  If there's a schema, dump the schema once. Then build the requests for the batch with the system prompt + schema, then each individual input
+
+# Hugging Face
+
+## Embeddings
+
+With \~210k documents we did get fairly high memory usage (peaking at \~12-15gb) which does hint at some inefficiency, as the all-mini-lm embeddings are quite small
+
