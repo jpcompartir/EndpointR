@@ -6,6 +6,7 @@
 \usage{
 oai_build_completions_request(
   input,
+  endpointr_id = NULL,
   model = "gpt-4.1-nano",
   temperature = 0,
   max_tokens = 500L,
@@ -14,12 +15,13 @@ oai_build_completions_request(
   key_name = "OPENAI_API_KEY",
   endpoint_url = "https://api.openai.com/v1/chat/completions",
   timeout = 20,
-  max_retries = 5,
-  endpointr_id = NULL
+  max_retries = 5
 )
 }
 \arguments{
 \item{input}{Text input to send to the model}
+
+\item{endpointr_id}{An id that will persist through to response}
 
 \item{model}{OpenAI model to use (default: "gpt-4.1-nano")}
 

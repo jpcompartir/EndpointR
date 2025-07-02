@@ -28,15 +28,17 @@ library(profvis)
 
 There are a few problems with the current oai_complete_df implementation:
 
-1.  Too much copying of data throughout, and dealing with entire lists/vectors/data frames - we could do with generator style data structure
+1.  Too much copying of data throughout, and dealing with entire lists/vectors/data frames - we could do with generator style data structure, or just explicitly chunking at different stages.
 2.  Need to write to files to minimise risk of responses being lost
 3.  Not enough batching/chunking for processing
 4.  Response objects are much heavier than expected, and as they're complex, nested lists they take a long time to serialise/write with saveRDS. ---\> So we want to write just the response_body once it's been validated, which requires not firing off all requests and getting all responses
 5.  Validating responses against the schema is a more costly operation than first appreciated
 6.  Error handling isn't solid - NA for content coming back in the schema case can break everything (loss of data)
-7.  There was quadratic scaling in the match call
+7.  There was quadratic scaling in the match call in the worst case (going through every single element, for every single element when a join or look-up will do)
 8.  Request creation is quite heavy with the schema dump - in the list case we should probably only dump the schema once.
-9.  resp_body_json() uses *a lot* of memory
+9.  checking the schema type with 3 separate inherits calls instead of a vector (fix for minor efficiency here)
+10. resp_body_json() uses *a lot* of memory, we definitely want to chunk this.
+11. Validating twice - once to check if everything can validate, then again later. Definitely bad idea as validating is more costly than previously assumed.
 
 Solution(s):
 
@@ -47,7 +49,7 @@ Process/algorithm:
 
 1.  Input Validation
 
--   If \> 10,000 rows -\> chunk
+-   If \> 10,000 rows -\> chunk(?)
 
 2.  Convert Texts and IDs to vectors so they can benefit from parallel requests, and be chunked efficiently
 3.  Chunk texts and IDs into \~1k sizes (could do this prior to converting texts and IDs to vectors? But not sure it'll actually make any difference)
@@ -62,8 +64,82 @@ Process/algorithm:
     -   if there was a schema, then validate against the schema here
     -   now write the validated data to file if we validated, or just the content as a string
 
+Needed Funcs / sub funks
+
+-   [ ] Chunk Data Frame
+-   [ ] build_request_batch_with_schema
+
 # Hugging Face
 
 ## Embeddings
 
 With \~210k documents we did get fairly high memory usage (peaking at \~12-15gb) which does hint at some inefficiency, as the all-mini-lm embeddings are quite small
+
+# Refactoring
+
+## Schema Type Checking
+
+```{r, schema_type_check}
+  if (!is.null(schema)) {
+    if (inherits(schema, "EndpointR::json_schema") || inherits(schema, "json_schema") || inherits(schema, "S7_object")){
+      schema_dump <- json_dump(schema)
+
+      if (!is.null(schema_dump$json_schema$schema)) {
+        schema_dump$json_schema$schema$additionalProperties <- FALSE # must be the case for OAI structured outputs
+      }
+
+      body$response_format <- schema_dump
+    } else {
+      body$response_format <- schema
+    }
+  }
+
+```
+
+```{r, schema_type_check_refactor}
+body <- list()
+
+if (!is.null(schema)) {
+  if (inherits(schema, "EndpointR::json_schema")){
+    schema <- json_dump(schema)
+  }
+  body$response_format <- schema
+}
+
+body$response_format
+```
+
+```{r}
+schema <- create_json_schema(
+  name = "test_json_schema",
+  schema = schema_object(name = "hello"),
+  strict = TRUE
+  )
+
+non_schema <- list("hello")
+inherits(schema, c("EndpointR::json_schema"))
+inherits(non_schema, c("EndpointR::json_schema"))
+
+json_dump(schema) |>
+  jsonlite::toJSON()
+```
+
+```{r}
+sentiment_schema <- create_
+```
+
+## IDs as metadata?
+
+to make sure we keep track of the request, and the ID comes back with the response, we can add a header - this will get returned in the `response$request$headers`
+
+```{r}
+oai_base_req <- EndpointR::oai_build_completions_request(input = "hello")
+oai_base_req <- oai_base_req |>
+  httr2::req_headers(EndpointR_id = "id_101")
+response <- httr2::req_perform(oai_base_req)
+response$request$headers$EndpointR_id
+
+response |> 
+  httr2::resp_body_json() |>
+  purrr::pluck("choices", 1, "message", "content")
+```

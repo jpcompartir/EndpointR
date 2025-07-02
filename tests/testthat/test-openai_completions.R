@@ -46,9 +46,57 @@ test_that("oai_build_completions_request validates inputs and generates valid re
   expect_equal(req_gptxx$body$data$max_tokens, 20)
 })
 
+test_that("oai_build_completions_request takes a json_schema and adds it to the response body, and accepts a list as a schema", {
+  test_schema <- create_json_schema(
+    name = "test_json_schema",
+    schema = schema_object(name = "hello"),
+    strict = TRUE
+  )
+
+  request_w_json_schema <- expect_no_error(
+    EndpointR::oai_build_completions_request(
+      input = "hello",
+      schema = test_schema
+  ))
+
+  expect_false(request_w_json_schema$body$data$response_format$json_schema$schema$additionalProperties)
+
+  names(request_w_json_schema$body$data)
+
+
+  list_schema <- list(
+    name = "list_schema",
+    schema = list(
+      type = "object",
+      properties = list("product"),
+      additionalProperties = FALSE
+    ),
+    strict = TRUE
+  )
+
+  request_w_list_schema <- expect_no_error(
+    EndpointR::oai_build_completions_request(
+      input = "hello",
+      schema = list_schema
+    )
+  )
+  expect_false(request_w_list_schema$body$data$response_format$schema$additionalProperties)
+})
+
+test_that("oai_build_completions_request adds endpointr_id to headers if asked to",{
+  base_req <- oai_build_completions_request(input = "hello")
+
+  expect_false("endpointr_id" %in% names(base_req$headers))
+
+  req_with_id <- oai_build_completions_request(input = "hello",
+                                               endpointr_id = "id_101")
+
+  expect_true("endpointr_id" %in% names(req_with_id$headers))
+})
+
 test_that("oai_build_completions_request_list receives a list, and returns a list of requests", {
 
-  # we actually didn't need this function because we can just build the batch requests from completions_request, so feels cut but may delete later
+  # we actually didn't need this function because we can just build the batch requests from completions_request, so feels cute but may delete later
 
   list_req <- expect_no_error(
     oai_build_completions_request_list(c("hello", "goodbye"))
@@ -60,6 +108,14 @@ test_that("oai_build_completions_request_list receives a list, and returns a lis
     unlist() |>
     unique() == "httr2_request")
 
+})
+
+test_that("oai_build_completions_request_list properly deals with endpointr_id",{
+
+  # TODO:
+  # no id case
+
+  # with ids case and check order is correct.
 })
 
 test_that("oai_complete_text takes a single text and returns the response, plus deals with schemas and validation", {
@@ -220,7 +276,7 @@ test_that("oai_complete_df takes a schema as input and validates", {
   # this does error as expected.
   withr::with_envvar(
     c("OPENAI_API_KEY" = "gibberish"),
-    not_validated_response <- expect_no_error(
+    not_validated_response <- expect_warning(
       oai_complete_df(review_df,
                       review_text,
                       id,
@@ -228,7 +284,7 @@ test_that("oai_complete_df takes a schema as input and validates", {
                       concurrent_requests = 1,
                       max_retries = 1,
                       schema = invalid_sentiment_schema
-      )
+      ), regexp = "5 responses failed schema validation"
     )
   )
 
