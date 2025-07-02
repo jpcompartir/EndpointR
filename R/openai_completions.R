@@ -127,6 +127,7 @@ oai_build_completions_request <- function(
 # oai_build_completions_request_list docs ----
 oai_build_completions_request_list <- function(
     inputs,
+    endpointr_ids = NULL,
     model = "gpt-4.1-nano",
     temperature = 0,
     max_tokens = 500L,
@@ -160,6 +161,13 @@ oai_build_completions_request_list <- function(
     max_retries = max_retries,
     timeout = timeout
   ))
+
+  if(!is.null(endpointr_ids)) {
+    requests <- purrr::map2(.x = requests,
+                            .y = endpointr_ids,
+                            .f = ~ httr2::req_headers(.x, endpointr_id = .y)
+                            )
+  }
 
   return(requests)
 }

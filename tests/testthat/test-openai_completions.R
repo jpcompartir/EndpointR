@@ -92,6 +92,7 @@ test_that("oai_build_completions_request adds endpointr_id to headers if asked t
                                                endpointr_id = "id_101")
 
   expect_true("endpointr_id" %in% names(req_with_id$headers))
+  expect_true(req_with_id$headers$endpointr_id == "id_101")
 })
 
 test_that("oai_build_completions_request_list receives a list, and returns a list of requests", {
@@ -112,10 +113,26 @@ test_that("oai_build_completions_request_list receives a list, and returns a lis
 
 test_that("oai_build_completions_request_list properly deals with endpointr_id",{
 
-  # TODO:
   # no id case
+  reqs_no_id <- oai_build_completions_request_list(inputs = c("hello", "goodbye"))
 
   # with ids case and check order is correct.
+  expect_error(
+    oai_build_completions_request_list(inputs = c("hello", "goodbye"), endpointr_ids = c(1)),
+    regexp = "are supplied they must be"
+  )
+
+  reqs_w_ids <- expect_no_error(
+    oai_build_completions_request_list(inputs = c("hello", "goodbye"), endpointr_ids = c(1, 2))
+  )
+
+  x <- lapply(reqs_w_ids, function(x) {
+    header_names <- names(x[["headers"]])
+  })
+
+  expect_true("endpointr_id" %in% x[[1]] & "endpointr_id" %in% x[[2]])
+  expect_equal(reqs_w_ids[[2]]$headers$endpointr_id, 2)
+
 })
 
 test_that("oai_complete_text takes a single text and returns the response, plus deals with schemas and validation", {
