@@ -84,17 +84,10 @@ oai_build_completions_request <- function(
   )
 
   if (!is.null(schema)) {
-    if (inherits(schema, "EndpointR::json_schema") || inherits(schema, "json_schema") || inherits(schema, "S7_object")){
-      schema_dump <- json_dump(schema)
-
-      if (!is.null(schema_dump$json_schema$schema)) {
-        schema_dump$json_schema$schema$additionalProperties <- FALSE # must be the case for OAI structured outputs
-      }
-
-      body$response_format <- schema_dump
-    } else {
-      body$response_format <- schema
+    if (inherits(schema, "EndpointR::json_schema")){
+      schema <- json_dump(schema)
     }
+    body$response_format <- schema
   }
 
   request <- base_request(endpoint_url = endpoint_url,
