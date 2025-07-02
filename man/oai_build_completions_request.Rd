@@ -14,7 +14,8 @@ oai_build_completions_request(
   key_name = "OPENAI_API_KEY",
   endpoint_url = "https://api.openai.com/v1/chat/completions",
   timeout = 20,
-  max_retries = 5
+  max_retries = 5,
+  endpointr_id = NULL
 )
 }
 \arguments{

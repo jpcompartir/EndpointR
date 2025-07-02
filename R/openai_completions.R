@@ -22,6 +22,7 @@
 #' to set temperature to 0 when extracting structured outputs.
 #'
 #' @param input Text input to send to the model
+#' @param endpointr_id An id that will persist through to response
 #' @param model OpenAI model to use (default: "gpt-4.1-nano")
 #' @param temperature Sampling temperature (0-2), higher values = more randomness
 #' @param max_tokens Maximum tokens in response
@@ -38,6 +39,7 @@
 # oai_build_completions_request docs ----
 oai_build_completions_request <- function(
     input,
+    endpointr_id = NULL,
     model = "gpt-4.1-nano",
     temperature = 0,
     max_tokens = 500L,
@@ -98,6 +100,10 @@ oai_build_completions_request <- function(
                      retry_on_failure = TRUE) |>
     httr2::req_body_json(body)
 
+  if(!is.null(endpointr_id)) {
+    request <- httr2::req_headers(request, endpointr_id = endpointr_id)
+  }
+
   return(request)
 }
 
@@ -105,6 +111,7 @@ oai_build_completions_request <- function(
 #' Build OpenAI requests for batch processing
 #'
 #' @param inputs Character vector of text inputs
+#' @param endpointr_ids A vector of IDs which will persist through to responses
 #' @param model OpenAI model to use
 #' @param temperature Sampling temperature
 #' @param max_tokens Maximum tokens per response
