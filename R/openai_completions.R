@@ -87,9 +87,10 @@ oai_build_completions_request <- function(
 
   if (!is.null(schema)) {
     if (inherits(schema, "EndpointR::json_schema")){
+
       schema <- json_dump(schema)
     }
-    body$response_format <- schema
+    body$response_format <- schema # we're trusting the user supplies this correctly, at the moment.
   }
 
   request <- base_request(endpoint_url = endpoint_url,
@@ -140,7 +141,8 @@ oai_build_completions_request_list <- function(
 
   stopifnot(
     "inputs must be a character vector" = is.character(inputs),
-    "inputs must not be empty" = length(inputs) > 0
+    "inputs must not be empty" = length(inputs) > 0,
+    "if `endpointr_ids` are supplied they must be the same length as `inputs`" = is.null(endpointr_ids) || length(inputs) == length(endpointr_ids)
   )
 
   invalid_indices <- which(is.na(inputs) | nchar(inputs) == 0)
@@ -420,17 +422,25 @@ oai_complete_df <- function(df,
   inputs <- dplyr::pull(df, !!text_sym)
   ids <- dplyr::pull(df, !!id_sym)
 
+  # dump the schema once, and pass the dumped schema into the completions request creation. This way if creating 1,000,000 requests we dump the schema once. Not 1,000,000 times. Copy the schema so that it's still the rightt ype when we pass to .extract_response_fields
+  if(!is.null(schema) && inherits(schema, "EndpointR::json_schema")) {
+
+
+    schema_copy <- json_dump(schema)
+  }
+
   requests <- oai_build_completions_request_list(
     inputs = inputs,
     model = model,
     temperature = temperature,
     max_tokens = max_tokens,
-    schema = schema,
+    schema = schema_copy,
     system_prompt = system_prompt,
     key_name = key_name,
     endpoint_url = endpoint_url,
     max_retries = max_retries,
-    timeout = timeout
+    timeout = timeout,
+    endpointr_ids = ids
   )
 
   # track valid requests ----
