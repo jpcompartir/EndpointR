@@ -407,21 +407,39 @@ oai_complete_df <- function(df,
                             progress = TRUE,
                             key_name = "OPENAI_API_KEY",
                             endpoint_url = "https://api.openai.com/v1/chat/completions"
+# oai_complete_chunks docs ----
+# oai_complete_chunks docs ----
+oai_complete_chunks <- function(texts,
+                               ids,
+                               chunk_size = 5000,
+                               model = "gpt-4.1-nano",
+                               system_prompt = NULL,
+                               output_file = NULL,
+                               schema = NULL,
+                               concurrent_requests = 5L,
+                               temperature = 0,
+                               max_tokens = 500L,
+                               max_retries = 5L,
+                               timeout = 30,
+                               progress = TRUE,
+                               key_name = "OPENAI_API_KEY",
+                               endpoint_url = "https://api.openai.com/v1/chat/completions"
 ) {
-  # Input validation ----
-  text_sym <- rlang::ensym(text_var)
-  id_sym <- rlang::ensym(id_var)
-
+  # input validation ----
   stopifnot(
-    "df must be a data frame" = is.data.frame(df),
-    "df must not be empty" = nrow(df) > 0,
-    "text_var must exist in df" = rlang::as_name(text_sym) %in% names(df),
-    "id_var must exist in df" = rlang::as_name(id_sym) %in% names(df)
+    "texts must be a vector" = is.vector(texts),
+    "ids must be a vector" = is.vector(ids),
+    "texts and ids must be the same length" = length(texts) == length(ids),
+    "chunk_size must be a positive integer greater than 1" = is.numeric(chunk_size) && chunk_size > 1
   )
 
-  # build requests ----
-  inputs <- dplyr::pull(df, !!text_sym)
-  ids <- dplyr::pull(df, !!id_sym)
+  # set output_file ----
+  if (is.null(output_file)) {
+    timestamp <- format(Sys.time(), "%d%m%y_%H%M%S")
+    output_file <- paste0("oai_completions_batch_", timestamp, ".csv")
+  }
+
+  cli::cli_alert_info("Writing results to: {output_file}")
 
   # dump the schema once, and pass the dumped schema into the completions request creation. This way if creating 1,000,000 requests we dump the schema once. Not 1,000,000 times. Copy the schema so that it's still the right S7 type when we pass to .extract_response_fields
   if(!is.null(schema) && inherits(schema, "EndpointR::json_schema")) {
