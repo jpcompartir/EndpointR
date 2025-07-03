@@ -411,16 +411,16 @@ oai_complete_df <- function(df,
 # oai_complete_chunks docs ----
 oai_complete_chunks <- function(texts,
                                ids,
-                               chunk_size = 5000,
+                               chunk_size = 5000L,
                                model = "gpt-4.1-nano",
                                system_prompt = NULL,
                                output_file = NULL,
                                schema = NULL,
                                concurrent_requests = 5L,
-                               temperature = 0,
+                               temperature = 0L,
                                max_tokens = 500L,
                                max_retries = 5L,
-                               timeout = 30,
+                               timeout = 30L,
                                progress = TRUE,
                                key_name = "OPENAI_API_KEY",
                                endpoint_url = "https://api.openai.com/v1/chat/completions"
@@ -433,7 +433,6 @@ oai_complete_chunks <- function(texts,
     "chunk_size must be a positive integer greater than 1" = is.numeric(chunk_size) && chunk_size > 1
   )
 
-  # set output_file ----
   if (is.null(output_file)) {
     timestamp <- format(Sys.time(), "%d%m%y_%H%M%S")
     output_file <- paste0("oai_completions_batch_", timestamp, ".csv")
@@ -441,41 +440,21 @@ oai_complete_chunks <- function(texts,
 
   cli::cli_alert_info("Writing results to: {output_file}")
 
-  # dump the schema once, and pass the dumped schema into the completions request creation. This way if creating 1,000,000 requests we dump the schema once. Not 1,000,000 times. Copy the schema so that it's still the right S7 type when we pass to .extract_response_fields
+  # make sure we json_dump the schema here if necessary, so that we don't json_dump for every individual document
   if(!is.null(schema) && inherits(schema, "EndpointR::json_schema")) {
     dumped_schema <- json_dump(schema)
   } else {
     dumped_schema = schema
   }
 
-  requests <- oai_build_completions_request_list(
-    inputs = inputs,
-    model = model,
-    temperature = temperature,
-    max_tokens = max_tokens,
-    schema = dumped_schema, # dumped_schema, leaving schema object in tact
-    system_prompt = system_prompt,
-    key_name = key_name,
-    endpoint_url = endpoint_url,
-    max_retries = max_retries,
-    timeout = timeout,
-    endpointr_ids = ids
-  )
+  batch_data <- batch_vector(seq_along(texts), chunk_size)
+  n_batches <- length(batch_data$batch_indices)
 
-  # track valid requests ----
-  is_valid_request <- purrr::map_lgl(requests, ~inherits(.x, "httr2_request"))
-  valid_requests <- requests[is_valid_request]
+  cli::cli_alert_info("Processing {length(texts)} texts in {n_batches} chunk{?s} of up to {chunk_size} each")
 
-  if (length(valid_requests) == 0) {
-    cli::cli_abort("No valid requests could be created")
-  }
+  total_successes <- 0
+  total_failures <- 0
 
-  # perform requests ----
-  responses <- perform_requests_with_strategy(
-    valid_requests,
-    concurrent_requests = concurrent_requests,
-    progress = progress
-  )
 
   rm(requests) # for each response the request is in response[[1]]$request
 
