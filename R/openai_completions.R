@@ -455,53 +455,110 @@ oai_complete_chunks <- function(texts,
   total_successes <- 0
   total_failures <- 0
 
+  ## batch processing ----
+  for (batch_num in seq_along(batch_data$batch_indices)) {
+    batch_indices <- batch_data$batch_indices[[batch_num]]
+    batch_texts <- texts[batch_indices]
+    batch_ids <- ids[batch_indices]
 
-  rm(requests) # for each response the request is in response[[1]]$request
+    cli::cli_progress_message("Processing batch {batch_num}/{n_batches} ({length(batch_indices)} texts)")
 
-  # split & process failures & successes
-  successes <- httr2::resps_successes(responses)
-  failures <- httr2::resps_failures(responses)
 
-  n_successes <- length(successes)
-  n_failures <- length(failures)
-
-  rm(responses)
-
-  if (length(successes) > 0) {
-    successes_ids <- purrr::map(successes, ~purrr::pluck(.x, "request", "headers", "endpointr_id")) |> unlist()
-    successes <- purrr::map_chr(successes, .extract_successful_completion_content)
-
-    successes_df <- tibble::tibble(
-      !!id_sym := successes_ids,
-      content = successes,
-      .error = FALSE,
-      .error_msg = NA_character_
+    ## build batch requests ----
+    requests <- oai_build_completions_request_list(
+      inputs = batch_texts,
+      model = model,
+      temperature = temperature,
+      max_tokens = max_tokens,
+      schema = dumped_schema,
+      system_prompt = system_prompt,
+      key_name = key_name,
+      endpoint_url = endpoint_url,
+      max_retries = max_retries,
+      timeout = timeout,
+      endpointr_ids = batch_ids
     )
-  } else {
-    successes_df <- NULL # allows us to bind_rows if we had 0 successes
+
+    # make sure we have some valid requests, or skip to the next iter
+    is_valid_request <- purrr::map_lgl(requests, ~inherits(.x, "httr2_request"))
+    valid_requests <- requests[is_valid_request]
+
+    if (length(valid_requests) == 0) {
+      cli::cli_alert_warning("No valid requests in batch {batch_num}, skipping")
+      next
+    }
+
+    # perform batch requests ----
+    # get chunk_size individual responses and then handle them
+    responses <- perform_requests_with_strategy(
+      valid_requests,
+      concurrent_requests = concurrent_requests,
+      progress = progress
+    )
+
+    successes <- httr2::resps_successes(responses)
+    failures <- httr2::resps_failures(responses)
+
+    n_successes <- length(successes)
+    n_failures <- length(failures)
+    total_successes <- total_successes + n_successes
+    total_failures <- total_failures + n_failures
+
+    ## process batch responses ----
+    # within batch results
+    batch_results <- list()
+
+    if (length(successes) > 0) {
+      successes_ids <- purrr::map(successes, ~purrr::pluck(.x, "request", "headers", "endpointr_id")) |> unlist()
+      successes_content <- purrr::map_chr(successes, .extract_successful_completion_content)
+
+      batch_results$successes <- tibble::tibble(
+        id = successes_ids,
+        content = successes_content,
+        .error = FALSE,
+        .error_msg = NA_character_,
+        .batch = batch_num
+      )
+    }
+
+    if (length(failures) > 0) {
+      failures_ids <- purrr::map(failures, ~purrr::pluck(.x, "request", "headers", "endpointr_id")) |> unlist()
+      failures_msgs <- purrr::map_chr(failures, ~purrr::pluck(.x, "message", .default = "Unknown error"))
+
+      batch_results$failures <- tibble::tibble(
+        id = failures_ids,
+        content = NA_character_,
+        .error = TRUE,
+        .error_msg = failures_msgs,
+        .batch = batch_num
+      )
+    }
+
+    batch_df <- dplyr::bind_rows(batch_results)
+
+    if (nrow(batch_df) > 0) {
+      if (batch_num == 1) {
+        # if we're in the first batch write to csv with headers (col names)
+        readr::write_csv(batch_df, output_file, append = FALSE)
+      } else {
+        # all other batches, append and don't use col names
+        readr::write_csv(batch_df, output_file, append = TRUE, col_names = FALSE)
+      }
+    }
+
+    cli::cli_alert_success("Batch {batch_num}: {n_successes} successful, {n_failures} failed")
+
+    # tidy up
+    rm(requests, responses, successes, failures, batch_results, batch_df)
+    gc(verbose = FALSE)
   }
 
-  if (length(failures) > 0) {
-    failures_ids <- purrr::map(failures, ~purrr::pluck(.x, "request", "headers", "endpointr_id")) |> unlist()
-    failures <- purrr::map(failures, ~purrr::pluck(.x, "message"))
+  cli::cli_alert_success("Completed processing: {total_successes} successful, {total_failures} failed")
 
-    failures_df <- tibble::tibble(
-      !!id_sym := failures_ids,
-      content = NA_character_,
-      .error = TRUE,
-      .error_msg = failures
-    )
-  } else {
-    failures_df <- NULL # allows us to bind_rows if we had 0 successes
-  }
+  # retrieve all results from the output file (results for all batches) - this may still be inefficient, and should perhaps write to duckdb
+  final_results <- readr::read_csv(output_file, show_col_types = FALSE)
 
-  # combine failures & successes into results and return
-  results_df <- dplyr::bind_rows(successes_df, failures_df)
-  results_df <- dplyr::arrange(results_df, !!id_sym)
-
-  cli::cli_alert_success("Completed: {n_successes} successful, {n_failures} failed")
-
-  return(results_df)
+  return(final_results)
 }
 
 
