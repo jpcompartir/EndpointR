@@ -26,24 +26,25 @@ library(profvis)
 
 # oai_complete_df
 
-There are a few problems with the current oai_complete_df implementation:
+There are a few problems with the current oai_complete_df implementation, some of which stem from how requests are created in oai_build_request/list:
 
 1.  Too much copying of data throughout, and dealing with entire lists/vectors/data frames - we could do with generator style data structure, or just explicitly chunking at different stages.
 2.  Need to write to files to minimise risk of responses being lost
 3.  Not enough batching/chunking for processing
-4.  Response objects are much heavier than expected, and as they're complex, nested lists they take a long time to serialise/write with saveRDS. ---\> So we want to write just the response_body once it's been validated, which requires not firing off all requests and getting all responses
-5.  Validating responses against the schema is a more costly operation than first appreciated
+4.  Response objects are much heavier than expected, and as they're complex, nested lists they take a long time to serialise/write with saveRDS. ---\> So we want to write just the response_body + the ID header once it's been validated, which requires not firing off all requests and getting all responses
+5.  Validating responses against the schema is a more costly operation than first appreciated. And we're validating twice - once to check if everything can validate, then again later. Definitely bad idea as validating is more costly than previously assumed. Fine at low N but bad for larger DFs.
 6.  Error handling isn't solid - NA for content coming back in the schema case can break everything (loss of data)
-7.  There was quadratic scaling in the match call in the worst case (going through every single element, for every single element when a join or look-up will do)
-8.  Request creation is quite heavy with the schema dump - in the list case we should probably only dump the schema once.
-9.  checking the schema type with 3 separate inherits calls instead of a vector (fix for minor efficiency here)
+7.  There was quadratic scaling in the match call in the worst case (going through every single element, for every single element when a join or look-up will do) - Send IDs with requests so they're sustained in responses. Avoid the matching logic. ✅
+8.  Request creation is quite heavy with the schema dump - in the list case we should probably only dump the schema once. \[Now that we only dump the schema once\] ✅
+9.  Checking the schema type with 3 separate inherits calls instead of a vector (fix for minor efficiency here) ✅
 10. resp_body_json() uses *a lot* of memory, we definitely want to chunk this.
-11. Validating twice - once to check if everything can validate, then again later. Definitely bad idea as validating is more costly than previously assumed.
 
 Solution(s):
 
 -   We want to make sure that we batch things up properly. That likely means sacrificing some time for stability. For example, we won't be able to just fire off all of the requests in parallel. We'll need to prepare batches, deal with that batch's requests/responses in parallel, tidy/validate them, and *then* move to the next batch. Each batch's
 -   We don't need all of the headers and additional information in any response list/data frame, we should extract just the message/content that contains the information we're after
+-   Take validaton logic out to its own function, and run that after the responses have been received? Still implement chunking etc. or actually have the user decide to do that specifically, after processing of responses is done.
+-   Add an endpointr_id to each request as a header so that it persists with the response. Then we don't need to do the match or a look-up. We can uses resps_succeses(), convert to data frame. Perhaps endpointr_id should be a mandatory argument. ✅
 
 Process/algorithm:
 
@@ -57,17 +58,19 @@ Process/algorithm:
 5.  Perform the requests in parallel - handle each chunk's responses as they come in
 
 -   check status
-    -   if status == 200 extract the body with resp_body_json()
+    -   if status == 200 extract the body with resp_body_json() (just use resps_successes and resps_failures here)
     -   pluck the content and stream this content to a jsonl file (to avoid dirty writes etc.), making sure ID goes with it
     -   do not try to unnest or validate here (?)
     -   or if we do, then we need to check for schema, and we should make sure to check for NA content and avoid trying to validate NAs
     -   if there was a schema, then validate against the schema here
-    -   now write the validated data to file if we validated, or just the content as a string
+    -   now write the validated data to file if we validated, or just the content as a string OR don't validate in this function, seems the best way.
 
 Needed Funcs / sub funks
 
 -   [ ] Chunk Data Frame
 -   [ ] build_request_batch_with_schema
+-   [ ] validate_df_against_schema
+-   \[ \]
 
 # Hugging Face
 
@@ -142,4 +145,100 @@ response$request$headers$EndpointR_id
 response |> 
   httr2::resp_body_json() |>
   purrr::pluck("choices", 1, "message", "content")
+```
+
+## Single-dump schema
+
+in oai_complete_df, we want to check for a schema, and if we have one dump it just the once. If we don't copy the schema then later, in validation, the schema isn't available. But currently I'm thinking validation *should not* take place in the oai_complete_df function but outside of it, in a separate function (which means re-ordering the vignette somewhat)
+
+```{r}
+  # we need to dump the schema just once
+  if(!is.null(schema)) {
+    # we want dump the schema once here. This way it will not be dumped in each individual request because it's being dumped 
+    if(inherits(schema, "EndpointR::json_schema")) { 
+      schema <- json_dump(schema) }
+    
+  }
+  
+  
+
+  # cleaner way:
+  if(!is.null(schema) && inherits(schema, "EndpointR::json_schema")) {
+      schema <- json_dump(schema)
+  }
+```
+
+add browser() to oai_build_completions_request to check if we trigger the call
+
+```{r}
+sentiment_schema <- create_json_schema(
+    name = "sentiment_test",
+    schema = schema_object(
+      sentiment = schema_enum(
+        values = c("positive", "negative", "neutral"),
+        description = "Sentiment classification for the document",
+        type = "string"
+      ),
+      required = list("sentiment"),
+      additional_properties = FALSE
+    )
+  )
+
+# review_df <- get_review_df()  # in testthat helper
+results <- oai_complete_df(df = review_df, text_var = review_text, id_var = id, schema = sentiment_schema, concurrent_requests = 5) # ok, doesn't trigger. - tested with browser()
+```
+
+```{r}
+library(profvis)
+results_profviz <-
+  profvis({
+    oai_complete_df(df = review_df, text_var = review_text, id_var = id, schema = sentiment_schema, concurrent_requests = 5)   
+  })
+
+```
+
+## Validation Function
+
+Should pull this out into its own function, and reduce the complaxity significantly. Currently we were validating twice - once to check validation would be ok for all, and then again if it was. This is doubly inefficient obviously, but as validation seemed very cheap compared to performing the requests it didn't seem so bad.
+
+Current thinking is that responses should be handed back to the user in a data frame and the user should decide whether to validate, as at large-ish scale processing, validating everything is costly, and more likely the user ends the session or similar.
+
+```{r}
+  if (!is.null(schema)) {
+    # validate and track errors to make sure we don't try to unnest data that doesn't exist, and maintain homogeneity in output shape
+    validation_errors <- purrr::map_chr(results_df$content, ~{
+      if (!is.na(.x)) {
+        tryCatch({
+          validate_response(schema, .x)
+          NA_character_
+        }, error = function(e) as.character(e$message))
+      } else {
+        NA_character_
+      }
+    })
+
+    results_df <- results_df |>
+      dplyr::mutate(.error_msg = dplyr::coalesce(.error_msg, validation_errors))
+
+
+    n_validation_errors <- sum(!is.na(validation_errors))
+
+    if (n_validation_errors > 0) {
+      cli::cli_warn(c(
+        "{n_validation_errors} response{?s} failed schema validation",
+        "i" = "Returning raw JSON in 'content' column for all rows"
+      ))
+    } else {
+      # can only unnest safely if ALL validations passed, or we'd want to create a 'content' column for unsuccessful validations, and, e.g. 'sentiment' for successful validatons in the simple sentiment case...
+      results_df <- results_df |>
+        dplyr::mutate(
+          content = purrr::map(content, ~validate_response(schema, .x))
+        ) |>
+        tidyr::unnest_wider(content)
+    }
+  }
+```
+
+```{r}
+?new_grouped_df
 ```

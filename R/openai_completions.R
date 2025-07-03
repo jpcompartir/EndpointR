@@ -88,6 +88,7 @@ oai_build_completions_request <- function(
   if (!is.null(schema)) {
     if (inherits(schema, "EndpointR::json_schema")){
 
+      cli::cli_alert_info("calling json_dump")
       schema <- json_dump(schema)
     }
     body$response_format <- schema # we're trusting the user supplies this correctly, at the moment.
@@ -422,11 +423,11 @@ oai_complete_df <- function(df,
   inputs <- dplyr::pull(df, !!text_sym)
   ids <- dplyr::pull(df, !!id_sym)
 
-  # dump the schema once, and pass the dumped schema into the completions request creation. This way if creating 1,000,000 requests we dump the schema once. Not 1,000,000 times. Copy the schema so that it's still the rightt ype when we pass to .extract_response_fields
+  # dump the schema once, and pass the dumped schema into the completions request creation. This way if creating 1,000,000 requests we dump the schema once. Not 1,000,000 times. Copy the schema so that it's still the right S7 type when we pass to .extract_response_fields
   if(!is.null(schema) && inherits(schema, "EndpointR::json_schema")) {
-
-
-    schema_copy <- json_dump(schema)
+    dumped_schema <- json_dump(schema)
+  } else {
+    dumped_schema = schema
   }
 
   requests <- oai_build_completions_request_list(
@@ -434,7 +435,7 @@ oai_complete_df <- function(df,
     model = model,
     temperature = temperature,
     max_tokens = max_tokens,
-    schema = schema_copy,
+    schema = dumped_schema, # dumped_schema, leaving schema object in tact
     system_prompt = system_prompt,
     key_name = key_name,
     endpoint_url = endpoint_url,
@@ -445,7 +446,6 @@ oai_complete_df <- function(df,
 
   # track valid requests ----
   is_valid_request <- purrr::map_lgl(requests, ~inherits(.x, "httr2_request"))
-  valid_indices <- ids[is_valid_request]
   valid_requests <- requests[is_valid_request]
 
   if (length(valid_requests) == 0) {
@@ -459,82 +459,50 @@ oai_complete_df <- function(df,
     progress = progress
   )
 
-  # process responses ----
-  results_df <- tibble::tibble(
-    !!id_sym := valid_indices,
-    response = responses
-  ) |>
-    dplyr::mutate(
-      extracted = purrr::map(response, ~.extract_response_fields(.x, schema = schema))
-    ) |>
-    tidyr::unnest_wider(extracted) |>
-    dplyr::select(-response)
+  rm(requests) # for each response the request is in response[[1]]$request
 
+  # split & process failures & successes
+  successes <- httr2::resps_successes(responses)
+  failures <- httr2::resps_failures(responses)
 
-  # validate against schema ----
-  # in the old implementation, if the schema didn't validate we'd error - and lose any susccessful requests too. This is more complex, but it handles the edge cases better.
+  n_successes <- length(successes)
+  n_failures <- length(failures)
 
-  if (!is.null(schema)) {
-    # validate and track errors to make sure we don't try to unnest data that doesn't exist, and maintain homogeneity in output shape
-    validation_errors <- purrr::map_chr(results_df$content, ~{
-      if (!is.na(.x)) {
-        tryCatch({
-          validate_response(schema, .x)
-          NA_character_
-        }, error = function(e) as.character(e$message))
-      } else {
-        NA_character_
-      }
-    })
+  rm(responses)
 
-    results_df <- results_df |>
-      dplyr::mutate(.error_msg = dplyr::coalesce(.error_msg, validation_errors))
+  if (length(successes) > 0) {
+    successes_ids <- purrr::map(successes, ~purrr::pluck(.x, "request", "headers", "endpointr_id")) |> unlist()
+    successes <- purrr::map_chr(successes, .extract_successful_completion_content)
 
-
-    n_validation_errors <- sum(!is.na(validation_errors))
-
-    if (n_validation_errors > 0) {
-      cli::cli_warn(c(
-        "{n_validation_errors} response{?s} failed schema validation",
-        "i" = "Returning raw JSON in 'content' column for all rows"
-      ))
-    } else {
-      # can only unnest safely if ALL validations passed, or we'd want to create a 'content' column for unsuccessful validations, and, e.g. 'sentiment' for successful validatons in the simple sentiment case...
-      results_df <- results_df |>
-        dplyr::mutate(
-          content = purrr::map(content, ~validate_response(schema, .x))
-        ) |>
-        tidyr::unnest_wider(content)
-    }
-  }
-
-  # add invalid requests back ----
-  if (any(!is_valid_request)) {
-    invalid_df <- tibble::tibble(
-      !!id_sym := ids[!is_valid_request],
-      status = NA_integer_,
-      content = NA_character_,
-      .error_msg = "Failed to create valid request"
+    successes_df <- tibble::tibble(
+      !!id_sym := successes_ids,
+      content = successes,
+      .error = FALSE,
+      .error_msg = NA_character_
     )
-
-    results_df <- dplyr::bind_rows(results_df, invalid_df)
+  } else {
+    successes_df <- NULL # allows us to bind_rows if we had 0 successes
   }
 
-  # final cleanup ----
-  results_df <- results_df |>
-    dplyr::mutate(
-      .error = !is.na(.error_msg),
-      !!text_sym := inputs[match(!!id_sym, ids)]  # add original text back
-    ) |>
-    dplyr::arrange(!!id_sym) |>
-    dplyr::select(!!id_sym, !!text_sym, dplyr::everything())
+  if (length(failures) > 0) {
+    failures_ids <- purrr::map(failures, ~purrr::pluck(.x, "request", "headers", "endpointr_id")) |> unlist()
+    failures <- purrr::map(failures, ~purrr::pluck(.x, "message"))
 
+    failures_df <- tibble::tibble(
+      !!id_sym := failures_ids,
+      content = NA_character_,
+      .error = TRUE,
+      .error_msg = failures
+    )
+  } else {
+    failures_df <- NULL # allows us to bind_rows if we had 0 successes
+  }
 
-  n_success <- sum(!results_df$.error)
-  n_failed <- sum(results_df$.error)
+  # combine failures & successes into results and return
+  results_df <- dplyr::bind_rows(successes_df, failures_df)
+  results_df <- dplyr::arrange(results_df, !!id_sym)
 
-  cli::cli_alert_success("Completed: {n_success} successful, {n_failed} failed")
-
+  cli::cli_alert_success("Completed: {n_successes} successful, {n_failures} failed")
 
   return(results_df)
 }
