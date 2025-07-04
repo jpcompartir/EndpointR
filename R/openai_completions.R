@@ -345,7 +345,6 @@ oai_complete_text <- function(text,
 #' @param max_tokens Maximum tokens per response (default: 500)
 #' @param max_retries Maximum retry attempts per failed request (default: 5)
 #' @param timeout Request timeout in seconds (default: 30)
-#' @param progress Logical; whether to show progress bar (default: TRUE)
 #' @param key_name Name of environment variable containing the API key (default: OPENAI_API_KEY)
 #' @param endpoint_url OpenAI API endpoint URL
 #'
@@ -385,7 +384,6 @@ oai_complete_chunks <- function(texts,
                                max_tokens = 500L,
                                max_retries = 5L,
                                timeout = 30L,
-                               progress = TRUE,
                                key_name = "OPENAI_API_KEY",
                                endpoint_url = "https://api.openai.com/v1/chat/completions"
 ) {
@@ -394,7 +392,7 @@ oai_complete_chunks <- function(texts,
     "texts must be a vector" = is.vector(texts),
     "ids must be a vector" = is.vector(ids),
     "texts and ids must be the same length" = length(texts) == length(ids),
-    "chunk_size must be a positive integer greater than 1" = is.numeric(chunk_size) && chunk_size > 1
+    "chunk_size must be a positive integer greater than 1" = is.numeric(chunk_size) && chunk_size > 0
   )
 
   output_file <- .handle_output_filename(output_file)
@@ -409,19 +407,21 @@ oai_complete_chunks <- function(texts,
   batch_data <- batch_vector(seq_along(texts), chunk_size)
   n_batches <- length(batch_data$batch_indices)
 
-  cli::cli_alert_info("Processing {length(texts)} texts in {n_batches} chunk{?s} of up to {chunk_size} each")
+  cli::cli_alert_info("Processing {length(texts)} text{?s} in {n_batches} chunk{?s} of up to {chunk_size} each")
 
   total_successes <- 0
   total_failures <- 0
 
+
+
   ## batch processing ----
-  for (batch_num in seq_along(batch_data$batch_indices)) {
+  for (batch_num in seq_along(batch_data$batch_indices))
+    {
     batch_indices <- batch_data$batch_indices[[batch_num]]
     batch_texts <- texts[batch_indices]
     batch_ids <- ids[batch_indices]
 
-    cli::cli_progress_message("Processing batch {batch_num}/{n_batches} ({length(batch_indices)} texts)")
-
+    cli::cli_progress_message("Processing batch {batch_num}/{n_batches} ({length(batch_indices)} text{?s})")
 
     ## build batch requests ----
     requests <- oai_build_completions_request_list(
@@ -443,7 +443,7 @@ oai_complete_chunks <- function(texts,
     valid_requests <- requests[is_valid_request]
 
     if (length(valid_requests) == 0) {
-      cli::cli_alert_warning("No valid requests in batch {batch_num}, skipping")
+      cli::cli_alert_warning("No valid request{?s} in batch {batch_num}, skipping")
       next
     }
 
@@ -452,7 +452,7 @@ oai_complete_chunks <- function(texts,
     responses <- perform_requests_with_strategy(
       valid_requests,
       concurrent_requests = concurrent_requests,
-      progress = progress
+      progress = TRUE
     )
 
     successes <- httr2::resps_successes(responses)
@@ -495,18 +495,17 @@ oai_complete_chunks <- function(texts,
 
     batch_df <- dplyr::bind_rows(batch_results)
 
-    if(!is.null(output_file)){ # skip writing if output_file = NULL
-      if (nrow(batch_df) > 0) {
-        if (batch_num == 1) {
-          # if we're in the first batch write to csv with headers (col names)
-          readr::write_csv(batch_df, output_file, append = FALSE)
-        } else {
-          # all other batches, append and don't use col names
-          readr::write_csv(batch_df, output_file, append = TRUE, col_names = FALSE)
-        }
+    # if(!is.null(output_file)){ # skip writing if output_file = NULL - can't be NULL after .handle_output_filename - as if NULL we write to tmp file
+    if (nrow(batch_df) > 0) {
+      if (batch_num == 1) {
+        # if we're in the first batch write to csv with headers (col names)
+        readr::write_csv(batch_df, output_file, append = FALSE)
+      } else {
+        # all other batches, append and don't use col names
+        readr::write_csv(batch_df, output_file, append = TRUE, col_names = FALSE)
       }
     }
-
+    # }
 
     cli::cli_alert_success("Batch {batch_num}: {n_successes} successful, {n_failures} failed")
 
@@ -522,6 +521,7 @@ oai_complete_chunks <- function(texts,
   return(final_results)
 }
 
+# oai_complete_df docs----
 #' Process a data frame through OpenAI's Chat Completions API with chunked processing
 #'
 #' This function takes a data frame with text inputs and processes each row through
@@ -561,6 +561,7 @@ oai_complete_chunks <- function(texts,
 #' \dontrun{
 #'
 #' }
+#oai_complete_df docs----
 oai_complete_df <- function(df,
                             text_var,
                             id_var,
@@ -574,7 +575,6 @@ oai_complete_df <- function(df,
                             timeout = 30,
                             temperature = 0,
                             max_tokens = 500L,
-                            progress = TRUE,
                             key_name = "OPENAI_API_KEY",
                             endpoint_url = "https://api.openai.com/v1/chat/completions") {
 
@@ -587,8 +587,10 @@ oai_complete_df <- function(df,
     "df must not be empty" = nrow(df) > 0,
     "text_var must exist in df" = rlang::as_name(text_sym) %in% names(df),
     "id_var must exist in df" = rlang::as_name(id_sym) %in% names(df),
-    "model must be a character vector" = is.character(model)
+    "model must be a character vector" = is.character(model),
+    "`chunk_size` must be a positive integer" = is.numeric(chunk_size) && chunk_size > 0
   )
+
 
   output_file <- .handle_output_filename(output_file, base_file_name = "oai_batch")
 
@@ -607,7 +609,6 @@ oai_complete_df <- function(df,
     timeout = timeout,
     temperature = temperature,
     max_tokens = max_tokens,
-    progress = progress,
     key_name = key_name,
     endpoint_url = endpoint_url,
     output_file = output_file
@@ -677,12 +678,6 @@ oai_complete_df <- function(df,
 #' @keywords internal
 .extract_successful_completion_content <- function(resp) {
   httr2::resp_body_json(resp)$choices[[1]]$message$content
-}
-
-#' @keywords internal
-.append_tibble_class <- function(x) {
-  attr(x, "class") <- c("tbl_df", "tbl", "data.frame")
-  return(x)
 }
 
 # TBD

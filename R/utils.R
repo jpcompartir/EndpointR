@@ -259,3 +259,16 @@ extract_field <- function(api_response, field_name) {
 
   return(x)
 }
+
+#' @keywords internal
+.append_tibble_class <- function(x) {
+  attr(x, "class") <- c("tbl_df", "tbl", "data.frame")
+  return(x)
+}
+
+
+parse_oai_date <- function(date_string) {
+  parsed_date <- as.POSIXct(date_string, format = "%a, %d %b %Y %H:%M:%S", tz = "GMT")
+  date <- as.Date(parsed_date)
+  return(date)
+}

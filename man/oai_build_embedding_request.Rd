@@ -55,14 +55,14 @@ Empty strings are not allowed as input.
 \dontrun{
   # Build a simple request
   req <- oai_build_embedding_request("Hello world")
-  
+
   # Build request with custom dimensions
   req <- oai_build_embedding_request(
     input = "Hello world",
     dimensions = 512,
     model = "text-embedding-3-large"
   )
-  
+
   # Perform the request
   response <- httr2::req_perform(req)
 }

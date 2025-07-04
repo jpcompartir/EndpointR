@@ -105,14 +105,14 @@ tidy_oai_embedding <- function(response) {
 #' \dontrun{
 #'   # Build a simple request
 #'   req <- oai_build_embedding_request("Hello world")
-#'   
+#'
 #'   # Build request with custom dimensions
 #'   req <- oai_build_embedding_request(
 #'     input = "Hello world",
 #'     dimensions = 512,
 #'     model = "text-embedding-3-large"
 #'   )
-#'   
+#'
 #'   # Perform the request
 #'   response <- httr2::req_perform(req)
 #' }
@@ -229,14 +229,14 @@ oai_build_embedding_request_batch <- function(inputs, model = "text-embedding-3-
 #' \dontrun{
 #'   # Generate embeddings for a single text
 #'   embeddings <- oai_embed_text("Hello world")
-#'   
+#'
 #'   # Use a different model with custom dimensions
 #'   embeddings <- oai_embed_text(
 #'     text = "Hello world",
 #'     model = "text-embedding-3-large",
 #'     dimensions = 1024
 #'   )
-#'   
+#'
 #'   # Get raw response instead of tidy format
 #'   raw_response <- oai_embed_text(
 #'     text = "Hello world",
@@ -340,7 +340,7 @@ oai_embed_text <- function(text,
 #'   # Basic batch embedding
 #'   texts <- c("First text", "Second text", "Third text")
 #'   embeddings <- oai_embed_batch(texts)
-#'   
+#'
 #'   # Large-scale processing with concurrent requests
 #'   large_texts <- rep("Sample text", 100)
 #'   embeddings <- oai_embed_batch(
@@ -349,7 +349,7 @@ oai_embed_text <- function(text,
 #'     concurrent_requests = 5,
 #'     dimensions = 512
 #'   )
-#'   
+#'
 #'   # Custom model and settings
 #'   embeddings <- oai_embed_batch(
 #'     texts = texts,
@@ -649,11 +649,3 @@ oai_embed_df <- function(df,
 
   return(result_df)
 }
-
-# helper funcs (may move to utils or something) ----
-parse_oai_date <- function(date_string) {
-  parsed_date <- as.POSIXct(date_string, format = "%a, %d %b %Y %H:%M:%S", tz = "GMT")
-  date <- as.Date(parsed_date)
-  return(date)
-}
-

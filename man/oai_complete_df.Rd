@@ -18,7 +18,6 @@ oai_complete_df(
   timeout = 30,
   temperature = 0,
   max_tokens = 500L,
-  progress = TRUE,
   key_name = "OPENAI_API_KEY",
   endpoint_url = "https://api.openai.com/v1/chat/completions"
 )
@@ -49,8 +48,6 @@ oai_complete_df(
 \item{temperature}{Sampling temperature (0-2), lower = more deterministic (default: 0)}
 
 \item{max_tokens}{Maximum tokens per response (default: 500)}
-
-\item{progress}{Logical; whether to show progress bar (default: TRUE)}
 
 \item{key_name}{Name of environment variable containing the API key (default: OPENAI_API_KEY)}
 
