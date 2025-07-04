@@ -2,7 +2,7 @@
 % Please edit documentation in R/openai_completions.R
 \name{oai_complete_df}
 \alias{oai_complete_df}
-\title{Process a data frame through OpenAI's Chat Completions API}
+\title{Process a data frame through OpenAI's Chat Completions API with chunked processing}
 \usage{
 oai_complete_df(
   df,
@@ -11,6 +11,7 @@ oai_complete_df(
   model = "gpt-4.1-nano",
   system_prompt = NULL,
   schema = NULL,
+  chunk_size = 1000,
   concurrent_requests = 1L,
   max_retries = 5L,
   timeout = 30,
@@ -18,7 +19,8 @@ oai_complete_df(
   max_tokens = 500L,
   progress = TRUE,
   key_name = "OPENAI_API_KEY",
-  endpoint_url = "https://api.openai.com/v1/chat/completions"
+  endpoint_url = "https://api.openai.com/v1/chat/completions",
+  output_file = "auto"
 )
 }
 \arguments{
@@ -34,9 +36,11 @@ oai_complete_df(
 
 \item{schema}{Optional JSON schema for structured output (json_schema object or list)}
 
-\item{concurrent_requests}{Number of simultaneous API requests (default: 1)}
+\item{chunk_size}{Number of texts to process in each batch (default: 5000)}
 
-\item{max_retries}{Maximum retry attempts per request (default: 5)}
+\item{concurrent_requests}{Integer; number of concurrent requests (default: 5)}
+
+\item{max_retries}{Maximum retry attempts per failed request (default: 5)}
 
 \item{timeout}{Request timeout in seconds (default: 30)}
 
@@ -44,79 +48,48 @@ oai_complete_df(
 
 \item{max_tokens}{Maximum tokens per response (default: 500)}
 
-\item{progress}{Show progress bar (default: TRUE)}
+\item{progress}{Logical; whether to show progress bar (default: TRUE)}
 
-\item{key_name}{Environment variable name for API key (default: "OPENAI_API_KEY")}
+\item{key_name}{Name of environment variable containing the API key (default: OPENAI_API_KEY)}
 
 \item{endpoint_url}{OpenAI API endpoint URL}
+
+\item{output_file}{Path to CSV file for results. If NULL, generates timestamped filename}
 }
 \value{
-A tibble
+A tibble with the original id column and additional columns:
+\itemize{
+\item \code{content}: API response content (text or JSON string if schema used)
+\item \code{.error}: Logical indicating if request failed
+\item \code{.error_msg}: Error message if failed, NA otherwise
+\item \code{.batch}: Batch number for tracking
+}
 }
 \description{
 This function takes a data frame with text inputs and processes each row through
-OpenAI's Chat Completions API, returning results in a tidy format. It handles
-concurrent requests, retries, and structured output validation automatically.
+OpenAI's Chat Completions API using efficient chunked processing. It handles
+concurrent requests, automatic retries, and structured output validation while
+writing results progressively to disk.
 }
 \details{
-This function streamlines processing of data through OpenAI's API.
-It extracts the specified text column from your data frame, sends each text as a
-separate API request, and returns the results joined back to your original data.
+This function provides a data frame interface to the chunked processing
+capabilities of \code{oai_complete_chunks()}. It extracts the specified text column,
+processes texts in configurable chunks with concurrent API requests, and returns
+results matched to the original data through the \code{id_var} parameter.
 
-The function preserves row identity through the \code{id_var} parameter, ensuring results
-can be matched back to source data even if some requests fail. Failed requests are
-marked with \code{.error = TRUE} and include error messages.
+The chunking approach enables processing of large data frames without memory
+constraints. Results are written progressively to a CSV file (either specified
+or auto-generated) and then read back as the return value.
 
-When using structured outputs with a \code{schema}, the function automatically validates
-and unnests (to the top level) the JSON responses into separate columns. This makes it ideal for
-tasks like entity extraction, classification, or structured data generation.
+When using structured outputs with a \code{schema}, responses are validated against
+the JSON schema and stored as JSON strings. Post-processing may be needed to
+unnest these into separate columns.
 
-For best performance, adjust \code{concurrent_requests} based on your API rate limits.
-Higher values speed up processing but may hit rate limits more frequently.
+Failed requests are marked with \code{.error = TRUE} and include error messages,
+allowing for easy filtering and retry logic on failures.
 }
 \examples{
 \dontrun{
-
-sample_texts <- rep("sample_text", 100)
-# Parallel requests without schema:
-large_df <- data.frame(
-  doc_id = 1:100,
-  text = sample_texts
-)
-
-results <- oai_complete_df(
-  large_df,
-  text_var = text,
-  id_var = doc_id,
-  concurrent_requests = 5,  # process 5 at a time
-  max_retries = 3
-)
-
-# Structured outputs with a schema:
-contact_schema <- create_json_schema(
- name = "contact_info",
- schema = schema_object(
-  name = schema_string("person's full name"),
-  email = schema_string("email address"),
-  phone = schema_string("phone number"),
-  required = list("name", "email", "phone"),
-  additional_properties = FALSE
-))
-
-text <- "Am I speaking with Margaret Phillips?
-Yes, ok, and your email is mphil@hotmail.co.uk.
-Ok perfect, and your phone number? Was that 07564789789? Ok great.
-Just a second please Margaret, you're verified"
-
-schema_df <- data.frame(id = 1, text = text)
-
-results <- oai_complete_df(
-  schema_df,
-  text_var = text,
-  id_var = id,
-  schema = contact_schema,
-  temperature = 0  # recommended for structured outputs
-)
 
 }
 }

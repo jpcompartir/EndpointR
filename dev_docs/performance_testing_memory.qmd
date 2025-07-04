@@ -28,11 +28,11 @@ library(profvis)
 
 There are a few problems with the current oai_complete_df implementation, some of which stem from how requests are created in oai_build_request/list:
 
-1.  Too much copying of data throughout, and dealing with entire lists/vectors/data frames - we could do with generator style data structure, or just explicitly chunking at different stages.
+1.  Too much copying of \|\> throughout, and dealing with entire lists/vectors/data frames - we could do with generator style data structure, or just explicitly chunking at different stages.
 2.  Need to write to files to minimise risk of responses being lost
 3.  Not enough batching/chunking for processing
-4.  Response objects are much heavier than expected, and as they're complex, nested lists they take a long time to serialise/write with saveRDS. ---\> So we want to write just the response_body + the ID header once it's been validated, which requires not firing off all requests and getting all responses
-5.  Validating responses against the schema is a more costly operation than first appreciated. And we're validating twice - once to check if everything can validate, then again later. Definitely bad idea as validating is more costly than previously assumed. Fine at low N but bad for larger DFs.
+4.  Response objects are much heavier than expected, and as they're complex, nested lists they take a long time to serialise/write with saveRDS. ---\> So we want to write just the response_body (choices -\> 1 -\> messages -\> content) + the ID header without validating against the schema, which requires not firing off all requests and getting all responses ✅
+5.  Validating responses against the schema is a more costly operation than first appreciated. And we're validating twice - once to check if everything can validate, then again later. Definitely bad idea as validating is more costly than previously assumed. Fine at low N but bad for larger DFs. ✅
 6.  Error handling isn't solid - NA for content coming back in the schema case can break everything (loss of data)
 7.  There was quadratic scaling in the match call in the worst case (going through every single element, for every single element when a join or look-up will do) - Send IDs with requests so they're sustained in responses. Avoid the matching logic. ✅
 8.  Request creation is quite heavy with the schema dump - in the list case we should probably only dump the schema once. \[Now that we only dump the schema once\] ✅
@@ -45,6 +45,8 @@ Solution(s):
 -   We don't need all of the headers and additional information in any response list/data frame, we should extract just the message/content that contains the information we're after
 -   Take validaton logic out to its own function, and run that after the responses have been received? Still implement chunking etc. or actually have the user decide to do that specifically, after processing of responses is done.
 -   Add an endpointr_id to each request as a header so that it persists with the response. Then we don't need to do the match or a look-up. We can uses resps_succeses(), convert to data frame. Perhaps endpointr_id should be a mandatory argument. ✅
+-   Now that we're separating successes and failures, we can make .extract_response_fields simpler too.
+-   
 
 Process/algorithm:
 
@@ -70,7 +72,7 @@ Needed Funcs / sub funks
 -   [ ] Chunk Data Frame
 -   [ ] build_request_batch_with_schema
 -   [ ] validate_df_against_schema
--   \[ \]
+-   [ ] .extract_response_fields
 
 # Hugging Face
 
@@ -160,8 +162,6 @@ in oai_complete_df, we want to check for a schema, and if we have one dump it ju
     
   }
   
-  
-
   # cleaner way:
   if(!is.null(schema) && inherits(schema, "EndpointR::json_schema")) {
       schema <- json_dump(schema)
@@ -195,6 +195,8 @@ results_profviz <-
     oai_complete_df(df = review_df, text_var = review_text, id_var = id, schema = sentiment_schema, concurrent_requests = 5)   
   })
 
+lobstr::mem_used()
+
 ```
 
 ## Validation Function
@@ -203,7 +205,10 @@ Should pull this out into its own function, and reduce the complaxity significan
 
 Current thinking is that responses should be handed back to the user in a data frame and the user should decide whether to validate, as at large-ish scale processing, validating everything is costly, and more likely the user ends the session or similar.
 
-```{r}
+```{r, validate_schema_chunk}
+  # validate against schema ----
+  # in the old implementation, if the schema didn't validate we'd error - and lose any susccessful requests too. This is more complex, but it handles the edge cases better.
+
   if (!is.null(schema)) {
     # validate and track errors to make sure we don't try to unnest data that doesn't exist, and maintain homogeneity in output shape
     validation_errors <- purrr::map_chr(results_df$content, ~{
@@ -240,5 +245,59 @@ Current thinking is that responses should be handed back to the user in a data f
 ```
 
 ```{r}
-?new_grouped_df
+profvis({
+  resps_successes(responses_5k$response) |> 
+  map( ~ .x |> resp_body_json())   
+})
+responses |> 
+  mutate(content = map( content, ~ jsonlite::fromJSON(.x)))
+```
+
+Flow:
+
+Make all requests (in batch or altogether?)
+
+## chunks developmet
+
+```{r}
+review_df <- get_review_df()
+ids <- review_df$id
+texts <- review_df$review_text
+
+oai_complete_chunks(
+  texts,
+  ids,
+  chunk_size = 2
+)
+
+oai_complete_df(review_df,
+                review_text,
+                id,
+                chunk_size = 2,
+                output_file = "test_run.csv")
+```
+
+```{r}
+
+data <- read_csv("~/Google Drive/My Drive/data_science_project_work/microsoft/project_work/823_copilot_associations/data/wrangled_data/flagged_df.csv", n_max = 1000)
+
+data <- data |> 
+  select(universal_message_id, clean_message)
+
+responses_1k_writes <- data |>
+  # slice(1:10) |>
+  oai_complete_df(
+    text_var = clean_message, # Change as needed
+    id_var = universal_message_id, # Change as needed
+    output_file = "responses_1k.csv",
+    model = "gpt-4.1-nano",
+    chunk_size = 200,
+    system_prompt = copilot_prompt,
+    schema = copilot_schema,
+    concurrent_requests = 50,
+    max_retries = 10,
+    timeout = 50,
+    temperature = 0,
+    max_tokens = 100L
+  )
 ```
