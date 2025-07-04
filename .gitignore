@@ -42,3 +42,6 @@ EndpointR.Rproj
 
 dev_docs/project_test_run.qmd
 docs
+
+# testing /dev_docs/ artifacts
+*.csv

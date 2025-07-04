@@ -175,6 +175,7 @@ oai_build_completions_request_list <- function(
   return(requests)
 }
 
+
 # oai_complete_text docs ----
 #' Generate a completion for a single text using OpenAI's Chat Completions API
 #'
@@ -307,106 +308,6 @@ oai_complete_text <- function(text,
   return(content)
 }
 
-# oai_complete_df docs ----
-#' Process a data frame through OpenAI's Chat Completions API
-#'
-#' This function takes a data frame with text inputs and processes each row through
-#' OpenAI's Chat Completions API, returning results in a tidy format. It handles
-#' concurrent requests, retries, and structured output validation automatically.
-#'
-#' @details This function streamlines processing of data through OpenAI's API.
-#' It extracts the specified text column from your data frame, sends each text as a
-#' separate API request, and returns the results joined back to your original data.
-#'
-#' The function preserves row identity through the `id_var` parameter, ensuring results
-#' can be matched back to source data even if some requests fail. Failed requests are
-#' marked with `.error = TRUE` and include error messages.
-#'
-#' When using structured outputs with a `schema`, the function automatically validates
-#' and unnests (to the top level) the JSON responses into separate columns. This makes it ideal for
-#' tasks like entity extraction, classification, or structured data generation.
-#'
-#' For best performance, adjust `concurrent_requests` based on your API rate limits.
-#' Higher values speed up processing but may hit rate limits more frequently.
-#'
-#' @param df Data frame containing text to process
-#' @param text_var Column name (unquoted) containing text inputs
-#' @param id_var Column name (unquoted) for unique row identifiers
-#' @param model OpenAI model to use (default: "gpt-4.1-nano")
-#' @param system_prompt Optional system prompt applied to all requests
-#' @param schema Optional JSON schema for structured output (json_schema object or list)
-#' @param concurrent_requests Number of simultaneous API requests (default: 1)
-#' @param max_retries Maximum retry attempts per request (default: 5)
-#' @param timeout Request timeout in seconds (default: 30)
-#' @param temperature Sampling temperature (0-2), lower = more deterministic (default: 0)
-#' @param max_tokens Maximum tokens per response (default: 500)
-#' @param progress Show progress bar (default: TRUE)
-#' @param key_name Environment variable name for API key (default: "OPENAI_API_KEY")
-#' @param endpoint_url OpenAI API endpoint URL
-#'
-#' @return A tibble
-#'
-#' @export
-#' @examples
-#' \dontrun{
-#'
-#' sample_texts <- rep("sample_text", 100)
-#' # Parallel requests without schema:
-#' large_df <- data.frame(
-#'   doc_id = 1:100,
-#'   text = sample_texts
-#' )
-#'
-#' results <- oai_complete_df(
-#'   large_df,
-#'   text_var = text,
-#'   id_var = doc_id,
-#'   concurrent_requests = 5,  # process 5 at a time
-#'   max_retries = 3
-#' )
-#'
-#' # Structured outputs with a schema:
-#' contact_schema <- create_json_schema(
-#'  name = "contact_info",
-#'  schema = schema_object(
-#'   name = schema_string("person's full name"),
-#'   email = schema_string("email address"),
-#'   phone = schema_string("phone number"),
-#'   required = list("name", "email", "phone"),
-#'   additional_properties = FALSE
-#' ))
-#'
-#' text <- "Am I speaking with Margaret Phillips?
-#' Yes, ok, and your email is mphil@hotmail.co.uk.
-#' Ok perfect, and your phone number? Was that 07564789789? Ok great.
-#' Just a second please Margaret, you're verified"
-#'
-#' schema_df <- data.frame(id = 1, text = text)
-#'
-#' results <- oai_complete_df(
-#'   schema_df,
-#'   text_var = text,
-#'   id_var = id,
-#'   schema = contact_schema,
-#'   temperature = 0  # recommended for structured outputs
-#' )
-#'
-#' }
-# oai_complete_df docs ----
-oai_complete_df <- function(df,
-                            text_var,
-                            id_var,
-                            model = "gpt-4.1-nano",
-                            system_prompt = NULL,
-                            schema = NULL,
-                            concurrent_requests = 1L,
-                            max_retries = 5L,
-                            timeout = 30,
-                            temperature = 0,
-                            max_tokens = 500L,
-                            progress = TRUE,
-                            key_name = "OPENAI_API_KEY",
-                            endpoint_url = "https://api.openai.com/v1/chat/completions"
 # oai_complete_chunks docs ----
 # oai_complete_chunks docs ----
 oai_complete_chunks <- function(texts,
@@ -561,58 +462,58 @@ oai_complete_chunks <- function(texts,
   return(final_results)
 }
 
+oai_complete_df <- function(df,
+                            text_var,
+                            id_var,
+                            model = "gpt-4.1-nano",
+                            system_prompt = NULL,
+                            schema = NULL,
+                            chunk_size = 1000,
+                            concurrent_requests = 1L,
+                            max_retries = 5L,
+                            timeout = 30,
+                            temperature = 0,
+                            max_tokens = 500L,
+                            progress = TRUE,
+                            key_name = "OPENAI_API_KEY",
+                            endpoint_url = "https://api.openai.com/v1/chat/completions",
+                            output_file = NULL) {
 
+  # input validation ----
+  text_sym <- rlang::ensym(text_var)
+  id_sym <- rlang::ensym(id_var)
 
-# helper function for oai_complete_df()
-# extract all needed fields from a response object
-# check if response is valid httr2_response
-# if not valid, return NA values with error message
-# if valid, extract status code
-# if status is 200, try to extract content
-# if status is not 200, extract error message from response body
-# if schema provided and content exists, try to parse as json
-# return a list with all extracted fields
-#' @keywords internal
-.extract_response_fields <- function(response, schema = NULL) {
-  if (!inherits(response, "httr2_response")) {
-    return(list(
-      status = NA_integer_,
-      content = NA_character_,
-      .error_msg = "Invalid response object"
-    ))
-  }
+  stopifnot(
+    "df must be a data frame" = is.data.frame(df),
+    "df must not be empty" = nrow(df) > 0,
+    "text_var must exist in df" = rlang::as_name(text_sym) %in% names(df),
+    "id_var must exist in df" = rlang::as_name(id_sym) %in% names(df)
+  )
 
-  status <- httr2::resp_status(response)
+  text_vec <- dplyr::pull(df, !!text_sym)
+  id_vec <- dplyr::pull(df, !!id_sym)
 
-  if (status == 200) {
-    content <- tryCatch(
-      .extract_oai_completion_content(response),
-      error = function(e) NA_character_
-    )
+  results <- oai_complete_chunks(
+    texts = text_vec,
+    ids = id_vec,
+    model = model,
+    system_prompt = system_prompt,
+    schema = schema,
+    chunk_size = chunk_size,
+    concurrent_requests = concurrent_requests,
+    max_retries = max_retries,
+    timeout = timeout,
+    temperature = temperature,
+    max_tokens = max_tokens,
+    progress = progress,
+    key_name = key_name,
+    endpoint_url = endpoint_url,
+    output_file = output_file
+  )
 
-    return(list(
-      status = status,
-      content = content,
-      .error_msg = NA_character_
-    ))
-  } else {
-    .error_msg <- tryCatch(
-      httr2::resp_body_json(response)$error$message,
-      error = function(e) paste("HTTP", status)
-    )
+  results <- dplyr::rename(results, !!id_sym := id)
 
-    return(list(
-      status = status,
-      content = NA_character_,
-      .error_msg = .error_msg
-    ))
-  }
+  return(results)
 }
 
 
-#' @keywords internal
-.extract_oai_completion_content <- function(resp) {
-  resp |>
-    httr2::resp_body_json() |>
-    purrr::pluck("choices", 1, "message", "content")
-}
