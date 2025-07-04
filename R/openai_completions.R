@@ -334,18 +334,13 @@ oai_complete_chunks <- function(texts,
     "chunk_size must be a positive integer greater than 1" = is.numeric(chunk_size) && chunk_size > 1
   )
 
-  if (is.null(output_file)) {
-    timestamp <- format(Sys.time(), "%d%m%y_%H%M%S")
-    output_file <- paste0("oai_completions_batch_", timestamp, ".csv")
-  }
-
-  cli::cli_alert_info("Writing results to: {output_file}")
+  output_file <- .handle_output_filename(output_file)
 
   # make sure we json_dump the schema here if necessary, so that we don't json_dump for every individual document
   if(!is.null(schema) && inherits(schema, "EndpointR::json_schema")) {
     dumped_schema <- json_dump(schema)
   } else {
-    dumped_schema = schema
+    dumped_schema <- schema
   }
 
   batch_data <- batch_vector(seq_along(texts), chunk_size)
@@ -477,7 +472,7 @@ oai_complete_df <- function(df,
                             progress = TRUE,
                             key_name = "OPENAI_API_KEY",
                             endpoint_url = "https://api.openai.com/v1/chat/completions",
-                            output_file = NULL) {
+                            output_file = "auto") {
 
   # input validation ----
   text_sym <- rlang::ensym(text_var)
@@ -490,6 +485,7 @@ oai_complete_df <- function(df,
     "id_var must exist in df" = rlang::as_name(id_sym) %in% names(df)
   )
 
+  output_file <- .handle_output_filename(output_file, base_file_name = "oai_batch")
   text_vec <- dplyr::pull(df, !!text_sym)
   id_vec <- dplyr::pull(df, !!id_sym)
 
@@ -516,4 +512,75 @@ oai_complete_df <- function(df,
   return(results)
 }
 
+# helper function for oai_complete_df()
+# extract all needed fields from a response object
+# check if response is valid httr2_response
+# if not valid, return NA values with error message
+# if valid, extract status code
+# if status is 200, try to extract content
+# if status is not 200, extract error message from response body
+# if schema provided and content exists, try to parse as json
+# return a list with all extracted fields
+#' @keywords internal
+.extract_response_fields <- function(response, schema = NULL) {
+  if (!inherits(response, "httr2_response")) {
+    return(list(
+      status = NA_integer_,
+      content = NA_character_,
+      .error_msg = "Invalid response object"
+    ))
+  }
 
+  status <- httr2::resp_status(response)
+
+  if (status == 200) {
+    content <- tryCatch(
+      .extract_oai_completion_content(response),
+      error = function(e) NA_character_
+    )
+
+    return(list(
+      status = status,
+      content = content,
+      .error_msg = NA_character_
+    ))
+  } else {
+    .error_msg <- tryCatch(
+      httr2::resp_body_json(response)$error$message,
+      error = function(e) paste("HTTP", status)
+    )
+
+    return(list(
+      status = status,
+      content = NA_character_,
+      .error_msg = .error_msg
+    ))
+  }
+}
+
+
+#' @keywords internal
+.extract_oai_completion_content <- function(resp) {
+  resp |>
+    httr2::resp_body_json() |>
+    purrr::pluck("choices", 1, "message", "content")
+}
+
+
+#'should only pass in successes here, as we're not going to validate types here or try to catch errors and this is *marginally* quicker/memory efficient than pipe + pluck
+#' @keywords internal
+.extract_successful_completion_content <- function(resp) {
+  httr2::resp_body_json(resp)$choices[[1]]$message$content
+}
+
+#' @keywords internal
+.append_tibble_class <- function(x) {
+  attr(x, "class") <- c("tbl_df", "tbl", "data.frame")
+  return(x)
+}
+
+# TBD
+# .validate_df_with_schema <- function(df, content_var, schema) {
+#
+#   return(list())
+# }
