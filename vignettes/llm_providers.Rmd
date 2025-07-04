@@ -262,9 +262,7 @@ df_classical_texts <- tibble(
 )
 ```
 
-We have a function `oai_complete_df()` which takes a data frame, an id variable, and a text variable as input, and returns a data fraem with the `id`, `text`, `status`, `content`, `.error_msg`, `.error`.
-
-The function attempts to handle errors, and this aspect will improve over time, as more of the common failure modes become apparent). You can speed up processing by submitting multiple requests in parallel, using the `concurrent_requests` parameter, but be careful not to hit rate limits!
+We have a function `oai_complete_df()` which takes a data frame, an id variable, and a text variable as mandatory inputs, and returns a data frame with columns: `id_var`, `text+var`, `.error_msg`, `.error`, `.batch`.
 
 ```{r}
 oai_complete_df(df_classical_texts, 
@@ -274,7 +272,14 @@ oai_complete_df(df_classical_texts,
                 )
 ```
 
-`oai_complete_df()`reports on progress as it happens, and provides a summary of failures and successes directly in your console.
+The `oai_complete_df()` function has a few knobs that you can turn to improve throughput, reduce memory usage, and increase the likelihood of a successful response. By default it will split your data frame into `chunk_size =` chunks. Each chunk is then processed in order, and a file is created to store the results of the previous batches. At the end of all chunks the results are retrieved from the file.
+
+This should help to reduce the likelihood you:
+
+1.  Lose the API responses of long-running calculations which fail part-way through
+2.  Run out of memory as the responses list grows with the size of your data frame.
+
+The function reports on progress as it happens, letting you know which chunk is being processed, e.g. 1/5, and a progress bar for the requests within that chunk. The function provides a summary of failures and successes directly in your console after each chunk, and at the end of all chunks.
 
 ## OpenAI Structured Outputs {#openai-structured-outputs}
 
