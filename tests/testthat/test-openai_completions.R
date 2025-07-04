@@ -201,13 +201,14 @@ test_that("oai_complete_df takes single row, multi-row data frames as inputs", {
                       id,
                       endpoint_url = endpoint_url,
                       concurrent_requests = 1,
-                      max_retries = 1)
+                      max_retries = 1,
+                      output_file = NULL)
 
       )
     )
 
   expect_setequal(names(successful_response),
-                  c("id", "review_text", "status", "content", ".error_msg", ".error"))
+                  c("id", "content", ".error_msg", ".error", ".batch"))
   expect_setequal(unique(successful_response$content), "positive")
 
   withr::with_envvar(
@@ -218,7 +219,8 @@ test_that("oai_complete_df takes single row, multi-row data frames as inputs", {
                       id,
                       endpoint_url = endpoint_url,
                       concurrent_requests = 1,
-                      max_retries = 1),
+                      max_retries = 1,
+                      output_file = NULL),
 
       regexp = "Performing 5 requests sequentially"
     )
@@ -233,7 +235,8 @@ test_that("oai_complete_df takes single row, multi-row data frames as inputs", {
                                      id,
                                      endpoint_url = endpoint_url,
                                      concurrent_requests = 5,
-                                     max_retries = 1),
+                                     max_retries = 1,
+                                     output_file = NULL),
 
                    regexp = "with 5 concurrent requests"
     )
@@ -241,7 +244,7 @@ test_that("oai_complete_df takes single row, multi-row data frames as inputs", {
   })
 
 
-test_that("oai_complete_df takes a schema as input and validates", {
+test_that("oai_complete_df takes a schema as input", {
 
   sentiment_schema <- create_json_schema(
     name = "sentiment_test",
@@ -283,28 +286,39 @@ test_that("oai_complete_df takes a schema as input and validates", {
                       endpoint_url = endpoint_url,
                       concurrent_requests = 1,
                       max_retries = 1,
-                      schema = sentiment_schema
+                      schema = sentiment_schema,
+                      output_file = NULL
                       )
 
     )
   )
 
+  # we validate separately npw.
+  # successful_response |>
+  #   dplyr::mutate(validated = map(
+  #     content,
+  #     ~validate_response(
+  #       schema = sentiment_schema,
+  #       .x))) |>
+  #   tidyr::unnest_wider(validated)
 
-  # this does error as expected.
-  withr::with_envvar(
-    c("OPENAI_API_KEY" = "gibberish"),
-    not_validated_response <- expect_warning(
-      oai_complete_df(review_df,
-                      review_text,
-                      id,
-                      endpoint_url = endpoint_url,
-                      concurrent_requests = 1,
-                      max_retries = 1,
-                      schema = invalid_sentiment_schema
-      ), regexp = "5 responses failed schema validation"
-    )
-  )
 
+
+  # out of date
+  # withr::with_envvar(
+  #   c("OPENAI_API_KEY" = "gibberish"),
+  #   not_validated_response <- expect_warning(
+  #     oai_complete_df(review_df,
+  #                     review_text,
+  #                     id,
+  #                     endpoint_url = endpoint_url,
+  #                     concurrent_requests = 1,
+  #                     max_retries = 1,
+  #                     schema = invalid_sentiment_schema,
+  #                     output_file = NULL
+  #     ), regexp = "5 responses failed schema validation"
+  #   )
+  # )
 
 
 })
@@ -335,20 +349,18 @@ test_that("oai_complete_df handles mixed validation success/failure", {
   withr::with_envvar(
     c("OPENAI_API_KEY" = "gibberish"),
     {
-      expect_warning(
         results <- oai_complete_df(
-          review_df,
-          review_text,
-          id,
+          df = review_df,
+          text_var = review_text,
+          id_var = id,
           endpoint_url = endpoint_url,
           concurrent_requests = 1,
           max_retries = 1,
-          schema = sentiment_schema
-        ),
-        regexp = "responses failed schema"
+          schema = sentiment_schema,
+          output_file = NULL
+        )}
       )
-    }
-  )
+
 
   expect_s3_class(results, "data.frame")
   expect_equal(nrow(results), 5)

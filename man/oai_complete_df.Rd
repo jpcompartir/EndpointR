@@ -9,6 +9,7 @@ oai_complete_df(
   text_var,
   id_var,
   model = "gpt-4.1-nano",
+  output_file = "auto",
   system_prompt = NULL,
   schema = NULL,
   chunk_size = 1000,
@@ -19,8 +20,7 @@ oai_complete_df(
   max_tokens = 500L,
   progress = TRUE,
   key_name = "OPENAI_API_KEY",
-  endpoint_url = "https://api.openai.com/v1/chat/completions",
-  output_file = "auto"
+  endpoint_url = "https://api.openai.com/v1/chat/completions"
 )
 }
 \arguments{
@@ -31,6 +31,8 @@ oai_complete_df(
 \item{id_var}{Column name (unquoted) for unique row identifiers}
 
 \item{model}{OpenAI model to use (default: "gpt-4.1-nano")}
+
+\item{output_file}{Path to .CSV file for results. "auto" generates the filename, location and is persistent across sessions. If NULL, generates timestamped filename.}
 
 \item{system_prompt}{Optional system prompt applied to all requests}
 
@@ -53,8 +55,6 @@ oai_complete_df(
 \item{key_name}{Name of environment variable containing the API key (default: OPENAI_API_KEY)}
 
 \item{endpoint_url}{OpenAI API endpoint URL}
-
-\item{output_file}{Path to CSV file for results. If NULL, generates timestamped filename}
 }
 \value{
 A tibble with the original id column and additional columns:

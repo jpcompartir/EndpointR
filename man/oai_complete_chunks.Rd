@@ -33,7 +33,7 @@ oai_complete_chunks(
 
 \item{system_prompt}{Optional system prompt applied to all requests}
 
-\item{output_file}{Path to CSV file for results. If NULL, generates timestamped filename}
+\item{output_file}{Path to .CSV file for results. "auto" generates the filename, location and is persistent across sessions. If NULL, generates timestamped filename.}
 
 \item{schema}{Optional JSON schema for structured output (json_schema object or list)}
 
