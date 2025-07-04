@@ -32,7 +32,8 @@ Imports:
     tibble,
     S7,
     jsonvalidate,
-    stringr
+    stringr,
+    readr
 VignetteBuilder: knitr
 Depends: 
     R (>= 3.5)

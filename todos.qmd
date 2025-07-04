@@ -101,8 +101,7 @@ We can do it simply with the `path =` argument in `httr2::req_perform()`, but th
 -   [x] `tidy_batch_classification_response()`
 -   \[WIP\] TESTS
 -   [x] S7 models for Peaks & Pits, Sentiment? Via schemas for now
-
-# OpenAI
+-   [ ] drop validate endpoint func and args \# OpenAI
 
 Headliners:
 
@@ -135,6 +134,13 @@ Headliners:
 -   [ ] Dynamic Rate Limit Management (From info in response headers)
 
 Whether to introduce `oai_complete_text()` and `oai_complete_batch()` or stick with `oai_complete_df()`? Torn becasue for consistency it would make sense to have text and batch, but I'm not sure we really need it.
+
+### oai_complete_df()
+
+Refactoring plan:
+
+1.  Write response bodies to files, probably as a string or the JSON. Make sure to keep track of a unique identifier.
+2.  Batch data efficiently and avoid out-of-mem errors and
 
 ## Responses API
 
@@ -178,7 +184,7 @@ Via JSON Schemas
 
 -   [x] Create S7 generics for schema operations
 -   [x] Implement `json_dump()` method for API serialisation
--   [x] Build `validate_response()` method with jsonvalidate integration
+-   [x] Build `validate_response()` method with {jsonvalidate} integration
 
 ## Schema Builder Functions
 

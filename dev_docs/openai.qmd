@@ -546,7 +546,7 @@ sentiment_schema <- create_json_schema(
       maximum = 1
     ),
     is_spam = schema_boolean("contains spam content"),
-    required = c("sentiment", "confidence", "is_spam")
+    required = list("sentiment", "confidence", "is_spam")
   )
 )
 

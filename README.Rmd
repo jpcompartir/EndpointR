@@ -72,8 +72,8 @@ hf_embed_batch(
   texts = review_texts,
   endpoint_url = endpoint_url,
   key_name = "HF_API_KEY",
-  batch_size = 10,
-  concurrent_requests = 5
+  batch_size = 3,
+  concurrent_requests = 2
 )
 ```
 
@@ -92,7 +92,9 @@ hf_embed_df(
   text_var = review_text,
   id_var = review_id,
   endpoint_url = endpoint_url,
-  key_name = "HF_API_KEY"
+  key_name = "HF_API_KEY",
+  concurrent_requests = 2,
+  batch_size = 3
 )
 ```
 
@@ -113,7 +115,7 @@ labelid_2class <- function() {
   return(list(negative = "LABEL_0",
               neutral = "LABEL_1",
               positive = "LABEL_2"))
-} # you need to get this information for the model card, if the API does not return the labels.
+}
 
  hf_classify_text(
   text = review_texts[[1]],
@@ -164,7 +166,7 @@ sentiment_schema <- create_json_schema(
   name = "sentiment_analysis",
   schema = schema_object(
     sentiment = schema_string("positive, negative, or neutral"),
-    confidence = schema_number("confidence score between 0 and 1"), # we don't necessarily reciommend asking a model for its confidence score, this is mainly a schema-construction demo!
+    confidence = schema_number("confidence score between 0 and 1"), # we don't necessarily recommend asking a model for its confidence score, this is mainly a schema-construction demo!
     required = list("sentiment", "confidence")
   )
 )

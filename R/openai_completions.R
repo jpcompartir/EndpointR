@@ -22,6 +22,7 @@
 #' to set temperature to 0 when extracting structured outputs.
 #'
 #' @param input Text input to send to the model
+#' @param endpointr_id An id that will persist through to response
 #' @param model OpenAI model to use (default: "gpt-4.1-nano")
 #' @param temperature Sampling temperature (0-2), higher values = more randomness
 #' @param max_tokens Maximum tokens in response
@@ -38,6 +39,7 @@
 # oai_build_completions_request docs ----
 oai_build_completions_request <- function(
     input,
+    endpointr_id = NULL,
     model = "gpt-4.1-nano",
     temperature = 0,
     max_tokens = 500L,
@@ -84,17 +86,12 @@ oai_build_completions_request <- function(
   )
 
   if (!is.null(schema)) {
-    if (inherits(schema, "EndpointR::json_schema") || inherits(schema, "json_schema") || inherits(schema, "S7_object")){
-      schema_dump <- json_dump(schema)
+    if (inherits(schema, "EndpointR::json_schema")){
 
-      if (!is.null(schema_dump$json_schema$schema)) {
-        schema_dump$json_schema$schema$additionalProperties <- FALSE # must be the case for OAI structured outputs
-      }
-
-      body$response_format <- schema_dump
-    } else {
-      body$response_format <- schema
+      # cli::cli_alert_info("calling json_dump")
+      schema <- json_dump(schema)
     }
+    body$response_format <- schema # we're trusting the user supplies this correctly, at the moment.
   }
 
   request <- base_request(endpoint_url = endpoint_url,
@@ -105,6 +102,10 @@ oai_build_completions_request <- function(
                      retry_on_failure = TRUE) |>
     httr2::req_body_json(body)
 
+  if(!is.null(endpointr_id)) {
+    request <- httr2::req_headers(request, endpointr_id = endpointr_id)
+  }
+
   return(request)
 }
 
@@ -112,6 +113,7 @@ oai_build_completions_request <- function(
 #' Build OpenAI requests for batch processing
 #'
 #' @param inputs Character vector of text inputs
+#' @param endpointr_ids A vector of IDs which will persist through to responses
 #' @param model OpenAI model to use
 #' @param temperature Sampling temperature
 #' @param max_tokens Maximum tokens per response
@@ -127,6 +129,7 @@ oai_build_completions_request <- function(
 # oai_build_completions_request_list docs ----
 oai_build_completions_request_list <- function(
     inputs,
+    endpointr_ids = NULL,
     model = "gpt-4.1-nano",
     temperature = 0,
     max_tokens = 500L,
@@ -139,7 +142,8 @@ oai_build_completions_request_list <- function(
 
   stopifnot(
     "inputs must be a character vector" = is.character(inputs),
-    "inputs must not be empty" = length(inputs) > 0
+    "inputs must not be empty" = length(inputs) > 0,
+    "if `endpointr_ids` are supplied they must be the same length as `inputs`" = is.null(endpointr_ids) || length(inputs) == length(endpointr_ids)
   )
 
   invalid_indices <- which(is.na(inputs) | nchar(inputs) == 0)
@@ -161,8 +165,16 @@ oai_build_completions_request_list <- function(
     timeout = timeout
   ))
 
+  if(!is.null(endpointr_ids)) {
+    requests <- purrr::map2(.x = requests,
+                            .y = endpointr_ids,
+                            .f = ~ httr2::req_headers(.x, endpointr_id = .y)
+                            )
+  }
+
   return(requests)
 }
+
 
 # oai_complete_text docs ----
 #' Generate a completion for a single text using OpenAI's Chat Completions API
@@ -296,98 +308,267 @@ oai_complete_text <- function(text,
   return(content)
 }
 
-# oai_complete_df docs ----
-#' Process a data frame through OpenAI's Chat Completions API
+# oai_complete_chunks docs ----
+#' Process text chunks through OpenAI's Chat Completions API with batch file output
+#'
+#' This function processes large volumes of text through OpenAI's Chat Completions API
+#' in configurable chunks, writing results progressively to a CSV file. It handles
+#' concurrent requests, automatic retries, and structured outputs while
+#' managing memory efficiently for large-scale processing.
+#'
+#' @details This function is designed for processing large text datasets that may not
+#' fit comfortably in memory. It divides the input into chunks, processes each chunk
+#' with concurrent API requests, and writes results immediately to disk to minimise
+#' memory usage.
+#'
+#' The function preserves data integrity by matching results to source texts through
+#' the `ids` parameter. Each chunk is processed independently with results appended
+#' to the output file, allowing for resumable processing if interrupted.
+#'
+#' When using structured outputs with a `schema`, responses are validated against
+#' the JSON schema but stored as raw JSON strings in the output file. This allows
+#' for flexible post-processing without memory constraints during the API calls.
+#'
+#' The chunking strategy balances API efficiency with memory management. Larger
+#' `chunk_size` values reduce overhead but increase memory usage. Adjust based on
+#' your system resources and text sizes.
+#'
+#' @param texts Character vector of texts to process
+#' @param ids Vector of unique identifiers corresponding to each text (same length as texts)
+#' @param chunk_size Number of texts to process in each batch (default: 5000)
+#' @param model OpenAI model to use (default: "gpt-4.1-nano")
+#' @param system_prompt Optional system prompt applied to all requests
+#' @param output_file Path to .CSV file for results. "auto" generates the filename, location and is persistent across sessions. If NULL, generates timestamped filename.
+#' @param schema Optional JSON schema for structured output (json_schema object or list)
+#' @param concurrent_requests Integer; number of concurrent requests (default: 5)
+#' @param temperature Sampling temperature (0-2), lower = more deterministic (default: 0)
+#' @param max_tokens Maximum tokens per response (default: 500)
+#' @param max_retries Maximum retry attempts per failed request (default: 5)
+#' @param timeout Request timeout in seconds (default: 30)
+#' @param progress Logical; whether to show progress bar (default: TRUE)
+#' @param key_name Name of environment variable containing the API key (default: OPENAI_API_KEY)
+#' @param endpoint_url OpenAI API endpoint URL
+#'
+#' @return A tibble containing all results with columns:
+#'   - `id`: Original identifier from input
+#'   - `content`: API response content (text or JSON string if schema used)
+#'   - `.error`: Logical indicating if request failed
+#'   - `.error_msg`: Error message if failed, NA otherwise
+#'   - `.batch`: Batch number for tracking
+#'
+#' @export
+#' @examples
+#' \dontrun{
+#' # basic usage with automatic file naming:
+#'
+#' # large-scale processing with custom output file:
+
+#' #structured extraction with schema:
+#'
+#'
+#' # post-process structured results:
+#' xx <- xx |>
+#'   dplyr::filter(!.error) |>
+#'   dplyr::mutate(parsed = map(content, ~jsonlite::fromJSON(.x))) |>
+#'   unnest_wider(parsed)
+#' }
+# oai_complete_chunks docs ----
+oai_complete_chunks <- function(texts,
+                               ids,
+                               chunk_size = 5000L,
+                               model = "gpt-4.1-nano",
+                               system_prompt = NULL,
+                               output_file = "auto",
+                               schema = NULL,
+                               concurrent_requests = 5L,
+                               temperature = 0L,
+                               max_tokens = 500L,
+                               max_retries = 5L,
+                               timeout = 30L,
+                               progress = TRUE,
+                               key_name = "OPENAI_API_KEY",
+                               endpoint_url = "https://api.openai.com/v1/chat/completions"
+) {
+  # input validation ----
+  stopifnot(
+    "texts must be a vector" = is.vector(texts),
+    "ids must be a vector" = is.vector(ids),
+    "texts and ids must be the same length" = length(texts) == length(ids),
+    "chunk_size must be a positive integer greater than 1" = is.numeric(chunk_size) && chunk_size > 1
+  )
+
+  output_file <- .handle_output_filename(output_file)
+
+  # make sure we json_dump the schema here if necessary, so that we don't json_dump for every individual document
+  if(!is.null(schema) && inherits(schema, "EndpointR::json_schema")) {
+    dumped_schema <- json_dump(schema)
+  } else {
+    dumped_schema <- schema
+  }
+
+  batch_data <- batch_vector(seq_along(texts), chunk_size)
+  n_batches <- length(batch_data$batch_indices)
+
+  cli::cli_alert_info("Processing {length(texts)} texts in {n_batches} chunk{?s} of up to {chunk_size} each")
+
+  total_successes <- 0
+  total_failures <- 0
+
+  ## batch processing ----
+  for (batch_num in seq_along(batch_data$batch_indices)) {
+    batch_indices <- batch_data$batch_indices[[batch_num]]
+    batch_texts <- texts[batch_indices]
+    batch_ids <- ids[batch_indices]
+
+    cli::cli_progress_message("Processing batch {batch_num}/{n_batches} ({length(batch_indices)} texts)")
+
+
+    ## build batch requests ----
+    requests <- oai_build_completions_request_list(
+      inputs = batch_texts,
+      model = model,
+      temperature = temperature,
+      max_tokens = max_tokens,
+      schema = dumped_schema,
+      system_prompt = system_prompt,
+      key_name = key_name,
+      endpoint_url = endpoint_url,
+      max_retries = max_retries,
+      timeout = timeout,
+      endpointr_ids = batch_ids
+    )
+
+    # make sure we have some valid requests, or skip to the next iter
+    is_valid_request <- purrr::map_lgl(requests, ~inherits(.x, "httr2_request"))
+    valid_requests <- requests[is_valid_request]
+
+    if (length(valid_requests) == 0) {
+      cli::cli_alert_warning("No valid requests in batch {batch_num}, skipping")
+      next
+    }
+
+    # perform batch requests ----
+    # get chunk_size individual responses and then handle them
+    responses <- perform_requests_with_strategy(
+      valid_requests,
+      concurrent_requests = concurrent_requests,
+      progress = progress
+    )
+
+    successes <- httr2::resps_successes(responses)
+    failures <- httr2::resps_failures(responses)
+
+    n_successes <- length(successes)
+    n_failures <- length(failures)
+    total_successes <- total_successes + n_successes
+    total_failures <- total_failures + n_failures
+
+    ## process batch responses ----
+    # within batch results
+    batch_results <- list()
+
+    if (length(successes) > 0) {
+      successes_ids <- purrr::map(successes, ~purrr::pluck(.x, "request", "headers", "endpointr_id")) |> unlist()
+      successes_content <- purrr::map_chr(successes, .extract_successful_completion_content)
+
+      batch_results$successes <- tibble::tibble(
+        id = successes_ids,
+        content = successes_content,
+        .error = FALSE,
+        .error_msg = NA_character_,
+        .batch = batch_num
+      )
+    }
+
+    if (length(failures) > 0) {
+      failures_ids <- purrr::map(failures, ~purrr::pluck(.x, "request", "headers", "endpointr_id")) |> unlist()
+      failures_msgs <- purrr::map_chr(failures, ~purrr::pluck(.x, "message", .default = "Unknown error"))
+
+      batch_results$failures <- tibble::tibble(
+        id = failures_ids,
+        content = NA_character_,
+        .error = TRUE,
+        .error_msg = failures_msgs,
+        .batch = batch_num
+      )
+    }
+
+    batch_df <- dplyr::bind_rows(batch_results)
+
+    if(!is.null(output_file)){ # skip writing if output_file = NULL
+      if (nrow(batch_df) > 0) {
+        if (batch_num == 1) {
+          # if we're in the first batch write to csv with headers (col names)
+          readr::write_csv(batch_df, output_file, append = FALSE)
+        } else {
+          # all other batches, append and don't use col names
+          readr::write_csv(batch_df, output_file, append = TRUE, col_names = FALSE)
+        }
+      }
+    }
+
+
+    cli::cli_alert_success("Batch {batch_num}: {n_successes} successful, {n_failures} failed")
+
+    rm(requests, responses, successes, failures, batch_results, batch_df)
+    gc(verbose = FALSE)
+  }
+
+  cli::cli_alert_success("Completed processing: {total_successes} successful, {total_failures} failed")
+
+  # retrieve all results from the output file (results for all batches) - this may still be too inefficient, and should perhaps write to duckdb(?)
+  final_results <- readr::read_csv(output_file, show_col_types = FALSE)
+
+  return(final_results)
+}
+
+#' Process a data frame through OpenAI's Chat Completions API with chunked processing
 #'
 #' This function takes a data frame with text inputs and processes each row through
-#' OpenAI's Chat Completions API, returning results in a tidy format. It handles
-#' concurrent requests, retries, and structured output validation automatically.
+#' OpenAI's Chat Completions API using efficient chunked processing. It handles
+#' concurrent requests, automatic retries, and structured output validation while
+#' writing results progressively to disk.
 #'
-#' @details This function streamlines processing of data through OpenAI's API.
-#' It extracts the specified text column from your data frame, sends each text as a
-#' separate API request, and returns the results joined back to your original data.
+#' @details This function provides a data frame interface to the chunked processing
+#' capabilities of `oai_complete_chunks()`. It extracts the specified text column,
+#' processes texts in configurable chunks with concurrent API requests, and returns
+#' results matched to the original data through the `id_var` parameter.
 #'
-#' The function preserves row identity through the `id_var` parameter, ensuring results
-#' can be matched back to source data even if some requests fail. Failed requests are
-#' marked with `.error = TRUE` and include error messages.
+#' The chunking approach enables processing of large data frames without memory
+#' constraints. Results are written progressively to a CSV file (either specified
+#' or auto-generated) and then read back as the return value.
 #'
-#' When using structured outputs with a `schema`, the function automatically validates
-#' and unnests (to the top level) the JSON responses into separate columns. This makes it ideal for
-#' tasks like entity extraction, classification, or structured data generation.
+#' When using structured outputs with a `schema`, responses are validated against
+#' the JSON schema and stored as JSON strings. Post-processing may be needed to
+#' unnest these into separate columns.
 #'
-#' For best performance, adjust `concurrent_requests` based on your API rate limits.
-#' Higher values speed up processing but may hit rate limits more frequently.
+#' Failed requests are marked with `.error = TRUE` and include error messages,
+#' allowing for easy filtering and retry logic on failures.
 #'
 #' @param df Data frame containing text to process
 #' @param text_var Column name (unquoted) containing text inputs
 #' @param id_var Column name (unquoted) for unique row identifiers
-#' @param model OpenAI model to use (default: "gpt-4.1-nano")
-#' @param system_prompt Optional system prompt applied to all requests
-#' @param schema Optional JSON schema for structured output (json_schema object or list)
-#' @param concurrent_requests Number of simultaneous API requests (default: 1)
-#' @param max_retries Maximum retry attempts per request (default: 5)
-#' @param timeout Request timeout in seconds (default: 30)
-#' @param temperature Sampling temperature (0-2), lower = more deterministic (default: 0)
-#' @param max_tokens Maximum tokens per response (default: 500)
-#' @param progress Show progress bar (default: TRUE)
-#' @param key_name Environment variable name for API key (default: "OPENAI_API_KEY")
-#' @param endpoint_url OpenAI API endpoint URL
+#' @inheritParams oai_complete_chunks
 #'
-#' @return A tibble
+#' @return A tibble with the original id column and additional columns:
+#'   - `content`: API response content (text or JSON string if schema used)
+#'   - `.error`: Logical indicating if request failed
+#'   - `.error_msg`: Error message if failed, NA otherwise
+#'   - `.batch`: Batch number for tracking
 #'
 #' @export
 #' @examples
 #' \dontrun{
 #'
-#' sample_texts <- rep("sample_text", 100)
-#' # Parallel requests without schema:
-#' large_df <- data.frame(
-#'   doc_id = 1:100,
-#'   text = sample_texts
-#' )
-#'
-#' results <- oai_complete_df(
-#'   large_df,
-#'   text_var = text,
-#'   id_var = doc_id,
-#'   concurrent_requests = 5,  # process 5 at a time
-#'   max_retries = 3
-#' )
-#'
-#' # Structured outputs with a schema:
-#' contact_schema <- create_json_schema(
-#'  name = "contact_info",
-#'  schema = schema_object(
-#'   name = schema_string("person's full name"),
-#'   email = schema_string("email address"),
-#'   phone = schema_string("phone number"),
-#'   required = list("name", "email", "phone"),
-#'   additional_properties = FALSE
-#' ))
-#'
-#' text <- "Am I speaking with Margaret Phillips?
-#' Yes, ok, and your email is mphil@hotmail.co.uk.
-#' Ok perfect, and your phone number? Was that 07564789789? Ok great.
-#' Just a second please Margaret, you're verified"
-#'
-#' schema_df <- data.frame(id = 1, text = text)
-#'
-#' results <- oai_complete_df(
-#'   schema_df,
-#'   text_var = text,
-#'   id_var = id,
-#'   schema = contact_schema,
-#'   temperature = 0  # recommended for structured outputs
-#' )
-#'
 #' }
-# oai_complete_df docs ----
 oai_complete_df <- function(df,
                             text_var,
                             id_var,
                             model = "gpt-4.1-nano",
+                            output_file = "auto",
                             system_prompt = NULL,
                             schema = NULL,
+                            chunk_size = 1000,
                             concurrent_requests = 1L,
                             max_retries = 5L,
                             timeout = 30,
@@ -395,9 +576,9 @@ oai_complete_df <- function(df,
                             max_tokens = 500L,
                             progress = TRUE,
                             key_name = "OPENAI_API_KEY",
-                            endpoint_url = "https://api.openai.com/v1/chat/completions"
-) {
-  # Input validation ----
+                            endpoint_url = "https://api.openai.com/v1/chat/completions") {
+
+  # input validation ----
   text_sym <- rlang::ensym(text_var)
   id_sym <- rlang::ensym(id_var)
 
@@ -405,102 +586,37 @@ oai_complete_df <- function(df,
     "df must be a data frame" = is.data.frame(df),
     "df must not be empty" = nrow(df) > 0,
     "text_var must exist in df" = rlang::as_name(text_sym) %in% names(df),
-    "id_var must exist in df" = rlang::as_name(id_sym) %in% names(df)
+    "id_var must exist in df" = rlang::as_name(id_sym) %in% names(df),
+    "model must be a character vector" = is.character(model)
   )
 
-  # build requests ----
-  inputs <- dplyr::pull(df, !!text_sym)
-  ids <- dplyr::pull(df, !!id_sym)
+  output_file <- .handle_output_filename(output_file, base_file_name = "oai_batch")
 
-  requests <- oai_build_completions_request_list(
-    inputs = inputs,
+  text_vec <- dplyr::pull(df, !!text_sym)
+  id_vec <- dplyr::pull(df, !!id_sym)
+
+  results <- oai_complete_chunks(
+    texts = text_vec,
+    ids = id_vec,
     model = model,
+    system_prompt = system_prompt,
+    schema = schema,
+    chunk_size = chunk_size,
+    concurrent_requests = concurrent_requests,
+    max_retries = max_retries,
+    timeout = timeout,
     temperature = temperature,
     max_tokens = max_tokens,
-    schema = schema,
-    system_prompt = system_prompt,
+    progress = progress,
     key_name = key_name,
     endpoint_url = endpoint_url,
-    max_retries = max_retries,
-    timeout = timeout
+    output_file = output_file
   )
 
-  # track valid requests ----
-  is_valid_request <- purrr::map_lgl(requests, ~inherits(.x, "httr2_request"))
-  valid_indices <- ids[is_valid_request]
-  valid_requests <- requests[is_valid_request]
+  results <- dplyr::rename(results, !!id_sym := id)
 
-  if (length(valid_requests) == 0) {
-    cli::cli_abort("No valid requests could be created")
-  }
-
-  # perform requests ----
-  responses <- perform_requests_with_strategy(
-    valid_requests,
-    concurrent_requests = concurrent_requests,
-    progress = progress
-  )
-
-  # process responses ----
-  results_df <- tibble::tibble(
-    !!id_sym := valid_indices,
-    response = responses
-  ) |>
-    dplyr::mutate(
-      extracted = purrr::map(response, ~.extract_response_fields(.x, schema = schema))
-    ) |>
-    tidyr::unnest_wider(extracted) |>
-    dplyr::select(-response)
-
-  # if a schema was provided, validate and unnest the JSON content directly
-  if (!is.null(schema)) {
-    results_df <- results_df |>
-      dplyr::mutate(
-        content = purrr::map(content, ~{
-          if (!is.na(.x)) {
-            tryCatch(
-              validate_response(schema, .x),
-              error = function(e) .x  # if validation fails, return original content
-            )
-          } else {
-            .x
-          }
-        })
-      ) |>
-      tidyr::unnest_wider(content)
-  }
-
-  # add invalid requests back ----
-  if (any(!is_valid_request)) {
-    invalid_df <- tibble::tibble(
-      !!id_sym := ids[!is_valid_request],
-      status = NA_integer_,
-      content = NA_character_,
-      .error_msg = "Failed to create valid request"
-    )
-
-    results_df <- dplyr::bind_rows(results_df, invalid_df)
-  }
-
-  # final cleanup ----
-  results_df <- results_df |>
-    dplyr::mutate(
-      .error = !is.na(.error_msg),
-      !!text_sym := inputs[match(!!id_sym, ids)]  # add original text back
-    ) |>
-    dplyr::arrange(!!id_sym) |>
-    dplyr::select(!!id_sym, !!text_sym, dplyr::everything())
-
-
-  n_success <- sum(!results_df$.error)
-  n_failed <- sum(results_df$.error)
-
-  cli::cli_alert_success("Completed: {n_success} successful, {n_failed} failed")
-
-  return(results_df)
+  return(results)
 }
-
-
 
 # helper function for oai_complete_df()
 # extract all needed fields from a response object
@@ -555,3 +671,22 @@ oai_complete_df <- function(df,
     httr2::resp_body_json() |>
     purrr::pluck("choices", 1, "message", "content")
 }
+
+
+#'should only pass in successes here, as we're not going to validate types here or try to catch errors and this is *marginally* quicker/memory efficient than pipe + pluck
+#' @keywords internal
+.extract_successful_completion_content <- function(resp) {
+  httr2::resp_body_json(resp)$choices[[1]]$message$content
+}
+
+#' @keywords internal
+.append_tibble_class <- function(x) {
+  attr(x, "class") <- c("tbl_df", "tbl", "data.frame")
+  return(x)
+}
+
+# TBD
+# .validate_df_with_schema <- function(df, content_var, schema) {
+#
+#   return(list())
+# }

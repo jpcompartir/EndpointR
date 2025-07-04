@@ -250,3 +250,16 @@ pre_fill_profile <- profvis({
   )
 })
 ```
+
+# Data Frame Testing
+
+```{r}
+trust_100 |>
+  oai_embed_df(text, id, dimensions = 360, )
+
+trust_1k |> 
+  oai_embed_df(
+    text, id, dimensions = 360,batch_size = 10, concurrent_requests = 50
+  )
+
+```

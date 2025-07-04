@@ -46,9 +46,58 @@ test_that("oai_build_completions_request validates inputs and generates valid re
   expect_equal(req_gptxx$body$data$max_tokens, 20)
 })
 
+test_that("oai_build_completions_request takes a json_schema and adds it to the response body, and accepts a list as a schema", {
+  test_schema <- create_json_schema(
+    name = "test_json_schema",
+    schema = schema_object(name = "hello"),
+    strict = TRUE
+  )
+
+  request_w_json_schema <- expect_no_error(
+    EndpointR::oai_build_completions_request(
+      input = "hello",
+      schema = test_schema
+  ))
+
+  expect_false(request_w_json_schema$body$data$response_format$json_schema$schema$additionalProperties)
+
+  names(request_w_json_schema$body$data)
+
+
+  list_schema <- list(
+    name = "list_schema",
+    schema = list(
+      type = "object",
+      properties = list("product"),
+      additionalProperties = FALSE
+    ),
+    strict = TRUE
+  )
+
+  request_w_list_schema <- expect_no_error(
+    EndpointR::oai_build_completions_request(
+      input = "hello",
+      schema = list_schema
+    )
+  )
+  expect_false(request_w_list_schema$body$data$response_format$schema$additionalProperties)
+})
+
+test_that("oai_build_completions_request adds endpointr_id to headers if asked to",{
+  base_req <- oai_build_completions_request(input = "hello")
+
+  expect_false("endpointr_id" %in% names(base_req$headers))
+
+  req_with_id <- oai_build_completions_request(input = "hello",
+                                               endpointr_id = "id_101")
+
+  expect_true("endpointr_id" %in% names(req_with_id$headers))
+  expect_true(req_with_id$headers$endpointr_id == "id_101")
+})
+
 test_that("oai_build_completions_request_list receives a list, and returns a list of requests", {
 
-  # we actually didn't need this function because we can just build the batch requests from completions_request, so feels cut but may delete later
+  # we actually didn't need this function because we can just build the batch requests from completions_request, so feels cute but may delete later
 
   list_req <- expect_no_error(
     oai_build_completions_request_list(c("hello", "goodbye"))
@@ -59,6 +108,30 @@ test_that("oai_build_completions_request_list receives a list, and returns a lis
   expect_true(lapply(list_req, class) |>
     unlist() |>
     unique() == "httr2_request")
+
+})
+
+test_that("oai_build_completions_request_list properly deals with endpointr_id",{
+
+  # no id case
+  reqs_no_id <- oai_build_completions_request_list(inputs = c("hello", "goodbye"))
+
+  # with ids case and check order is correct.
+  expect_error(
+    oai_build_completions_request_list(inputs = c("hello", "goodbye"), endpointr_ids = c(1)),
+    regexp = "are supplied they must be"
+  )
+
+  reqs_w_ids <- expect_no_error(
+    oai_build_completions_request_list(inputs = c("hello", "goodbye"), endpointr_ids = c(1, 2))
+  )
+
+  x <- lapply(reqs_w_ids, function(x) {
+    header_names <- names(x[["headers"]])
+  })
+
+  expect_true("endpointr_id" %in% x[[1]] & "endpointr_id" %in% x[[2]])
+  expect_equal(reqs_w_ids[[2]]$headers$endpointr_id, 2)
 
 })
 
@@ -111,4 +184,190 @@ test_that("oai_complete_text handles a schema appropriately", {
 
 })
 
-# test_that("", {})
+test_that("oai_complete_df takes single row, multi-row data frames as inputs", {
+  expect_error(oai_complete_df("hello"),
+               regexp = "df must be")
+
+  review_df <- get_review_df()
+
+  server$start()
+  endpoint_url <- server$url("/test_complete_df_review")
+
+  withr::with_envvar(
+    c("OPENAI_API_KEY" = "gibberish"),
+    successful_response <- expect_no_error(
+      oai_complete_df(review_df,
+                      review_text,
+                      id,
+                      endpoint_url = endpoint_url,
+                      concurrent_requests = 1,
+                      max_retries = 1,
+                      output_file = NULL)
+
+      )
+    )
+
+  expect_setequal(names(successful_response),
+                  c("id", "content", ".error_msg", ".error", ".batch"))
+  expect_setequal(unique(successful_response$content), "positive")
+
+  withr::with_envvar(
+    c("OPENAI_API_KEY" = "gibberish"),
+    expect_message(object =
+      oai_complete_df(review_df,
+                      review_text,
+                      id,
+                      endpoint_url = endpoint_url,
+                      concurrent_requests = 1,
+                      max_retries = 1,
+                      output_file = NULL),
+
+      regexp = "Performing 5 requests sequentially"
+    )
+  )
+
+  # check we at least get the status update of concurrency - even if we can't properly test it here.
+  withr::with_envvar(
+    c("OPENAI_API_KEY" = "gibberish"),
+    expect_message(object =
+                     oai_complete_df(review_df,
+                                     review_text,
+                                     id,
+                                     endpoint_url = endpoint_url,
+                                     concurrent_requests = 5,
+                                     max_retries = 1,
+                                     output_file = NULL),
+
+                   regexp = "with 5 concurrent requests"
+    )
+  )
+  })
+
+
+test_that("oai_complete_df takes a schema as input", {
+
+  sentiment_schema <- create_json_schema(
+    name = "sentiment_test",
+    schema = schema_object(
+      sentiment = schema_enum(
+        values = c("positive", "negative", "neutral"),
+        description = "Sentiment classification for the document",
+        type = "string"
+      ),
+      required = list("sentiment"),
+      additional_properties = FALSE
+    )
+  )
+
+  invalid_sentiment_schema <- create_json_schema(
+    name = "sentiment_test",
+    schema = schema_object(
+      sentiment = schema_enum(
+        values = c("positif", "negatif", "nootral"),
+        description = "Sentiment classification for the document",
+        type = "string"
+      ),
+      required = list("sentiment"),
+      additional_properties = FALSE
+    )
+  )
+
+  review_df <- get_review_df()
+
+  # server$start()
+  endpoint_url <- server$url("/test_complete_df_schema")
+
+  withr::with_envvar(
+    c("OPENAI_API_KEY" = "gibberish"),
+    successful_response <- expect_no_error(
+      oai_complete_df(review_df,
+                      review_text,
+                      id,
+                      endpoint_url = endpoint_url,
+                      concurrent_requests = 1,
+                      max_retries = 1,
+                      schema = sentiment_schema,
+                      output_file = NULL
+                      )
+
+    )
+  )
+
+  # we validate separately npw.
+  # successful_response |>
+  #   dplyr::mutate(validated = map(
+  #     content,
+  #     ~validate_response(
+  #       schema = sentiment_schema,
+  #       .x))) |>
+  #   tidyr::unnest_wider(validated)
+
+
+
+  # out of date
+  # withr::with_envvar(
+  #   c("OPENAI_API_KEY" = "gibberish"),
+  #   not_validated_response <- expect_warning(
+  #     oai_complete_df(review_df,
+  #                     review_text,
+  #                     id,
+  #                     endpoint_url = endpoint_url,
+  #                     concurrent_requests = 1,
+  #                     max_retries = 1,
+  #                     schema = invalid_sentiment_schema,
+  #                     output_file = NULL
+  #     ), regexp = "5 responses failed schema validation"
+  #   )
+  # )
+
+
+})
+
+
+test_that("oai_complete_df handles mixed validation success/failure", {
+
+  review_df <- get_review_df()
+
+
+  sentiment_schema <- create_json_schema(
+    name = "sentiment_test_mixed",
+    schema = schema_object(
+      sentiment = schema_enum(
+        values = c("positive", "negative", "neutral"),
+        description = "Sentiment classification for the document",
+        type = "string"
+        )
+    )
+  )
+
+  #  reset counter JIC - should get torn down with the defer call in testthat setup
+  if (exists(".request_counter")) rm(.request_counter, envir = .GlobalEnv)
+
+  endpoint_url <- server$url("/test_complete_df_mixed")
+
+  # should get alternating successes and failures
+  withr::with_envvar(
+    c("OPENAI_API_KEY" = "gibberish"),
+    {
+        results <- oai_complete_df(
+          df = review_df,
+          text_var = review_text,
+          id_var = id,
+          endpoint_url = endpoint_url,
+          concurrent_requests = 1,
+          max_retries = 1,
+          schema = sentiment_schema,
+          output_file = NULL
+        )}
+      )
+
+
+  expect_s3_class(results, "data.frame")
+  expect_equal(nrow(results), 5)
+
+  expect_true("content" %in% names(results))
+  expect_false("sentiment" %in% names(results))
+
+
+  expect_true(all(grepl("sentiment", results$content)))
+})

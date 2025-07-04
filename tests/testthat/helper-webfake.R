@@ -106,6 +106,92 @@ withr::local_envvar(HF_TEST_API_KEY = "fake-key")
     send_json(response_data)
 })
 
+.app$post("/test_complete_df_review", function(req, res) {
+
+  # it's easier, at leasr for now to just have one response (positive), despite that not really echoing what the review_df has it. It's for convenience, for now, until later figuring out how to properly mock multiple responses efficiently.
+
+  response_data <- list(
+    choices = list(
+      list(
+        index = 0,
+        message = list(
+          role = "assistant",
+          content = "positive"
+        ),
+        finish_reason = "stop"
+      )
+    )
+  )
+
+  res$
+    set_status(200L)$
+    set_header("Content-Type", "application/json")$
+    send(jsonlite::toJSON(response_data, auto_unbox = TRUE))
+})
+
+
+.app$post("/test_complete_df_schema", function(req, res) {
+  response_data <- list(
+    choices = list(
+      list(
+        index = 0,
+        message = list(
+          role = "assistant",
+          content = '{"sentiment": "positive"}'
+        ),
+        finish_reason = "stop"
+      )
+    )
+  )
+
+  res$
+    set_status(200L)$
+    set_header("Content-Type", "application/json")$
+    send(jsonlite::toJSON(response_data, auto_unbox = TRUE))
+
+})
+
+.app$post("/test_complete_df_mixed", function(req, res) {
+  if (!exists(".request_counter")) .request_counter <<- 0
+  .request_counter <<- .request_counter + 1
+
+  # alternate between valid "positive" and invalid "positif"
+  if (.request_counter %% 2 == 1) {
+    # Valid response
+    response_data <- list(
+      choices = list(
+        list(
+          index = 0,
+          message = list(
+            role = "assistant",
+            content = '{"sentiment": "positive"}'
+          ),
+          finish_reason = "stop"
+        )
+      )
+    )
+  } else {
+
+    response_data <- list(
+      choices = list(
+        list(
+          index = 0,
+          message = list(
+            role = "assistant",
+            content = '{"sentiment": "positif"}'
+          ),
+          finish_reason = "stop"
+        )
+      )
+    )
+  }
+
+  res$
+    set_status(200L)$
+    set_header("Content-Type", "application/json")$
+    send(jsonlite::toJSON(response_data, auto_unbox = TRUE))
+})
+
 
 .app$post("/test_oai_sentiment", function(req, res) {
   sentiment_response <- list(
@@ -129,8 +215,6 @@ withr::local_envvar(HF_TEST_API_KEY = "fake-key")
     set_header("Content-Type", "application/json")$
     send_json(response_data)
 })
-
-
 
 
 server <- webfakes::local_app_process(.app)

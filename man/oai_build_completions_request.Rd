@@ -6,6 +6,7 @@
 \usage{
 oai_build_completions_request(
   input,
+  endpointr_id = NULL,
   model = "gpt-4.1-nano",
   temperature = 0,
   max_tokens = 500L,
@@ -19,6 +20,8 @@ oai_build_completions_request(
 }
 \arguments{
 \item{input}{Text input to send to the model}
+
+\item{endpointr_id}{An id that will persist through to response}
 
 \item{model}{OpenAI model to use (default: "gpt-4.1-nano")}
 

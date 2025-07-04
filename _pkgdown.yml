@@ -86,6 +86,7 @@ reference:
   - oai_build_completions_request
   - oai_build_completions_request_list
   - oai_complete_text
+  - oai_complete_chunks
   - oai_complete_df
 
 - title: "OpenAI Embeddings"

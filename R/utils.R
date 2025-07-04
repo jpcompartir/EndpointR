@@ -238,3 +238,24 @@ extract_field <- function(api_response, field_name) {
 
   purrr::compact(recursive_map_collect(api_response, field_name))
 }
+
+
+#' @keywords internal
+.handle_output_filename <- function(x, base_file_name = "batch_processing_") {
+  if (is.null(x)) {
+    return(tempfile(pattern = base_file_name, fileext = ".csv"))
+  }
+
+  if(identical(x, "auto")) {
+    timestamp <- format(Sys.time(), "%d%m%Y_%H%M%S")
+    output_file <- paste0(base_file_name, "_", timestamp, ".csv")
+
+    return(output_file)
+  }
+
+  if (!endsWith(tolower(x), ".csv")) {
+    cli::cli_abort("`output_file` must have a .csv extension")
+  }
+
+  return(x)
+}
