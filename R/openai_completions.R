@@ -88,7 +88,7 @@ oai_build_completions_request <- function(
   if (!is.null(schema)) {
     if (inherits(schema, "EndpointR::json_schema")){
 
-      cli::cli_alert_info("calling json_dump")
+      # cli::cli_alert_info("calling json_dump")
       schema <- json_dump(schema)
     }
     body$response_format <- schema # we're trusting the user supplies this correctly, at the moment.
@@ -309,13 +309,76 @@ oai_complete_text <- function(text,
 }
 
 # oai_complete_chunks docs ----
+#' Process text chunks through OpenAI's Chat Completions API with batch file output
+#'
+#' This function processes large volumes of text through OpenAI's Chat Completions API
+#' in configurable chunks, writing results progressively to a CSV file. It handles
+#' concurrent requests, automatic retries, and structured outputs while
+#' managing memory efficiently for large-scale processing.
+#'
+#' @details This function is designed for processing large text datasets that may not
+#' fit comfortably in memory. It divides the input into chunks, processes each chunk
+#' with concurrent API requests, and writes results immediately to disk to minimise
+#' memory usage.
+#'
+#' The function preserves data integrity by matching results to source texts through
+#' the `ids` parameter. Each chunk is processed independently with results appended
+#' to the output file, allowing for resumable processing if interrupted.
+#'
+#' When using structured outputs with a `schema`, responses are validated against
+#' the JSON schema but stored as raw JSON strings in the output file. This allows
+#' for flexible post-processing without memory constraints during the API calls.
+#'
+#' The chunking strategy balances API efficiency with memory management. Larger
+#' `chunk_size` values reduce overhead but increase memory usage. Adjust based on
+#' your system resources and text sizes.
+#'
+#' @param texts Character vector of texts to process
+#' @param ids Vector of unique identifiers corresponding to each text (same length as texts)
+#' @param chunk_size Number of texts to process in each batch (default: 5000)
+#' @param model OpenAI model to use (default: "gpt-4.1-nano")
+#' @param system_prompt Optional system prompt applied to all requests
+#' @param output_file Path to .CSV file for results. "auto" generates the filename, location and is persistent across sessions. If NULL, generates timestamped filename.
+#' @param schema Optional JSON schema for structured output (json_schema object or list)
+#' @param concurrent_requests Integer; number of concurrent requests (default: 5)
+#' @param temperature Sampling temperature (0-2), lower = more deterministic (default: 0)
+#' @param max_tokens Maximum tokens per response (default: 500)
+#' @param max_retries Maximum retry attempts per failed request (default: 5)
+#' @param timeout Request timeout in seconds (default: 30)
+#' @param progress Logical; whether to show progress bar (default: TRUE)
+#' @param key_name Name of environment variable containing the API key (default: OPENAI_API_KEY)
+#' @param endpoint_url OpenAI API endpoint URL
+#'
+#' @return A tibble containing all results with columns:
+#'   - `id`: Original identifier from input
+#'   - `content`: API response content (text or JSON string if schema used)
+#'   - `.error`: Logical indicating if request failed
+#'   - `.error_msg`: Error message if failed, NA otherwise
+#'   - `.batch`: Batch number for tracking
+#'
+#' @export
+#' @examples
+#' \dontrun{
+#' # basic usage with automatic file naming:
+#'
+#' # large-scale processing with custom output file:
+
+#' #structured extraction with schema:
+#'
+#'
+#' # post-process structured results:
+#' xx <- xx |>
+#'   dplyr::filter(!.error) |>
+#'   dplyr::mutate(parsed = map(content, ~jsonlite::fromJSON(.x))) |>
+#'   unnest_wider(parsed)
+#' }
 # oai_complete_chunks docs ----
 oai_complete_chunks <- function(texts,
                                ids,
                                chunk_size = 5000L,
                                model = "gpt-4.1-nano",
                                system_prompt = NULL,
-                               output_file = NULL,
+                               output_file = "auto",
                                schema = NULL,
                                concurrent_requests = 5L,
                                temperature = 0L,
@@ -432,35 +495,77 @@ oai_complete_chunks <- function(texts,
 
     batch_df <- dplyr::bind_rows(batch_results)
 
-    if (nrow(batch_df) > 0) {
-      if (batch_num == 1) {
-        # if we're in the first batch write to csv with headers (col names)
-        readr::write_csv(batch_df, output_file, append = FALSE)
-      } else {
-        # all other batches, append and don't use col names
-        readr::write_csv(batch_df, output_file, append = TRUE, col_names = FALSE)
+    if(!is.null(output_file)){ # skip writing if output_file = NULL
+      if (nrow(batch_df) > 0) {
+        if (batch_num == 1) {
+          # if we're in the first batch write to csv with headers (col names)
+          readr::write_csv(batch_df, output_file, append = FALSE)
+        } else {
+          # all other batches, append and don't use col names
+          readr::write_csv(batch_df, output_file, append = TRUE, col_names = FALSE)
+        }
       }
     }
 
+
     cli::cli_alert_success("Batch {batch_num}: {n_successes} successful, {n_failures} failed")
 
-    # tidy up
     rm(requests, responses, successes, failures, batch_results, batch_df)
     gc(verbose = FALSE)
   }
 
   cli::cli_alert_success("Completed processing: {total_successes} successful, {total_failures} failed")
 
-  # retrieve all results from the output file (results for all batches) - this may still be inefficient, and should perhaps write to duckdb
+  # retrieve all results from the output file (results for all batches) - this may still be too inefficient, and should perhaps write to duckdb(?)
   final_results <- readr::read_csv(output_file, show_col_types = FALSE)
 
   return(final_results)
 }
 
+#' Process a data frame through OpenAI's Chat Completions API with chunked processing
+#'
+#' This function takes a data frame with text inputs and processes each row through
+#' OpenAI's Chat Completions API using efficient chunked processing. It handles
+#' concurrent requests, automatic retries, and structured output validation while
+#' writing results progressively to disk.
+#'
+#' @details This function provides a data frame interface to the chunked processing
+#' capabilities of `oai_complete_chunks()`. It extracts the specified text column,
+#' processes texts in configurable chunks with concurrent API requests, and returns
+#' results matched to the original data through the `id_var` parameter.
+#'
+#' The chunking approach enables processing of large data frames without memory
+#' constraints. Results are written progressively to a CSV file (either specified
+#' or auto-generated) and then read back as the return value.
+#'
+#' When using structured outputs with a `schema`, responses are validated against
+#' the JSON schema and stored as JSON strings. Post-processing may be needed to
+#' unnest these into separate columns.
+#'
+#' Failed requests are marked with `.error = TRUE` and include error messages,
+#' allowing for easy filtering and retry logic on failures.
+#'
+#' @param df Data frame containing text to process
+#' @param text_var Column name (unquoted) containing text inputs
+#' @param id_var Column name (unquoted) for unique row identifiers
+#' @inheritParams oai_complete_chunks
+#'
+#' @return A tibble with the original id column and additional columns:
+#'   - `content`: API response content (text or JSON string if schema used)
+#'   - `.error`: Logical indicating if request failed
+#'   - `.error_msg`: Error message if failed, NA otherwise
+#'   - `.batch`: Batch number for tracking
+#'
+#' @export
+#' @examples
+#' \dontrun{
+#'
+#' }
 oai_complete_df <- function(df,
                             text_var,
                             id_var,
                             model = "gpt-4.1-nano",
+                            output_file = "auto",
                             system_prompt = NULL,
                             schema = NULL,
                             chunk_size = 1000,
@@ -471,8 +576,7 @@ oai_complete_df <- function(df,
                             max_tokens = 500L,
                             progress = TRUE,
                             key_name = "OPENAI_API_KEY",
-                            endpoint_url = "https://api.openai.com/v1/chat/completions",
-                            output_file = "auto") {
+                            endpoint_url = "https://api.openai.com/v1/chat/completions") {
 
   # input validation ----
   text_sym <- rlang::ensym(text_var)
@@ -482,10 +586,12 @@ oai_complete_df <- function(df,
     "df must be a data frame" = is.data.frame(df),
     "df must not be empty" = nrow(df) > 0,
     "text_var must exist in df" = rlang::as_name(text_sym) %in% names(df),
-    "id_var must exist in df" = rlang::as_name(id_sym) %in% names(df)
+    "id_var must exist in df" = rlang::as_name(id_sym) %in% names(df),
+    "model must be a character vector" = is.character(model)
   )
 
   output_file <- .handle_output_filename(output_file, base_file_name = "oai_batch")
+
   text_vec <- dplyr::pull(df, !!text_sym)
   id_vec <- dplyr::pull(df, !!id_sym)
 
