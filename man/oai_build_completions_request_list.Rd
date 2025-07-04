@@ -6,6 +6,7 @@
 \usage{
 oai_build_completions_request_list(
   inputs,
+  endpointr_ids = NULL,
   model = "gpt-4.1-nano",
   temperature = 0,
   max_tokens = 500L,
@@ -19,6 +20,8 @@ oai_build_completions_request_list(
 }
 \arguments{
 \item{inputs}{Character vector of text inputs}
+
+\item{endpointr_ids}{A vector of IDs which will persist through to responses}
 
 \item{model}{OpenAI model to use}
 

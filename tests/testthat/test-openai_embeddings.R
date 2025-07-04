@@ -32,7 +32,7 @@ test_that("tidy_oai_embedding handles single and batches",{
   expect_setequal(names(tidied_single), names(tidied_batch))
 })
 
-test_that("oai_embed_batch handles batches properly",{
+test_that("oai_embed_batch handles batches properly and responds to its input arguments appropriately",{
 
   expect_error(
     oai_embed_batch(c(2, 3)),

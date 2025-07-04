@@ -205,7 +205,7 @@ result <- hf_embed_text(
 -   Start with small batch sizes (3-5) and increase gradually
 -   The Inference API has rate limits - dedicated endpoints have hardware constraints, increase hardware for higher limits
 -   For production use, choose dedicated endpoints
--   Check the [Improving Performance](articles/improving_performance.html) vignette for speed tips
+-   Check the [Improving Performance](improving_performance.html) vignette for speed tips
 
 # Common Issues
 

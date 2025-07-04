@@ -53,14 +53,14 @@ vectors as columns, but you can get the raw response by setting \code{tidy = FAL
 \dontrun{
   # Generate embeddings for a single text
   embeddings <- oai_embed_text("Hello world")
-
+  
   # Use a different model with custom dimensions
   embeddings <- oai_embed_text(
     text = "Hello world",
     model = "text-embedding-3-large",
     dimensions = 1024
   )
-
+  
   # Get raw response instead of tidy format
   raw_response <- oai_embed_text(
     text = "Hello world",
