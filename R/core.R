@@ -98,7 +98,7 @@ perform_requests_with_strategy <- function(requests,
   }
 
   if (concurrent_requests > 1 && length(requests) > 1) { # use parallel.
-    cli::cli_alert_info("Performing {length(requests)} requests in parallel (with {concurrent_requests} concurrent requests)...")
+    cli::cli_alert_info("Performing {length(requests)} request{?s} in parallel (with {concurrent_requests} concurrent requests)...")
     responses <- httr2::req_perform_parallel(
       requests,
       on_error = "continue",
@@ -108,7 +108,7 @@ perform_requests_with_strategy <- function(requests,
   }
 
   else { # use sequential.
-    cli::cli_alert_info("Performing {length(requests)} requests sequentially...")
+    cli::cli_alert_info("Performing {length(requests)} request{?s} sequentially...")
     responses <- purrr::map(
       requests,
       perform_request_or_return_error,

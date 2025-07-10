@@ -81,7 +81,7 @@ original texts.
   # Basic batch embedding
   texts <- c("First text", "Second text", "Third text")
   embeddings <- oai_embed_batch(texts)
-  
+
   # Large-scale processing with concurrent requests
   large_texts <- rep("Sample text", 100)
   embeddings <- oai_embed_batch(
@@ -90,7 +90,7 @@ original texts.
     concurrent_requests = 5,
     dimensions = 512
   )
-  
+
   # Custom model and settings
   embeddings <- oai_embed_batch(
     texts = texts,

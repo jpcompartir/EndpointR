@@ -17,7 +17,6 @@ oai_complete_chunks(
   max_tokens = 500L,
   max_retries = 5L,
   timeout = 30L,
-  progress = TRUE,
   key_name = "OPENAI_API_KEY",
   endpoint_url = "https://api.openai.com/v1/chat/completions"
 )
@@ -46,8 +45,6 @@ oai_complete_chunks(
 \item{max_retries}{Maximum retry attempts per failed request (default: 5)}
 
 \item{timeout}{Request timeout in seconds (default: 30)}
-
-\item{progress}{Logical; whether to show progress bar (default: TRUE)}
 
 \item{key_name}{Name of environment variable containing the API key (default: OPENAI_API_KEY)}
 
