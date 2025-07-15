@@ -680,6 +680,11 @@ oai_complete_df <- function(df,
   httr2::resp_body_json(resp)$choices[[1]]$message$content
 }
 
+
+#' @export
+safely_from_json <- purrr::possibly(.f = jsonlite::fromJSON,
+                                     otherwise = list())
+
 # TBD
 # .validate_df_with_schema <- function(df, content_var, schema) {
 #
