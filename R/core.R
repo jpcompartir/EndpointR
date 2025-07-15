@@ -69,7 +69,7 @@ perform_request_or_return_error <- function(request) {
 #' @param progress Logical indicating whether to show progress bar (default: TRUE)
 #'
 #' @return List of httr2_response objects or error objects for failed requests
-#'
+#' @export
 #' @examples
 #' \dontrun{
 #'   # Sequential processing
@@ -135,6 +135,7 @@ perform_requests_with_strategy <- function(requests,
 #'   - .error_message: Character description of any error
 #'   - Additional columns from tidy_func output
 #'
+#' @export
 #' @examples
 #' \dontrun{
 #'   # Process a response with custom tidying function

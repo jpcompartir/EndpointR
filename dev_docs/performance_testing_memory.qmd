@@ -671,7 +671,8 @@ small_trial <- data |>
       max_retries = 10,
       timeout = 50,
       temperature = 0,
-      max_tokens = 30L
+      max_tokens = 30L,
+      output_file = NULL
   )
 
 small_trial |>

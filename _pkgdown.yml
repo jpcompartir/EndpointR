@@ -126,6 +126,7 @@ reference:
   - hf_perform_request
   - validate_hf_endpoint
   - base_request
+  - safely_from_json
 
 - title: "Sample Data"
   desc: "Datasets included with the package for examples and testing"
