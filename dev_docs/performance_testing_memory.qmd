@@ -22,22 +22,17 @@ library(httr2)
 library(furrr)
 library(purrr)
 library(profvis)
+library(jsonlite)
+```
+
+```{r}
+review_df <- get_review_df()
+responses_tibble <- readRDS("~/dev/projects/copilot_endpointr_trial_run/all_responses.Rdata")
+# responses_tibble <- tibble(response = httr2::resps_successes(responses_tibble$response)) # just successes
+
 ```
 
 # oai_complete_df
-
-There are a few problems with the current oai_complete_df implementation, some of which stem from how requests are created in oai_build_request/list:
-
-1.  Too much copying of \|\> throughout, and dealing with entire lists/vectors/data frames - we could do with generator style data structure, or just explicitly chunking at different stages.
-2.  Need to write to files to minimise risk of responses being lost
-3.  Not enough batching/chunking for processing
-4.  Response objects are much heavier than expected, and as they're complex, nested lists they take a long time to serialise/write with saveRDS. ---\> So we want to write just the response_body (choices -\> 1 -\> messages -\> content) + the ID header without validating against the schema, which requires not firing off all requests and getting all responses ✅
-5.  Validating responses against the schema is a more costly operation than first appreciated. And we're validating twice - once to check if everything can validate, then again later. Definitely bad idea as validating is more costly than previously assumed. Fine at low N but bad for larger DFs. ✅
-6.  Error handling isn't solid - NA for content coming back in the schema case can break everything (loss of data)
-7.  There was quadratic scaling in the match call in the worst case (going through every single element, for every single element when a join or look-up will do) - Send IDs with requests so they're sustained in responses. Avoid the matching logic. ✅
-8.  Request creation is quite heavy with the schema dump - in the list case we should probably only dump the schema once. \[Now that we only dump the schema once\] ✅
-9.  Checking the schema type with 3 separate inherits calls instead of a vector (fix for minor efficiency here) ✅
-10. resp_body_json() uses *a lot* of memory, we definitely want to chunk this.
 
 Solution(s):
 
@@ -47,32 +42,6 @@ Solution(s):
 -   Add an endpointr_id to each request as a header so that it persists with the response. Then we don't need to do the match or a look-up. We can uses resps_succeses(), convert to data frame. Perhaps endpointr_id should be a mandatory argument. ✅
 -   Now that we're separating successes and failures, we can make .extract_response_fields simpler too.
 -   
-
-Process/algorithm:
-
-1.  Input Validation
-
--   If \> 10,000 rows -\> chunk(?)
-
-2.  Convert Texts and IDs to vectors so they can benefit from parallel requests, and be chunked efficiently
-3.  Chunk texts and IDs into \~1k sizes (could do this prior to converting texts and IDs to vectors? But not sure it'll actually make any difference)
-4.  If there's a schema, dump the schema once and supply that to all requests. Then build the requests for the chunk with the system prompt + schema, and each individual input
-5.  Perform the requests in parallel - handle each chunk's responses as they come in
-
--   check status
-    -   if status == 200 extract the body with resp_body_json() (just use resps_successes and resps_failures here)
-    -   pluck the content and stream this content to a jsonl file (to avoid dirty writes etc.), making sure ID goes with it
-    -   do not try to unnest or validate here (?)
-    -   or if we do, then we need to check for schema, and we should make sure to check for NA content and avoid trying to validate NAs
-    -   if there was a schema, then validate against the schema here
-    -   now write the validated data to file if we validated, or just the content as a string OR don't validate in this function, seems the best way.
-
-Needed Funcs / sub funks
-
--   [ ] Chunk Data Frame
--   [ ] build_request_batch_with_schema
--   [ ] validate_df_against_schema
--   [ ] .extract_response_fields
 
 # Hugging Face
 
@@ -127,10 +96,6 @@ inherits(non_schema, c("EndpointR::json_schema"))
 
 json_dump(schema) |>
   jsonlite::toJSON()
-```
-
-```{r}
-sentiment_schema <- create_
 ```
 
 ## IDs as metadata?
@@ -273,8 +238,34 @@ oai_complete_chunks(
 oai_complete_df(review_df,
                 review_text,
                 id,
-                chunk_size = 2,
-                output_file = "test_run.csv")
+                chunk_size = 1,
+                output_file = NULL)
+```
+
+## handle output_file
+
+Utils
+
+```{r}
+.handle_output_filename <- function(x, base_file_name = "batch_processing_") {
+  if (is.null(x)) {
+    return(tempfile(pattern = base_file_name, fileext = ".csv"))
+  }
+
+  if(identical(x, "auto")) {
+    timestamp <- format(Sys.time(), "%d%m%Y_%H%M%S")
+    output_file <- paste0(base_file_name, "_", timestamp, ".csv")
+
+    return(output_file)
+  }
+
+  if (!endsWith(tolower(x), ".csv")) {
+    cli::cli_abort("`output_file` must have a .csv extension")
+  }
+
+  return(x)
+}
+
 ```
 
 ```{r}
@@ -300,4 +291,396 @@ responses_1k_writes <- data |>
     temperature = 0,
     max_tokens = 100L
   )
+```
+
+```{r}
+progress_test <- data |> 
+  slice(1:40) |> 
+  oai_complete_df(
+    text_var = clean_message, # Change as needed
+    id_var = universal_message_id, # Change as needed
+    output_file = "responses_1k.csv",
+    model = "gpt-4.1-nano",
+    system_prompt = "classify sentiment",
+    chunk_size = 20,
+    concurrent_requests = 1,
+    max_retries = 10,
+    timeout = 50,
+    temperature = 0,
+    max_tokens = 100L
+  )
+```
+
+# Validate DF Against Schema
+
+For validation purposes, we were paying a fairly disgusting overhead when validating the schema.
+
+When we want to validate all of the rows of a data frame, we want to convert the schema to JSON just once.
+
+The data will have been converted from JSON -\> string. So we want to maybe skip that step. Then we want to return the validated.
+
+use the sentiment_schema we've been playing around with
+
+```{r}
+sentiment_schema <- create_json_schema(
+    name = "sentiment_test",
+    schema = schema_object(
+      sentiment = schema_enum(
+        values = c("positive", "negative", "neutral"),
+        description = "Sentiment classification for the document",
+        type = "string"
+      ),
+      required = list("sentiment"),
+      additional_properties = FALSE
+    )
+  )
+
+```
+
+```{r}
+validate_df_against_schema <- function(df, x, schema) {
+  
+  stopifnot(inherits(schema, "EndpointR::json_schema"))
+  
+  schema_json <- jsonlite::toJSON(schema@schema)
+  
+}
+```
+
+```{r}
+copilot_schema <- create_json_schema(
+  name = "copilot_sentiment",  
+  schema = schema_object(
+    entity = schema_string(
+      description = "Mention of Copilot"),
+    sentiment = schema_enum(
+      c("positive", "negative", "neutral", "mixed"),
+      "sentiment of copilot mention"
+    ),
+    required = list("entity", "sentiment")
+    ),
+  )
+
+responses_tibble <- responses_tibble |> 
+  slice(1:1000)
+```
+
+```{r}
+copilot_schema_json <- jsonlite::toJSON(copilot_schema@schema, auto_unbox = TRUE)
+
+response_string <- responses_tibble$response[[1]] |> 
+  resp_body_json() |> 
+  pluck('choices', 1, "message", "content")
+
+response_parsed_list <- jsonlite::fromJSON(response_string, simplifyVector = FALSE) 
+
+
+jsonvalidate::json_validate(response_string, copilot_schema_json, engine = "ajv", verbose = TRUE)
+```
+
+```{r}
+Rprof("profile.out", memory.profiling = TRUE)
+jsonvalidate::json_validate(response_string, copilot_schema_json, engine = "ajv", verbose = TRUE)
+Rprof(NULL)
+summaryRprof("profile.out", memory = "both")
+```
+
+memory profiling: sample.interval=20000 :3560172:4418320:192387552:4: :3560618:4419492:192497032:54:"context_eval" "get_str_output" "evaluate_js" "ct$source" "jsonvalidate_js" "initialize" "json_schema$new" "json_validator" "jsonvalidate::json_validate" :3561985:4419521:192855040:189:"match.arg" "toJSON" "FUN" "vapply" "v8$call" "private$do_validate" "validator" "jsonvalidate::json_validate"
+
+```{r}
+responses_tibble |> 
+  slice(1) |>  
+  mutate(content = map(response, resp_body_json))  |>
+  pull(content) |> 
+  pluck(1, 'choices', 1, "message", "content") |> 
+  jsonlite::fromJSON() |> 
+  as_tibble()
+```
+
+```{r}
+'{
+  "entities": [
+    {"entity": "Copilot", "sentiment": "negative"},
+    {"entity": "Microsoft", "sentiment": "neutral"},
+    {"entity": "AI assistance", "sentiment": "positive"}
+  ]
+}' |> 
+  jsonlite::fromJSON() |> 
+  as_tibble()
+```
+
+```{r}
+'{
+  "documents": [
+    {
+      "document_id": "review_001",
+      "entities": [
+        {"entity": "GitHub Copilot", "sentiment": "positive"},
+        {"entity": "pricing", "sentiment": "negative"}
+      ]
+    },
+    {
+      "document_id": "review_002", 
+      "entities": [
+        {"entity": "code completion", "sentiment": "positive"},
+        {"entity": "Microsoft", "sentiment": "neutral"},
+        {"entity": "VS Code integration", "sentiment": "positive"}
+      ]
+    }
+  ]
+}
+' |> 
+  jsonlite::fromJSON() |> 
+  pluck("documents") |> 
+  unnest(entities) |> 
+  as_tibble()
+```
+
+## profiling
+
+old way:
+
+new way:
+
+memory comparison/opps for improvement
+
+```{r}
+start <- Sys.time()
+responses_tibble |> 
+  # slice(1:10) |>
+  mutate(content = 
+           map(response, ~ .x |>
+                 .extract_successful_completion_content() |> 
+                 fromJSON()
+           ))
+
+end <- Sys.time() - start
+end
+```
+
+```{r}
+library(furrr)
+future::plan(future::multisession(workers = future::availableCores() - 1))
+safe_pluck <- purrr::safely(purrr::pluck)
+
+profvis({
+  responses_tibble |> 
+  group_split(row_number() %% 15) |>
+  map( ~ .x |>
+         # slice(1:10) |>
+          # mutate(response = future_map(
+          mutate(response = map(
+            response, ~ .x |>
+              httr2::resp_body_json() |>
+              safe_pluck('choices', 1, "message", "content")
+          ))
+  )  
+})
+
+
+future::plan(future::sequential())
+
+
+future::plan(future::multisession(workers = future::availableCores() - 1))
+responses_tibble |>
+  mutate(response = 
+           future_map(
+             response, ~ .x |>
+               httr2::resp_body_json() |> 
+               purrr::pluck('choices', 1, "message", "content"))
+  )
+future::plan(future::sequential())
+```
+
+## Dealing with refusals
+
+If OpenAI return a valid response, but with a refusal. Our normal method of plucking will not wor unless we set the .default = NA or .defualt = NA_character\_
+
+```{r}
+responses_tibble |>  
+  slice(37211) |>  
+  pull(response) |> 
+  pluck(1) |>  
+  resp_body_json() |>  
+  pluck("choices", 1, "message", "content") |> 
+  fromJSON()
+  # pluck("choices", 1, "message", "content", .default = NA)
+
+
+
+
+responses_tibble |> 
+  slice(1000:1100) |>
+  mutate(content = 
+           map(response,
+               .x |>
+                 safely_parse_completion()))
+
+responses_tibble |> 
+  slice(37200:37215) |>
+  mutate(content = 
+           map(response, {
+             response_parsing <- ~ .x |>
+               extract_and_parse_completion()
+           })) |> 
+  unnest_wider(content)
+
+
+
+responses_tibble |> 
+  slice(1000:10000) |>
+  mutate(content = 
+           map(response, {
+             response_parsing <- ~ .x |>
+               parse_safely()
+           }))  |> 
+  unnest_wider(content)  
+
+responses_tibble |>  
+  slice(37210:37215) |>  
+  # pull(response) |> 
+  # pluck(1)  |>
+  mutate(content = map(response, ~ {
+    content <- .x |> 
+      resp_body_json() |> 
+      pluck("choices", 1, "message", "content", .default = NA_character_)
+    
+    if (is.na(content)) return(NA)
+    fromJSON(content)
+  })) |> 
+  unnest_wider(content)
+```
+
+```{r}
+responses_tibble |>  
+  slice(37210:37215) |> 
+  mutate(content = map(
+    response, ~ resp_body_json(.x) |> 
+      pluck("choices", 1, "message", "content", .default = NA_character_) |>
+      safely_from_json() 
+                       )) |> 
+  unnest_wider(content)
+```
+
+potential routes:
+
+```{r}
+is_refusal <- function(oai_response) {
+  
+}
+
+.parse_safely <- purrr::possibly(~ .x |> 
+                         .extract_successful_completion_content() |> 
+                         jsonlite::fromJSON(), 
+                       otherwise = list())
+
+
+.safely_from_json <- purrr::possibly(.f = jsonlite::fromJSON,
+                                     otherwise = list())
+
+
+inspect_content_names <- function(responses_df, content_var = content, n = 5) {
+  
+  content_sym <- rlang::ensym(content_var)
+  
+  content_names <- responses_df |>
+    dplyr::slice_head(n = n) |>
+    dplyr::pull(content) |>
+    purrr::map(names)
+  
+  return(content_names)
+  
+}
+```
+
+# Real Data - 11th July 2025
+
+```{r, setup_data_copilot_prompt_schema}
+data <- read_csv("~/Google Drive/My Drive/data_science_project_work/microsoft/project_work/823_copilot_associations/data/wrangled_data/df_all_flags.csv", n_max = 100)
+responses_slice <- responses_tibble |>  slice(37210:37225)
+
+data <- data |> 
+  select(universal_message_id, clean_message)
+
+copilot_prompt <- "
+You are an emotionally-intelligent assistant who focuses solely on the brand \"Microsoft Copilot\" in social media posts. 
+I want you to examine a given document and extract the sentiment specifically attributed towards Copilot, regardless of the document's overall sentiment.
+- I only care about mentions of \"Microsoft Copilot\" - no other brands or entities should be considered, such as GitHub Copilot.
+- For every mention of Copilot, determine the sentiment in the context where it appears, categorising it as \"positive\", \"negative\", \"neutral\", or \"mixed\" (if multiple sentiments are expressed regarding Copilot).
+- If Microsoft Copilot is mentioned only in a neutral context (e.g., general announcements, greetings, or messages not directed specifically at Copilot's attributes or actions), classify the sentiment as neutral.
+- If Copilot is mentioned in a URL or in a context that does not express any clear sentiment (e.g., mentions in job postings or generic references), classify the sentiment as neutral.
+- If the document contains no mention of Copilot, output should indicate that with \"NO_ENTITIES\".
+Example:
+Document: \"Taking the test has been really hard and burdensome. What I've found to help me prepare is Microsoft Copilot's study materials\"
+Output:
+{
+  \"entities\": [
+    {
+      \"entity\": \"Copilot\",
+      \"sentiment\": \"positive\"
+    }
+  ]
+}
+Document: \"I was really disappointed with how Copilot integrated with powerpoint, especially when other brands like OpenAI seem to offer much better integration.
+Output:
+{
+  \"entities\": [
+    {
+      \"entity\": \"Copilot\",
+      \"sentiment\": \"negative\"
+    }
+  ]
+}
+Document: \"happy holidays from Github Copilot! wishing you a wonderful season and plenty of rest.\"
+Output:
+{
+  \"entities\": [
+    {
+      \"entity\": \"NO_ENTITIES\",
+      \"sentiment\": \"neutral\"
+    }
+  ]
+}
+Please respond to the given document by following these instructions exactly.
+"
+
+copilot_schema <- create_json_schema(
+  name = "copilot_sentiment",  
+  schema = schema_object(
+    entity = schema_string(
+      description = "Mention of Copilot"),
+    sentiment = schema_enum(
+      c("positive", "negative", "neutral", "mixed"),
+      "sentiment of copilot mention"
+    ),
+    required = list("entity", "sentiment")
+    ),
+  )
+```
+
+```{r}
+small_trial <- data |> 
+  slice(1:5) |> 
+    oai_complete_df(
+      text_var = clean_message, # Change as needed
+      id_var = universal_message_id, # Change as needed
+      model = "gpt-4.1-nano",
+      system_prompt = copilot_prompt,
+      schema = copilot_schema,
+      concurrent_requests = 5,
+      max_retries = 10,
+      timeout = 50,
+      temperature = 0,
+      max_tokens = 30L,
+      output_file = NULL
+  )
+
+small_trial |>
+  mutate(content = map(content, safely_from_json)) |> 
+  unnest_wider(content)
+```
+
+```{r}
+nchar(
+'))
 ```

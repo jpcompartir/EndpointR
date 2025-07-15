@@ -119,6 +119,7 @@ Headliners:
         -   [x] Sequential
         -   [x] Parallel
     -   [x] Structured Output
+-   [ ] Update vignette post `oai_complete_df()` refactoring and `oai_complete_text()`
 
 # OpenAI Completions API
 
@@ -126,8 +127,8 @@ Headliners:
     -   [x] Single Req
     -   [x] List of Reqs (can't send batches like we can with HF Inf)
     -   [x] Data Frame of Reqs
-        -   [ ] Writing to files
-        -   [ ] Chunking
+        -   [x] Writing to files
+        -   [x] Chunking
         -   [ ] Validating against schema
 -   [ ] Responses
 -   [x] Structured Outputs
@@ -135,7 +136,7 @@ Headliners:
 -   [x] S7 Objects (Like Pydantic)
 -   [ ] Dynamic Rate Limit Management (From info in response headers)
 
-### oai_complete_df()
+## Refactor - oai_complete_df()
 
 Refactoring plan:
 
@@ -163,15 +164,15 @@ Process/algorithm:
     -   now write the validated data to file if we validated, or just the content as a string OR don't validate in this function, seems the best way.
 
 1.  Too much copying of \|\> throughout, and dealing with entire lists/vectors/data frames - we could do with generator style data structure, or just explicitly chunking at different stages.
-2.  Need to write to files to minimise risk of responses being lost
-3.  Not enough batching/chunking for processing
+2.  Need to write to files to minimise risk of responses being lost ✅
+3.  Not enough batching/chunking for processing ✅
 4.  Response objects are much heavier than expected, and as they're complex, nested lists they take a long time to serialise/write with saveRDS. ---\> So we want to write just the response_body (choices -\> 1 -\> messages -\> content) + the ID header without validating against the schema, which requires not firing off all requests and getting all responses ✅
 5.  Validating responses against the schema is a more costly operation than first appreciated. And we're validating twice - once to check if everything can validate, then again later. Definitely bad idea as validating is more costly than previously assumed. Fine at low N but bad for larger DFs. ✅
 6.  Error handling isn't solid - NA for content coming back in the schema case can break everything (loss of data)
 7.  There was quadratic scaling in the match call in the worst case (going through every single element, for every single element when a join or look-up will do) - Send IDs with requests so they're sustained in responses. Avoid the matching logic. ✅
 8.  Request creation is quite heavy with the schema dump - in the list case we should probably only dump the schema once. \[Now that we only dump the schema once\] ✅
 9.  Checking the schema type with 3 separate inherits calls instead of a vector (fix for minor efficiency here) ✅
-10. resp_body_json() uses *a lot* of memory, we definitely want to chunk this.
+10. resp_body_json() uses *a lot* of memory, we definitely want to chunk this. ✅
 
 Needed Funcs / sub funks
 
