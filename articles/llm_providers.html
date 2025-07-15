@@ -98,21 +98,6 @@ OpenAI. The focus is on sending texts for a specific, one-off purpose -
 similar to how traditional Machine Learning endpoints work. Though, we
 will see that it’s not always straightforward to get LLMs to do what we
 want them to do!</p>
-<div class="section level2">
-<h2 id="openai---quick-start">OpenAI - Quick Start<a class="anchor" aria-label="anchor" href="#openai---quick-start"></a>
-</h2>
-<div class="section level3">
-<h3 id="openai---quick-start---chat-completions-api">OpenAI - Quick Start - Chat Completions API<a class="anchor" aria-label="anchor" href="#openai---quick-start---chat-completions-api"></a>
-</h3>
-</div>
-<div class="section level3">
-<h3 id="openai---quick-start---responses-api">OpenAI - Quick Start - Responses API<a class="anchor" aria-label="anchor" href="#openai---quick-start---responses-api"></a>
-</h3>
-</div>
-</div>
-<div class="section level2">
-<h2 id="openai---the-basics">OpenAI - The Basics<a class="anchor" aria-label="anchor" href="#openai---the-basics"></a>
-</h2>
 <p>Before we get started, we need to make sure we have a couple of
 things in place:</p>
 <ul>
@@ -121,18 +106,157 @@ things in place:</p>
 </li>
 <li>Second, figure out if you need the <a href="https://platform.openai.com/docs/api-reference/responses" class="external-link">Responses
 API</a> or the <a href="https://platform.openai.com/docs/api-reference/chat" class="external-link">Chat
-Completions API</a>
-</li>
+Completions API</a>. Currently EndpointR only supports the Chat
+Completions API.</li>
 <li>Third, choose your model - EndpointR is configured to select the
-smaller, cheaper model but you are free to choose specific models</li>
+smaller, cheaper model but you are free to choose specific models
+according to your needs.</li>
 </ul>
 <blockquote>
 <p><strong>Information:</strong> if you are unsure whether you should
 prefer the Completions API or the Responses API, checkout <a href="https://platform.openai.com/docs/guides/responses-vs-chat-completions" class="external-link">this
 webpage</a></p>
 </blockquote>
+<div class="section level2">
+<h2 id="openai---quick-start---chat-completions-api---single-text">OpenAI - Quick Start - Chat Completions API - Single Text<a class="anchor" aria-label="anchor" href="#openai---quick-start---chat-completions-api---single-text"></a>
+</h2>
+<p>To get a completion for a single text we can use the
+<code><a href="../reference/oai_complete_text.html">oai_complete_text()</a></code> function:</p>
+<div class="sourceCode" id="cb2"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="fu"><a href="../reference/set_api_key.html">set_api_key</a></span><span class="op">(</span><span class="st">"OPENAI_API_KEY"</span><span class="op">)</span></span>
+<span></span>
+<span><span class="va">sentiment_system_prompt</span> <span class="op">=</span> <span class="st">"Analyse the sentiment of the given text."</span></span>
+<span><span class="va">text</span> <span class="op">=</span> <span class="st">"The weather has been absolutely fantastic this summer. I wish it could be like this every year, maybe I'll move to the South of France where they get 300 days of sunshine a year. Oh to dream."</span></span>
+<span></span>
+<span></span>
+<span><span class="fu"><a href="../reference/oai_complete_text.html">oai_complete_text</a></span><span class="op">(</span></span>
+<span>  text <span class="op">=</span> <span class="va">text</span>,</span>
+<span>  system_prompt <span class="op">=</span> <span class="va">sentiment_system_prompt</span>,</span>
+<span>  model <span class="op">=</span> <span class="st">"gpt-4.1-nano"</span></span>
+<span><span class="op">)</span></span></code></pre></div>
+<p>Output: [1] “The sentiment of the text is positive. The speaker
+expresses happiness and admiration for the fantastic weather, along with
+a hopeful wish to experience similar conditions elsewhere.”</p>
 <div class="section level3">
-<h3 id="completions-api">Completions API<a class="anchor" aria-label="anchor" href="#completions-api"></a>
+<h3 id="openai---quick-start---chat-completions-api---data-frame-of-texts">OpenAI - Quick Start - Chat Completions API - Data Frame of
+Texts<a class="anchor" aria-label="anchor" href="#openai---quick-start---chat-completions-api---data-frame-of-texts"></a>
+</h3>
+<p>We can input a data frame directly into the
+<code><a href="../reference/oai_complete_df.html">oai_complete_df()</a></code> function:</p>
+<div class="sourceCode" id="cb3"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">review_df</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/data.frame.html" class="external-link">data.frame</a></span><span class="op">(</span></span>
+<span>  id <span class="op">=</span> <span class="fl">1</span><span class="op">:</span><span class="fl">5</span>,</span>
+<span>  text <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span></span>
+<span>    <span class="st">"Absolutely fantastic service! The staff were incredibly helpful and friendly."</span>,</span>
+<span>    <span class="st">"Terrible experience. Food was cold and the waiter was rude."</span>,</span>
+<span>    <span class="st">"Pretty good overall, but nothing special. Average food and service."</span>,</span>
+<span>    <span class="st">"Outstanding meal! Best restaurant I've been to in years. Highly recommend!"</span>,</span>
+<span>    <span class="st">"Disappointed with the long wait times. Food was okay when it finally arrived."</span></span>
+<span>  <span class="op">)</span></span>
+<span><span class="op">)</span></span>
+<span></span>
+<span><span class="fu"><a href="../reference/oai_complete_df.html">oai_complete_df</a></span><span class="op">(</span></span>
+<span>  <span class="va">review_df</span>,</span>
+<span>  text_var <span class="op">=</span> <span class="va">text</span>,</span>
+<span>  id_var <span class="op">=</span> <span class="va">id</span>,</span>
+<span>  output_file <span class="op">=</span> <span class="cn">NULL</span>, <span class="co"># leave this to 'auto' to have your results written to a file in your current working directory</span></span>
+<span>  system_prompt <span class="op">=</span> <span class="va">sentiment_system_prompt</span>,</span>
+<span>  concurrent_requests <span class="op">=</span> <span class="fl">2</span>, </span>
+<span>  chunk_size <span class="op">=</span> <span class="fl">5</span></span>
+<span><span class="op">)</span></span></code></pre></div>
+<pre>
+ℹ Processing 5 texts in 1 chunk of up to 5 each
+ℹ Performing 5 requests in parallel (with 2 concurrent requests)...
+✔ Batch 1: 5 successful, 0 failed                                                                 
+✔ Completed processing: 5 successful, 0 failed
+# A tibble: 5 × 5                                                                                   
+     id content                                                             .error .error_msg .batch
+  
+<dbl><chr><lgl><lgl><dbl>
+1     1 "The sentiment of the text is highly positive."                     FALSE  NA              1
+2     2 "The sentiment of the text is negative."                            FALSE  NA              1
+3     3 "The sentiment of the text is generally neutral with a slight lean… FALSE  NA              1
+4     4 "The sentiment of the text is highly positive."                     FALSE  NA              1
+5     5 "The sentiment of the text is negative."                            FALSE  NA              1
+&gt; 
+</dbl></lgl></lgl></chr></dbl></pre>
+</div>
+</div>
+<div class="section level2">
+<h2 id="openai---quick-start---structured-outputs">OpenAI - Quick Start - Structured Outputs<a class="anchor" aria-label="anchor" href="#openai---quick-start---structured-outputs"></a>
+</h2>
+<p>An issue with our responses so far, is that they do not follow a
+specific format. This means we need to parse the results again after.
+However, we can use a schema to determine the format of the
+response:</p>
+<div class="sourceCode" id="cb4"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">sentiment_schema</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/create_json_schema.html">create_json_schema</a></span><span class="op">(</span></span>
+<span>  name <span class="op">=</span> <span class="st">"simple_sentiment_schema"</span>,</span>
+<span>  schema <span class="op">=</span> <span class="fu"><a href="../reference/schema_object.html">schema_object</a></span><span class="op">(</span></span>
+<span>    sentiment <span class="op">=</span> <span class="fu"><a href="../reference/schema_string.html">schema_string</a></span><span class="op">(</span>description <span class="op">=</span> <span class="st">"Sentiment classification"</span>,</span>
+<span>                              enum <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"positive"</span>, <span class="st">"negative"</span>, <span class="st">"neutral"</span><span class="op">)</span><span class="op">)</span>,</span>
+<span>    required <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span><span class="st">"sentiment"</span><span class="op">)</span></span>
+<span>  <span class="op">)</span></span>
+<span><span class="op">)</span></span>
+<span></span>
+<span></span>
+<span><span class="va">structured_df</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/oai_complete_df.html">oai_complete_df</a></span><span class="op">(</span></span>
+<span>  <span class="va">review_df</span>,</span>
+<span>  text_var <span class="op">=</span> <span class="va">text</span>,</span>
+<span>  id_var <span class="op">=</span> <span class="va">id</span>,</span>
+<span>  schema <span class="op">=</span> <span class="va">sentiment_schema</span>,</span>
+<span>  output_file <span class="op">=</span> <span class="cn">NULL</span>,</span>
+<span>  system_prompt <span class="op">=</span> <span class="va">sentiment_system_prompt</span>,</span>
+<span>  concurrent_requests <span class="op">=</span> <span class="fl">2</span>, </span>
+<span>  chunk_size <span class="op">=</span> <span class="fl">5</span></span>
+<span><span class="op">)</span></span></code></pre></div>
+<pre>
+ Processing 5 texts in 1 chunk of up to 5 each
+ℹ Performing 5 requests in parallel (with 2 concurrent requests)...
+✔ Batch 1: 5 successful, 0 failed                                                                 
+✔ Completed processing: 5 successful, 0 failed
+# A tibble: 5 × 5                                                                                   
+     id content                        .error .error_msg .batch
+  
+<dbl><chr><lgl><lgl><dbl>
+1     1 "{\"sentiment\":\"positive\"}" FALSE  NA              1
+2     2 "{\"sentiment\":\"negative\"}" FALSE  NA              1
+3     3 "{\"sentiment\":\"neutral\"}"  FALSE  NA              1
+4     4 "{\"sentiment\":\"positive\"}" FALSE  NA              1
+5     5 "{\"sentiment\":\"negative\"}" FALSE  NA              1
+&gt; 
+</dbl></lgl></lgl></chr></dbl></pre>
+<p>Now we need to extract each sentiment value into a sentiment column,
+one per row:</p>
+<div class="sourceCode" id="cb5"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">structured_df</span> <span class="op">|&gt;</span></span>
+<span>  <span class="fu">dplyr</span><span class="fu">::</span><span class="fu"><a href="https://dplyr.tidyverse.org/reference/mutate.html" class="external-link">mutate</a></span><span class="op">(</span>content <span class="op">=</span> <span class="fu">purrr</span><span class="fu">::</span><span class="fu"><a href="https://purrr.tidyverse.org/reference/map.html" class="external-link">map</a></span><span class="op">(</span><span class="va">content</span>, <span class="op">~</span><span class="fu"><a href="../reference/safely_from_json.html">safely_from_json</a></span><span class="op">(</span><span class="va">.x</span><span class="op">)</span><span class="op">)</span><span class="op">)</span> <span class="op">|&gt;</span> </span>
+<span>  <span class="fu">tidyr</span><span class="fu">::</span><span class="fu"><a href="https://tidyr.tidyverse.org/reference/unnest_wider.html" class="external-link">unnest_wider</a></span><span class="op">(</span><span class="va">content</span><span class="op">)</span></span></code></pre></div>
+<pre>
+# A tibble: 5 × 5
+     id sentiment .error .error_msg .batch
+  <dbl><chr><lgl><lgl><dbl>
+1     1 positive  FALSE  NA              1
+2     2 negative  FALSE  NA              1
+3     3 neutral   FALSE  NA              1
+4     4 positive  FALSE  NA              1
+5     5 negative  FALSE  NA              1
+</dbl></lgl></lgl></chr></dbl></pre>
+<blockquote>
+<p><strong>WARNING</strong>: if you have a lot of data - i.e. 100,000s,
+or 1,000,000s of rows, you may want to split your data up and do this
+last step in chunks or via parallel processing to reduce peak memory
+usage.</p>
+</blockquote>
+</div>
+<div class="section level2">
+<h2 id="openai---under-the-hood">OpenAI - Under the Hood<a class="anchor" aria-label="anchor" href="#openai---under-the-hood"></a>
+</h2>
+<p>We looked at <code><a href="../reference/oai_complete_text.html">oai_complete_text()</a></code> and
+<code><a href="../reference/oai_complete_df.html">oai_complete_df()</a></code> which are high-level convenience
+functions, but it’s good to know what’s happening under the hood.</p>
+<div class="section level3">
+<h3 id="chat-completions-api">Chat Completions API<a class="anchor" aria-label="anchor" href="#chat-completions-api"></a>
 </h3>
 <p>“The Chat Completions API endpoint will generate a model response
 from a list of messages comprising a conversation.”</p>
@@ -160,7 +284,7 @@ with.</p>
 <p>We set up a very basic <a class="footnote-ref" tabindex="0" data-bs-toggle="popover" data-bs-content="&lt;p&gt;Generally prompts should be more detailed than this,
 we’ll see why&lt;/p&gt;"><sup>2</sup></a> system prompt to tell the LLM what we want
 it to do with the text we send it:</p>
-<div class="sourceCode" id="cb2"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb6"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">system_prompt</span> <span class="op">&lt;-</span> <span class="st">"Analyse the text's sentiment: "</span></span>
 <span></span>
 <span><span class="va">text</span> <span class="op">&lt;-</span> <span class="st">"Oh man, I'm getting to the end of my limit with this thing. WHY DOESN'T IT JUST WORK?!?"</span></span></code></pre></div>
@@ -174,7 +298,7 @@ Is the value of “model”: a valid model ID? Etc.</p>
 <p><strong>TIP</strong>:You may need to familiarise yourself with the <a href="https://platform.openai.com/docs/api-reference/introduction" class="external-link">OpenAI
 API Documentation</a> before proceeding.</p>
 </blockquote>
-<div class="sourceCode" id="cb3"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb7"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">sentiment_request</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/oai_build_completions_request.html">oai_build_completions_request</a></span><span class="op">(</span></span>
 <span>  <span class="va">text</span>,</span>
 <span>  system_prompt <span class="op">=</span> <span class="va">system_prompt</span></span>
@@ -207,16 +331,16 @@ user-agent: EndpointR
   "temperature": 0,
   "max_tokens": 500
 }</code></pre>
-<p>EndpointR handles the HTTP mechanics: authentication, request
-headers, and endpoint configuration. It then constructs the JSON payload
-with your specified model, system prompt, and user message, whilst
-setting sensible defaults for temperature <a class="footnote-ref" tabindex="0" data-bs-toggle="popover" data-bs-content="&lt;p&gt;lower values = less random output, max value is 2&lt;/p&gt;"><sup>3</sup></a> and max_tokens <a class="footnote-ref" tabindex="0" data-bs-toggle="popover" data-bs-content="&lt;p&gt;Maximum tokens of the &lt;em&gt;output&lt;/em&gt; request&lt;/p&gt;"><sup>4</sup></a>.</p>
+<p>EndpointR (via {httr2}) handles the HTTP mechanics: authentication,
+request headers, and endpoint configuration. It then constructs the JSON
+payload with your specified model, system prompt, and user message,
+whilst setting sensible defaults for temperature <a class="footnote-ref" tabindex="0" data-bs-toggle="popover" data-bs-content="&lt;p&gt;lower values = less random output, max value is 2&lt;/p&gt;"><sup>3</sup></a> and max_tokens <a class="footnote-ref" tabindex="0" data-bs-toggle="popover" data-bs-content="&lt;p&gt;Maximum tokens of the &lt;em&gt;output&lt;/em&gt; request&lt;/p&gt;"><sup>4</sup></a>.</p>
 <p>For demonstrative purposes, we ran the same prompt with the same data
-twice (see below)</p>
-<div class="sourceCode" id="cb5"><pre class="downlit sourceCode r">
+three times (see below)</p>
+<div class="sourceCode" id="cb9"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">sentiment_response</span> <span class="op">&lt;-</span> <span class="va">sentiment_request</span> <span class="op">|&gt;</span> </span>
 <span>  <span class="fu">perform_request_or_return_error</span><span class="op">(</span><span class="op">)</span></span></code></pre></div>
-<div class="sourceCode" id="cb6"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb10"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">sentiment_response</span> <span class="op">|&gt;</span></span>
 <span>  <span class="fu"><a href="https://httr2.r-lib.org/reference/resp_status.html" class="external-link">resp_check_status</a></span><span class="op">(</span><span class="op">)</span> <span class="op">|&gt;</span> </span>
 <span>  <span class="fu"><a href="https://httr2.r-lib.org/reference/resp_body_raw.html" class="external-link">resp_body_json</a></span><span class="op">(</span><span class="op">)</span> <span class="op">|&gt;</span> </span>
@@ -252,7 +376,7 @@ at techniques for how to deal with this systematically, and achieve
 predictable outputs in the <a href="#openai-structured-outputs">Structured Outputs</a> section.</p>
 <p>What does the model do when we hand it a text which is difficult for
 traditional, three-category <a class="footnote-ref" tabindex="0" data-bs-toggle="popover" data-bs-content="&lt;p&gt;positive, negative, neutral&lt;/p&gt;"><sup>6</sup></a>, document-level sentiment analysis?</p>
-<div class="sourceCode" id="cb7"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb11"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">ambiguous_text</span> <span class="op">&lt;-</span> <span class="st">"The interface is brilliant but the performance is absolutely dreadful"</span></span>
 <span></span>
 <span><span class="va">ambiguous_sentiment</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/oai_build_completions_request.html">oai_build_completions_request</a></span><span class="op">(</span></span>
@@ -276,12 +400,12 @@ output is not formatted in a nice way for downstream use.</p>
 EndpointR was built to handle more, whilst taking care of implementation
 details like concurrent requests, retries, and failing gracefully.</p>
 <p>Let’s experiment with a better system prompt and a list of texts:</p>
-<div class="sourceCode" id="cb8"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb12"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">updated_sentiment_prompt</span> <span class="op">&lt;-</span> <span class="st">"Classify the text into sentiment categories.</span></span>
 <span><span class="st">The accepted categories are 'positive', 'negative', 'neutral', and 'mixed'.</span></span>
 <span><span class="st">A 'mixed' text contains elements of positive and negative.</span></span>
 <span><span class="st">"</span></span></code></pre></div>
-<div class="sourceCode" id="cb9"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb13"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">classical_texts</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span></span>
 <span> <span class="st">"It is a truth universally acknowledged, that a single man in possession of a good fortune, must be in want of a wife."</span>,</span>
 <span> <span class="st">"All happy families are alike; each unhappy family is unhappy in its own way."</span>,</span>
@@ -294,14 +418,14 @@ details like concurrent requests, retries, and failing gracefully.</p>
 <span> <span class="st">"Tomorrow, and tomorrow, and tomorrow, creeps in this petty pace from day to day."</span>,</span>
 <span> <span class="st">"I have always depended on the kindness of strangers."</span></span>
 <span><span class="op">)</span></span></code></pre></div>
-<div class="sourceCode" id="cb10"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb14"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">classical_requests</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/oai_build_completions_request_list.html">oai_build_completions_request_list</a></span><span class="op">(</span></span>
 <span>  <span class="va">classical_texts</span>,</span>
 <span>  system_prompt <span class="op">=</span> <span class="va">updated_sentiment_prompt</span></span>
 <span><span class="op">)</span></span></code></pre></div>
 <p>When running this in testing, it took 8.5 seconds for the 10 requests
 if we send one at a time.</p>
-<div class="sourceCode" id="cb11"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb15"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">start_seq</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/Sys.time.html" class="external-link">Sys.time</a></span><span class="op">(</span><span class="op">)</span></span>
 <span><span class="va">classical_responses</span>  <span class="op">&lt;-</span> <span class="va">classical_requests</span> <span class="op">|&gt;</span> </span>
 <span>  <span class="fu"><a href="../reference/perform_requests_with_strategy.html">perform_requests_with_strategy</a></span><span class="op">(</span><span class="op">)</span></span>
@@ -310,7 +434,7 @@ if we send one at a time.</p>
 speed up, showing there is some overhead cost in sending requests in
 parallel - i.e. we did not see a 10x speed increase for 10x
 requests.</p>
-<div class="sourceCode" id="cb12"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb16"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">start_par</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/Sys.time.html" class="external-link">Sys.time</a></span><span class="op">(</span><span class="op">)</span></span>
 <span><span class="va">classical_responses</span>  <span class="op">&lt;-</span> <span class="va">classical_requests</span> <span class="op">|&gt;</span> </span>
 <span>  <span class="fu"><a href="../reference/perform_requests_with_strategy.html">perform_requests_with_strategy</a></span><span class="op">(</span>concurrent_requests <span class="op">=</span> <span class="fl">10</span><span class="op">)</span></span>
@@ -322,7 +446,7 @@ if we were to repeat this over many texts - hundreds/thousands, it’s
 unlikely every single response would conform to our categories. Without
 further instruction, the models have a tendency to slightly change the
 output at unpredictable intervals.</p>
-<div class="sourceCode" id="cb13"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb17"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">classical_responses</span> <span class="op">|&gt;</span> </span>
 <span>  <span class="fu"><a href="https://purrr.tidyverse.org/reference/map.html" class="external-link">map</a></span><span class="op">(</span><span class="op">~</span> <span class="fu"><a href="https://httr2.r-lib.org/reference/resp_body_raw.html" class="external-link">resp_body_json</a></span><span class="op">(</span><span class="va">.x</span><span class="op">)</span> <span class="op">|&gt;</span> </span>
 <span>        <span class="fu"><a href="https://purrr.tidyverse.org/reference/pluck.html" class="external-link">pluck</a></span><span class="op">(</span><span class="st">"choices"</span>, <span class="fl">1</span>, <span class="st">"message"</span>, <span class="st">"content"</span><span class="op">)</span> <span class="op">|&gt;</span> </span>
@@ -334,7 +458,7 @@ output at unpredictable intervals.</p>
 <div class="section level4">
 <h4 id="data-frame-of-texts">Data Frame of Texts<a class="anchor" aria-label="anchor" href="#data-frame-of-texts"></a>
 </h4>
-<div class="sourceCode" id="cb14"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb18"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">df_classical_texts</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://tibble.tidyverse.org/reference/tibble.html" class="external-link">tibble</a></span><span class="op">(</span></span>
 <span>  id <span class="op">=</span> <span class="fl">1</span><span class="op">:</span><span class="fl">10</span>,</span>
 <span>  text <span class="op">=</span> <span class="va">classical_texts</span></span>
@@ -344,11 +468,12 @@ frame, an id variable, and a text variable as mandatory inputs, and
 returns a data frame with columns: <code>id_var</code>,
 <code>text+var</code>, <code>.error_msg</code>, <code>.error</code>,
 <code>.batch</code>.</p>
-<div class="sourceCode" id="cb15"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb19"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="../reference/oai_complete_df.html">oai_complete_df</a></span><span class="op">(</span><span class="va">df_classical_texts</span>, </span>
 <span>                text_var <span class="op">=</span> <span class="va">text</span>, </span>
 <span>                id_var <span class="op">=</span> <span class="va">id</span>,</span>
-<span>                concurrent_requests <span class="op">=</span> <span class="fl">5</span></span>
+<span>                concurrent_requests <span class="op">=</span> <span class="fl">5</span>,</span>
+<span>                output_file <span class="op">=</span> <span class="cn">NULL</span> <span class="co"># set this to write to a temporary file, useful for documentation and testing.</span></span>
 <span>                <span class="op">)</span></span></code></pre></div>
 <p>The <code><a href="../reference/oai_complete_df.html">oai_complete_df()</a></code> function has a few knobs that you
 can turn to improve throughput, reduce memory usage, and increase the
