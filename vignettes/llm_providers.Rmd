@@ -37,23 +37,155 @@ library(dplyr)
 
 This vignette details how we can use EndpointR to interact with services hosted by major model providers, such as Anthropic, Google, and OpenAI. The focus is on sending texts for a specific, one-off purpose - similar to how traditional Machine Learning endpoints work. Though, we will see that it's not always straightforward to get LLMs to do what we want them to do!
 
-# OpenAI - Quick Start
-
-## OpenAI - Quick Start - Chat Completions API
-
-## OpenAI - Quick Start - Responses API
-
-# OpenAI - The Basics
-
 Before we get started, we need to make sure we have a couple of things in place:
 
 -   First, get your API key and store it as "OPENAI_API_KEY" with `set_api_key()`
--   Second, figure out if you need the [Responses API](https://platform.openai.com/docs/api-reference/responses) or the [Chat Completions API](https://platform.openai.com/docs/api-reference/chat)
--   Third, choose your model - EndpointR is configured to select the smaller, cheaper model but you are free to choose specific models
+-   Second, figure out if you need the [Responses API](https://platform.openai.com/docs/api-reference/responses) or the [Chat Completions API](https://platform.openai.com/docs/api-reference/chat). Currently EndpointR only supports the Chat Completions API.
+-   Third, choose your model - EndpointR is configured to select the smaller, cheaper model but you are free to choose specific models according to your needs.
 
 > **Information:** if you are unsure whether you should prefer the Completions API or the Responses API, checkout [this webpage](https://platform.openai.com/docs/guides/responses-vs-chat-completions)
 
-## Completions API
+# OpenAI - Quick Start - Chat Completions API - Single Text
+
+To get a completion for a single text we can use the `oai_complete_text()` function:
+
+```{r}
+set_api_key("OPENAI_API_KEY")
+
+sentiment_system_prompt = "Analyse the sentiment of the given text."
+text = "The weather has been absolutely fantastic this summer. I wish it could be like this every year, maybe I'll move to the South of France where they get 300 days of sunshine a year. Oh to dream."
+
+
+oai_complete_text(
+  text = text,
+  system_prompt = sentiment_system_prompt,
+  model = "gpt-4.1-nano"
+)
+```
+
+Output: [1] "The sentiment of the text is positive. The speaker expresses happiness and admiration for the fantastic weather, along with a hopeful wish to experience similar conditions elsewhere."
+
+## OpenAI - Quick Start - Chat Completions API - Data Frame of Texts
+
+We can input a data frame directly into the `oai_complete_df()` function:
+
+```{r}
+review_df <- data.frame(
+  id = 1:5,
+  text = c(
+    "Absolutely fantastic service! The staff were incredibly helpful and friendly.",
+    "Terrible experience. Food was cold and the waiter was rude.",
+    "Pretty good overall, but nothing special. Average food and service.",
+    "Outstanding meal! Best restaurant I've been to in years. Highly recommend!",
+    "Disappointed with the long wait times. Food was okay when it finally arrived."
+  )
+)
+
+oai_complete_df(
+  review_df,
+  text_var = text,
+  id_var = id,
+  output_file = NULL, # leave this to 'auto' to have your results written to a file in your current working directory
+  system_prompt = sentiment_system_prompt,
+  concurrent_requests = 2, 
+  chunk_size = 5
+)
+```
+
+```{=html}
+<pre>
+ℹ Processing 5 texts in 1 chunk of up to 5 each
+ℹ Performing 5 requests in parallel (with 2 concurrent requests)...
+✔ Batch 1: 5 successful, 0 failed                                                                 
+✔ Completed processing: 5 successful, 0 failed
+# A tibble: 5 × 5                                                                                   
+     id content                                                             .error .error_msg .batch
+  
+<dbl> <chr>                                                               <lgl>  <lgl>       <dbl>
+1     1 "The sentiment of the text is highly positive."                     FALSE  NA              1
+2     2 "The sentiment of the text is negative."                            FALSE  NA              1
+3     3 "The sentiment of the text is generally neutral with a slight lean… FALSE  NA              1
+4     4 "The sentiment of the text is highly positive."                     FALSE  NA              1
+5     5 "The sentiment of the text is negative."                            FALSE  NA              1
+> 
+</pre>
+```
+
+# OpenAI - Quick Start - Structured Outputs
+
+An issue with our responses so far, is that they do not follow a specific format. This means we need to parse the results again after. However, we can use a schema to determine the format of the response:
+
+```{r}
+sentiment_schema <- create_json_schema(
+  name = "simple_sentiment_schema",
+  schema = schema_object(
+    sentiment = schema_string(description = "Sentiment classification",
+                              enum = c("positive", "negative", "neutral")),
+    required = list("sentiment")
+  )
+)
+
+
+structured_df <- oai_complete_df(
+  review_df,
+  text_var = text,
+  id_var = id,
+  schema = sentiment_schema,
+  output_file = NULL,
+  system_prompt = sentiment_system_prompt,
+  concurrent_requests = 2, 
+  chunk_size = 5
+)
+
+```
+
+```{=html}
+<pre>
+ Processing 5 texts in 1 chunk of up to 5 each
+ℹ Performing 5 requests in parallel (with 2 concurrent requests)...
+✔ Batch 1: 5 successful, 0 failed                                                                 
+✔ Completed processing: 5 successful, 0 failed
+# A tibble: 5 × 5                                                                                   
+     id content                        .error .error_msg .batch
+  
+<dbl> <chr>                          <lgl>  <lgl>       <dbl>
+1     1 "{\"sentiment\":\"positive\"}" FALSE  NA              1
+2     2 "{\"sentiment\":\"negative\"}" FALSE  NA              1
+3     3 "{\"sentiment\":\"neutral\"}"  FALSE  NA              1
+4     4 "{\"sentiment\":\"positive\"}" FALSE  NA              1
+5     5 "{\"sentiment\":\"negative\"}" FALSE  NA              1
+> 
+</pre>
+```
+
+Now we need to extract each sentiment value into a sentiment column, one per row:
+
+```{r}
+structured_df |>
+  dplyr::mutate(content = purrr::map(content, ~safely_from_json(.x))) |> 
+  tidyr::unnest_wider(content)
+```
+
+```{=html}
+<pre>
+# A tibble: 5 × 5
+     id sentiment .error .error_msg .batch
+  <dbl> <chr>     <lgl>  <lgl>       <dbl>
+1     1 positive  FALSE  NA              1
+2     2 negative  FALSE  NA              1
+3     3 neutral   FALSE  NA              1
+4     4 positive  FALSE  NA              1
+5     5 negative  FALSE  NA              1
+</pre>
+```
+
+> **WARNING**: if you have a lot of data - i.e. 100,000s, or 1,000,000s of rows, you may want to split your data up and do this last step in chunks or via parallel processing to reduce peak memory usage.
+
+# OpenAI - Under the Hood
+
+We looked at `oai_complete_text()` and `oai_complete_df()` which are high-level convenience functions, but it's good to know what's happening under the hood.
+
+## Chat Completions API
 
 "The Chat Completions API endpoint will generate a model response from a list of messages comprising a conversation."
 
@@ -126,13 +258,13 @@ user-agent: EndpointR
 }
 ```
 
-EndpointR handles the HTTP mechanics: authentication, request headers, and endpoint configuration. It then constructs the JSON payload with your specified model, system prompt, and user message, whilst setting sensible defaults for temperature [^3] and max_tokens [^4].
+EndpointR (via {httr2}) handles the HTTP mechanics: authentication, request headers, and endpoint configuration. It then constructs the JSON payload with your specified model, system prompt, and user message, whilst setting sensible defaults for temperature [^3] and max_tokens [^4].
 
 [^3]: lower values = less random output, max value is 2
 
 [^4]: Maximum tokens of the *output* request
 
-For demonstrative purposes, we ran the same prompt with the same data twice (see below)
+For demonstrative purposes, we ran the same prompt with the same data three times (see below)
 
 ```{r, sentiment_response}
 sentiment_response <- sentiment_request |> 
@@ -268,7 +400,8 @@ We have a function `oai_complete_df()` which takes a data frame, an id variable,
 oai_complete_df(df_classical_texts, 
                 text_var = text, 
                 id_var = id,
-                concurrent_requests = 5
+                concurrent_requests = 5,
+                output_file = NULL # set this to write to a temporary file, useful for documentation and testing.
                 )
 ```
 
