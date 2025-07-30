@@ -98,7 +98,7 @@ perform_requests_with_strategy <- function(requests,
   }
 
   if (concurrent_requests > 1 && length(requests) > 1) { # use parallel.
-    cli::cli_alert_info("Performing {length(requests)} request{?s} in parallel (with {concurrent_requests} concurrent requests)...")
+    cli::cli_alert_info("Performing {length(requests)} request{?s} in parallel (with {concurrent_requests} concurrent request{?s})...")
     responses <- httr2::req_perform_parallel(
       requests,
       on_error = "continue",
