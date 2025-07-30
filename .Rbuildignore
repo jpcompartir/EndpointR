@@ -1,4 +1,13 @@
 ^LICENSE\.md$
 ^EndpointR\.Rproj$
 ^\.Rproj\.user$
+todos.md
 dev_docs/
+README\.Rmd
+CONTRIBUTORS\.md
+todos\.qmd
+^vignettes/$
+^_pkgdown\.yml$
+^docs$
+^pkgdown$
+^\.github$

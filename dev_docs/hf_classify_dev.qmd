@@ -1,0 +1,487 @@
+---
+title: "HF Classification Dev Docs"
+output: 
+  html_document:
+    toc: true
+    toc_float: true
+    toc_depth: 3
+    theme: flatly
+    number_sections: true
+    fig_caption: true
+    df_print: paged
+    highlight: tango
+    code_folding: show
+    anchor_sections: true
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>",
+  eval = FALSE,
+  message = FALSE,
+  warning = FALSE
+)
+```
+
+# Set up
+
+```{r}
+library(EndpointR)
+library(purrr)
+library(dplyr)
+library(httr2)
+library(tidyr)
+```
+
+bits and bobs you need for later testing.
+
+```{r}
+dummy_text <- "hola, eres un maladaptado, besos"
+dummy_texts <- c(
+  "hola, eres un maladaptado, besos.",
+  "La personaje esta rotisima wey!!!"
+)
+
+es_endpoint_url <- httr2::secret_decrypt("-PF-csmn1te218YetRKJ8sduEH4SMge41LPhnW9KagwNdIXvfNzNmp8i7IYkI_wMptIoN6pXBntY3s-AiktXCXjC0acFdQQupZ-CzqdtdwBY1g", "ENDPOINTR_KEY")
+
+spam_endpoint_url <- httr2::secret_decrypt("teUr1jHS_wbmTJoHERc4kPfOSygVb0O0OAIocyWbxPzhiaDEwjccEBndGCB8ln5jvmbs1D3SQ8HlGuI7_JxAAvqWgOwF4JzLk3o22BRwOkeCSw", "ENDPOINTR_KEY")
+```
+
+# Workflow development
+
+Un-functionised workflow for the Spanish sentiment endpoint:
+
+```{r, single_request}
+es_req <- hf_build_request(
+  input = dummy_text, 
+  endpoint_url = es_endpoint_url, 
+  key_name = "HF_TEST_API_KEY",
+  parameters = list(return_all_scores = TRUE)
+  )
+
+es_resp <- hf_perform_request(es_req)
+
+es_resp_json <- es_resp |> 
+  resp_body_json() 
+
+flatten(es_resp_json) |>
+  map( ~ data.frame(label = .x$label, score = .x$score)) |>
+  list_rbind() |> 
+  pivot_wider(names_from = label, values_from = score)
+```
+
+```{r, single_request_1_score}
+es_req_one_score <- hf_build_request(dummy_text, endpoint_url = es_endpoint_url, key_name = "HF_TEST_API_KEY", parameters = list(return_all_scores = FALSE))
+
+es_resp_one_score <- hf_perform_request(es_req_one_score)
+
+es_resp_json_one_score <- es_resp_one_score |> 
+  resp_body_json() 
+
+# tidy a single case, but if it's a batch?
+tibble::tibble(
+  !!es_resp_json_one_score[[1]][["label"]]:= es_resp_json_one_score[[1]][["score"]]
+)
+
+```
+
+Batches are a tiny bit trickier. Broken due to tidying...
+
+```{r, batch_embed_maybe}
+texts <- stringr::sentences
+
+classification_batch <- hf_embed_batch(
+  texts = texts[1:20],
+  endpoint_url = es_endpoint_url,
+  key_name = "HF_TEST_API_KEY",
+  concurrent_requests = 5,
+  batch_size = 2
+)
+
+classification_batch_all_scores <- hf_embed_batch(
+  texts = texts[1:20],
+  parameters = list(return_all_scores = TRUE),
+  endpoint_url,
+  "HF_TEST_API_KEY",
+  concurrent_requests = 2,
+  batch_size = 5
+)
+```
+
+```{r, batch_embed_maybe_2}
+spam_endpoint_url <- httr2::secret_decrypt("teUr1jHS_wbmTJoHERc4kPfOSygVb0O0OAIocyWbxPzhiaDEwjccEBndGCB8ln5jvmbs1D3SQ8HlGuI7_JxAAvqWgOwF4JzLk3o22BRwOkeCSw", "ENDPOINTR_KEY")
+
+classification_batch <- hf_embed_batch(
+  texts = texts[1:20],
+  spam_endpoint_url,
+  "HF_TEST_API_KEY",
+  concurrent_requests = 5,
+  batch_size = 2,
+  timeout = 20
+)
+
+ classification_batch |>
+   filter(label == "spam") |>  pull(text)
+```
+
+```{r, batch_function_setup}
+batches <- batch_vector(texts[1:20], 10)
+batch_requests_classification <- purrr::map(
+  batches$batch_inputs, ~ hf_build_request_batch(
+    .x, 
+    spam_endpoint_url,
+    "HF_TEST_API_KEY",
+    parameters = list(return_all_scores = TRUE),
+    timeout = 50
+  ))
+
+resps_batch_all_score <- httr2::req_perform_parallel(batch_requests_classification, max_active = 2, progress = TRUE)
+
+resps_batch_all_score[[1]] |> 
+  resp_body_json() |>
+  flatten() |> 
+  map(~ data.frame(label = .x$label, score = .x$score)) |> 
+  list_rbind() |> 
+  pivot_wider(names_from = label, values_from = score)
+
+resps_batch_all_score[[1]] |> 
+  resp_body_json() |> 
+  purrr::flatten() |>
+  purrr::map(\(x) data.frame(label = x$label, score = x$score)) |>
+  dplyr::bind_rows()
+```
+
+# re-factor perform_requests_with_strategy
+
+```{r, sequential_batches}
+batches <- batch_vector(stringr::sentences[1:10], 5)
+batch_reqs <- purrr::map(
+  batches$batch_inputs,
+  ~hf_build_request_batch(
+    .x,
+    endpoint_url = es_endpoint_url,
+    key_name = "HF_TEST_API_KEY",
+    parameters = list(return_all_scores = TRUE)
+  )
+)
+
+sequential_batch <- perform_requests_with_strategy(batch_reqs, c(1:10),1, TRUE)
+
+map2(
+  sequential_batch, 
+  batches$batch_indices,
+  ~process_response(.x, .y, tidy_batch_classification_response)
+) |> 
+  list_rbind()
+
+map2(sequn)
+```
+
+```{r, concurrent_batches}
+concurrent_batch <- perform_requests_with_strategy(batch_reqs, c(1:10),2, TRUE)
+
+map2(
+  concurrent_batch,
+  batches$batch_indices,
+  ~process_response(.x, .y, tidy_batch_classification_response)
+) |> 
+  list_rbind()
+```
+
+# Function Testing
+
+## Spanish Sentiment Classifier
+
+### Single Text
+
+Should succeed:
+
+```{r}
+hf_classify_text(
+  dummy_text,
+  es_endpoint_url, 
+  "HF_TEST_API_KEY")
+
+hf_classify_text(
+  dummy_text,
+  es_endpoint_url,
+  "HF_TEST_API_KEY",
+  parameters = list(return_all_scores = TRUE),
+  tidy = FALSE
+) |> 
+  resp_body_json()
+```
+
+Should fail:
+
+```{r, error=TRUE}
+hf_classify_text(
+  dummy_texts,
+  es_endpoint_url,
+  "HF_TEST_API_KEY",
+  parameters = list(return_all_scores = TRUE)
+)
+```
+
+```{r}
+hf_classify_text(
+  dummy_text,
+  es_endpoint_url, 
+  "HF_TEST_API_KEY",
+  parameters = list(return_all_scores = FALSE),
+  tidy = FALSE
+  ) |> 
+  resp_body_json()  |> 
+  flatten() |> 
+  as_tibble()
+```
+
+### Batches
+
+```{r}
+hf_classify_batch(
+  # dummy_texts,
+  stringr::sentences[1:10],
+  es_endpoint_url,
+  "HF_TEST_API_KEY",
+  batch_size = 5,
+  concurrent_requests = 2
+)
+
+hf_classify_batch(
+  # dummy_texts,
+  stringr::sentences[11:20],
+  es_endpoint_url,
+  "HF_TEST_API_KEY",
+  batch_size = 3,
+  concurrent_requests = 2
+)
+
+hf_classify_batch(
+  # dummy_texts,
+  stringr::sentences[11:14],
+  es_endpoint_url,
+  "HF_TEST_API_KEY",
+  batch_size = 2,
+  concurrent_requests = 2,
+  parameters = list(return_all_scores = FALSE)
+) |> 
+  pull(response)
+
+```
+
+```{r}
+
+batches <- batch_vector(stringr::sentences[1:10 ], 2)
+batch_reqs <- purrr::map(batches$batch_inputs,
+           ~hf_build_request_batch(
+             .x,
+             es_endpoint_url, 
+             "HF_TEST_API_KEY",
+             parameters = list(return_all_scores = TRUE)
+             )
+           )
+
+batch_reqs[[1]] |>  
+  safely_perform_request() |> 
+  pluck("result") |> 
+  httr2::resp_body_json()
+  tidy_batch_classification_response()
+```
+
+```{r}
+returned_string <- batch_reqs |> 
+  httr2::req_perform_parallel() |> 
+  map(resp_body_json)
+
+jsonlite::toJSON(returned_string) |> 
+  jsonlite::fromJSON()
+```
+
+```{r}
+hf_classify_batch(
+  # dummy_texts,
+  stringr::sentences[1:10],
+  es_endpoint_url,
+  "HF_TEST_API_KEY",
+  batch_size = 5,
+  concurrent_requests = 2,
+  tidy_func = tidy_batch_classification_response
+)
+```
+
+#### Test Core Process Response Batches
+
+```{r}
+test_batch_req <- hf_build_request_batch(inputs = stringr::sentences[1:10], 
+                       parameters = list(return_all_scores = TRUE),
+                       endpoint_url = es_endpoint_url, 
+                       key_name = "HF_TEST_API_KEY")
+
+test_single_batch_resp <- hf_perform_request(test_batch_req)
+test_single_batch_resp |> 
+  resp_body_json() |> 
+  tidy_batch_classification_response()
+```
+
+## Spam Classifier
+
+### Single Text
+
+```{r, untidied_classify}
+untidied <- hf_classify_text(
+  dummy_text,
+  endpoint_url = spam_endpoint_url,
+  key_name = "HF_TEST_API_KEY", 
+  tidy = FALSE
+)
+
+untidied |>  
+  resp_body_json() |> 
+  tidy_classification_response()
+```
+
+```{r, tidied_classify}
+tidied <- hf_classify_text(
+  dummy_text,
+  parameters = list(return_all_scores = FALSE),
+  endpoint_url = spam_endpoint_url,
+  key_name = "HF_TEST_API_KEY", 
+  tidy = TRUE
+)
+tidied
+```
+
+```{r}
+single_one_score <- hf_classify_text(
+  dummy_text,
+  parameters = list(return_all_scores = FALSE),
+  endpoint_url = spam_endpoint_url,
+  key_name = "HF_TEST_API_KEY", 
+  tidy = TRUE
+)
+single_one_score |> 
+  resp_body_json() |> 
+  flatten() |>
+  as.data.frame()
+  tidy_classification_response()
+```
+
+### Batch Texts
+
+```{r}
+batch_dummies <-  rep(dummy_texts, 4)
+
+batch_classifications <- hf_classify_batch(
+  batch_dummies,
+  batch_size = 1,
+  endpoint_url = spam_endpoint_url,
+  key_name = "HF_TEST_API_KEY", 
+  timeout = 50
+)
+
+
+hf_classify_batch(
+  batch_dummies,
+  batch_size = 2,
+  endpoint_url = spam_endpoint_url,
+  key_name = "HF_TEST_API_KEY", 
+  parameters = list(return_all_scores = FALSE),
+  timeout = 50
+)
+```
+
+```{r}
+hf_classify_batch(
+  batch_dummies,
+  batch_size = 1,
+  parameters = list(return_all_scores = TRUE),
+  concurrent_requests = 2,
+  endpoint_url = spam_endpoint_url,
+  key_name = "HF_TEST_API_KEY", 
+  timeout = 50,
+  relocate_col = 2
+)
+```
+
+```{r}
+hf_classify_batch(
+  batch_dummies[1:4],
+  batch_size = 4,
+  parameters = list(return_all_scores = TRUE),
+  concurrent_requests = 2,
+  endpoint_url = spam_endpoint_url,
+  key_name = "HF_TEST_API_KEY", 
+  timeout = 50,
+  relocate_col = 2
+)
+```
+
+```{r}
+hf_classify_batch(
+  batch_dummies[1:4],
+  batch_size = 4,
+  parameters = list(return_all_scores = TRUE),
+  concurrent_requests = 2,
+  endpoint_url = spam_endpoint_url,
+  key_name = "HF_TEST_API_KEY", 
+  timeout = 50,
+  include_texts = FALSE,
+  relocate_col = 1
+)
+```
+
+need to fix this, when we don't return all scores, our flattening of the lists is messing up the tidying. So maybe `return_all_scores` should be its own argument. And we pass that to the tidy funcs?
+
+```{r}
+tmp_batch_1_score <- hf_classify_batch(
+  batch_dummies[1:4],
+  batch_size = 2,
+  parameters = list(return_all_scores = FALSE),
+  concurrent_requests = 2,
+  endpoint_url = spam_endpoint_url,
+  key_name = "HF_TEST_API_KEY", 
+  timeout = 50,
+  include_texts = FALSE,
+  relocate_col = 1
+)
+```
+
+```{r}
+
+```
+
+# hf_classify_df
+
+Developing, similar to `hf_embed_df()`, with some small changes
+
+```{r}
+test_df <- tibble(
+  text = letters
+) |> 
+  mutate(id = row_number())
+
+
+hf_classify_df(
+  test_df,
+  text,
+  id,
+  es_endpoint_url,
+  "HF_TEST_API_KEY",
+  batch_size = 8,
+  concurrent_requests = 2
+)
+```
+
+```{r}
+hf_classify_df(
+  test_df,
+  text,
+  id,
+  spam_endpoint_url,
+  "HF_TEST_API_KEY",
+  batch_size = 8,
+  concurrent_requests = 4
+)
+```

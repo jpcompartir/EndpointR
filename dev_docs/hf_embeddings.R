@@ -4,9 +4,29 @@ library(jsonlite)
 library(purrr)
 
 embed_hf <- function(endpoint_url, api_key = api_key)
+#
+build_hf_embed_request <- function(text, endpoint_url, api_key) {
+  req <- httr2::request(base_url = hf_test_api_url)
 
-batch_embed_hf <- function(endpoint_url, api_key = api_key, batch_size = 10, max_retries = 5) {
+  req <- req |>
+    req_user_agent(string = "EndpointR") |>
+    req_method("POST") |>
+    req_headers("Content-Type" = "application/json") |>
+    req_auth_bearer_token(token = api_key) |>
+    req_body_json( list(inputs = {{text}})) |>
+    # req_progress() |>
+    req_retry(max_tries = 10,
+              retry_on_failure = TRUE)
 
+  return(req)
+}
+
+batch_embed_hf <- function(endpoint_url,
+                           api_key = api_key,
+                           batch_size = 10,
+                           max_retries = 5) {
+
+  return(TRUE)
 }
 
 # basic func for getting the list tidied.
@@ -25,19 +45,7 @@ hf_test_api_url <- "https://o1stb590fw4ortu4.us-east-1.aws.endpoints.huggingface
 sentences <- sentences
 one_batch <- toJSON(list(inputs = sentences[1:10]), auto_unbox = FALSE)
 
-# building request out
-req <- request(hf_test_api_url)
-req <- req |>
-  req_user_agent(string = "EndpointR") |>
-  req_method("POST") |>
-  req_headers("Content-Type" = "application/json") |>
-  req_auth_bearer_token(token = api_key) |>
-  req_progress() |>
-  req_body_json(list(inputs = sentences[1:30])) |>
-  # req_body_json(list(inputs = sentences[31:60])) |>
-  req_retry(
-    max_tries = 10,
-    retry_on_failure = TRUE)
+
 
 # perform req -> tidy response
 resp <- req |>
@@ -84,7 +92,7 @@ request_df <- tibble(
   ))
 
 response_df <-request_df |>
-  mutate(response = map(request, ~ req_perform(.x)))
+  mutate(response = map(request, ~ req_perform(.x))) # not with safely
 
 resp <- req |>
   req_perform(path = )
@@ -112,5 +120,19 @@ par_resps |>
   }) |>
   bind_rows()
 
+par_resps[1:5] |>
+  map( ~.x |>
+         resp_body_json() |>
+         tidy_nested_embedding_list()
+       ) |>
+  bind_rows()
+
 str(par_resps[[1]])
+
+trust_request_df[1, 3] |>
+  pull() |>
+  pluck(1) |>
+  str()
+
+
 

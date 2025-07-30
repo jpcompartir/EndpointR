@@ -1,8 +1,8 @@
 ---
-title: "api_keys"
+title: "Managing API Keys Securely"
 output: rmarkdown::html_vignette
 vignette: >
-  %\VignetteIndexEntry{api_keys}
+  %\VignetteIndexEntry{Managing API Keys Securely}
   %\VignetteEngine{knitr::rmarkdown}
   %\VignetteEncoding{UTF-8}
 ---
@@ -81,10 +81,7 @@ For each endpoint that EndpointR provides access to, you will need the correct e
 |----|----|----|
 | OpenAI | To access OpenAI models for embedding, classification, structured outputs | OPENAI_API_KEY |
 | Anthropic | To access Anthropic models for classification and structured outputs | ANTHROPIC_API_KEY |
-| bge-base-en |  | HF_BGE_BASE_KEY |
-|  |  |  |
-|  |  |  |
-|  |  |  |
+| Hugging Face Inference API | To access models on the Hugging Face Hub via the Inference API | HF_API_KEY |
 |  |  |  |
 
 : API Key Lookup Table

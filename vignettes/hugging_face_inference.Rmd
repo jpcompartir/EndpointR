@@ -1,0 +1,236 @@
+---
+title: "Using Hugging Face Inference Endpoints"
+output: 
+  html_document:
+    toc: true
+    toc_float: true
+    toc_depth: 3
+    theme: flatly
+    number_sections: true
+    fig_caption: true
+    df_print: paged
+    highlight: tango
+    code_folding: show
+    anchor_sections: true
+vignette: >
+  %\VignetteIndexEntry{Using Hugging Face Inference Endpoints}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>",
+  eval = FALSE,
+  message = FALSE,
+  warning = FALSE
+)
+```
+
+This vignette shows how to embed and classify text with EndpointR using Hugging Face's inference services.
+
+# Setup
+
+```{r setup, eval = TRUE}
+library(EndpointR)
+library(dplyr)
+library(httr2)
+library(tibble)
+
+my_data <- tibble(
+  id = 1:3,
+  text = c(
+    "Machine learning is fascinating",
+    "I love working with embeddings", 
+    "Natural language processing is powerful"
+  ),
+  category = c("ML", "embeddings", "NLP")
+)
+```
+
+Follow Hugging Face's [docs](https://huggingface.co/docs/hub/security-tokens) to generate a Hugging Face token, and then register it with EndpointR:
+
+```{r, keys_and_urls}
+set_api_key("HF_TEST_API_KEY") 
+```
+
+# Choosing Your Service
+
+Hugging Face offers two inference options:
+
+-   **Inference API**: Free, good for testing
+-   **Dedicated Endpoints**: Paid, reliable, fast
+
+For this vignette, we'll use the Inference API. To switch to dedicated endpoints, just change the URL.
+
+# Getting Started
+
+Go to [Hugging Face's models hub](https://huggingface.co/models) and fetch the Inference API's URL for the model you want to embed your data with. Not all models are available via the Hugging Face Inference API, if you need to use a model that is not available you may need to deploy a [Dedicated Inference Endpoint](https://huggingface.co/inference-endpoints/dedicated).
+
+# Embeddings
+
+## Single Text
+
+Embed one piece of text:
+
+```{r}
+# inference api url for embeddings
+embed_url <- "https://router.huggingface.co/hf-inference/models/sentence-transformers/all-mpnet-base-v2/pipeline/feature-extraction"
+
+result <- hf_embed_text(
+  text = "This is a sample text to embed",
+  endpoint_url = embed_url,
+  key_name = "HF_API_KEY"
+)
+```
+
+The result is a tibble with one row and 384 columns (V1 to V384). Each column is an embedding dimension.
+
+> **Note**: The number of columns depends on your model. Check the model's Hugging Face page for its embedding size.
+
+## List of Texts
+
+Embed multiple texts at once using batching:
+
+```{r}
+texts <- c(
+  "First text to embed",
+  "Second text to embed",
+  "Third text to embed"
+)
+
+batch_result <- hf_embed_batch(
+  texts,
+  endpoint_url = embed_url,
+  key_name = "HF_API_KEY",
+  batch_size = 3  # process 3 texts per request
+)
+```
+
+The result includes:
+
+-   `text`: your original text
+-   `.error`: TRUE if something went wrong
+-   `.error_message`: what went wrong (if anything)
+-   `V1` to `V384`: the embedding values
+
+## Data Frame
+
+Most commonly, you'll want to embed a column in a data frame:
+
+```{r}
+embedding_result <- hf_embed_df(
+  df = my_data,
+  text_var = text,      # column with your text
+  id_var = id,          # column with unique ids
+  endpoint_url = embed_url,
+  key_name = "HF_API_KEY"
+)
+```
+
+Check for errors:
+
+```{r}
+embedding_result |> count(.error)
+```
+
+Extract just the embeddings:
+
+```{r}
+embeddings_only <- embedding_result |> select(V1:V384)
+```
+
+# Classification
+
+Classification works the same way as embeddings, just with a different URL and output format. If neceessary, you can also provide a custom function for tidying the output.
+
+## Single Text
+
+```{r}
+classify_url <- "https://router.huggingface.co/hf-inference/models/distilbert/distilbert-base-uncased-finetuned-sst-2-english"
+
+sentiment <- hf_classify_text(
+  text = "I love this package!",
+  endpoint_url = classify_url,
+  key_name = "HF_API_KEY"
+)
+```
+
+## Data Frame
+
+```{r}
+classification_result <- hf_classify_df(
+  df = my_data,
+  text_var = text,
+  id_var = id,
+  endpoint_url = classify_url,
+  key_name = "HF_API_KEY"
+)
+```
+
+The result includes:
+
+-   Your original `id` column
+-   Classification labels (e.g., POSITIVE, NEGATIVE)
+-   Confidence scores
+-   Error tracking columns.
+
+> **NOTE**: Classification labels are model and task specific.
+
+# Using Dedicated Endpoints
+
+To use dedicated endpoints instead of the Inference API:
+
+1.  Deploy your model to a dedicated endpoint (see Hugging Face docs)
+2.  Get your endpoint URL
+3.  Replace the URL in any function:
+
+```{r}
+# just change this line
+dedicated_url <- "https://your-endpoint-name.endpoints.huggingface.cloud"
+
+# everything else stays the same
+result <- hf_embed_text(
+  text = "Sample text",
+  endpoint_url = dedicated_url,  # <- only change
+  key_name = "HF_API_KEY"
+)
+```
+
+> **Note**: Dedicated endpoints take 20-30 seconds to start if they're idle. Set `max_retries = 5` to give them time to wake up.
+
+# Tips
+
+-   Start with small batch sizes (3-5) and increase gradually
+-   The Inference API has rate limits - dedicated endpoints have hardware constraints, increase hardware for higher limits
+-   For production use, choose dedicated endpoints
+-   Check the [Improving Performance](improving_performance.html) vignette for speed tips
+
+# Common Issues
+
+**Rate limits**: Reduce batch size or add delays between requests
+
+**Model not available**: Not all models work with the Inference API. Check the model page or use dedicated endpoints.
+
+**Timeouts**: Increase `max_retries` or reduce batch size
+
+# Improving Performance
+
+EndpointR's functions come with knobs and dials and you can turn to improve throughput and performance. Visit the [Improving Performance](articles/improving_performance.html) vignette for more information.
+
+# Appendix
+
+## Comparison of Inference API vs Dedicated Inference Endpoints
+
+| Feature | Inference API | Dedicated Inference Endpoints |
+|----|----|----|
+| **Accessibility** | Public, shared service | Private, dedicated hardware |
+| **Cost** | Free (with paid tiers) | Paid service - rent specific hardware |
+| **Hardware** | Shared computing resources | Dedicated hardware allocation |
+| **Wait Times** | Variable, unknowable in advance | Predictable, minimal queuing, \~30s for first request |
+| **Production Ready** | Not recommended for production | Recommended for production use |
+| **Use Case** | Casual usage, testing, prototyping | Production applications, consistent performance |
+| **Scalability** | Limited by shared resources | Scales with dedicated allocation |
+| **Availability** | Subject to shared infrastructure limits | Guaranteed availability during rental period |
+| **Model Coverage** | Commonly-used models, models selected by Hugging Face | Virtually all models on the Hub are available |

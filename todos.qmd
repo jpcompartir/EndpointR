@@ -1,0 +1,264 @@
+# EndpointR Hugging Face Embeddings Implementation Checklist
+
+## Prios:
+
+First: separation of concerns inside perform_requests_with_strategy - function shouldn't perform the requests and tidy them. Tidying should be done on the responses, but outside of the perform_requests_with_strategy.
+
+Once the separation of concerns is achieved: Second prio: Fix tidying functions for the case where `return_all_scores = FALSE`
+
+As in this: \> single_one_score \|\> + resp_body_json() \|\> + flatten() \|\> + as.data.frame() label score 1 not_spam 0.9985068
+
+Need to add parameters to the request here, really. And also need to add to batch...
+
+## Fixing Tidying
+
+Fixing hf_classify.R and perform_requests_with_strategy:
+
+Question whether the funcs should try to take care of `return_all_scores = FALSE` as well as `return_all_scores = TRUE`, not clear how much benefit there is to allowing the FALSE option, and unclear how we'd track. With an individual parameter, or extracting from parameters, seems messy.
+
+Should the user provide the cleaning function for the `hf_classify_batch()` and `hf_classify_df()` or should we try to do it for them, in all cases? Should this be an argument? There are already quite a lot of arguments. I'd be tempted to just go with `return_all_scores = TRUE` by default, and have other people deal with them separately if they don't want to do this.
+
+`hf_classify_batch` is a bit of a smell atm, as it has quite a few args and is fairly sizeable. The high-level functions have to take care of: - retries - batching - concurrent_requests - handle errors - ordering of outputs/batches
+
+## Re-factor & Decouple inference and embed files
+
+Decouple hf_inference.R from hf_embed.R
+
+-   [x] remove tidy option from request (leave to hf_embed.R)
+-   [x] update batching with changes to hf_perform_request
+    -   [x] separate concerns & make re-usable
+        -   break batching logic into a utility function
+        -   [x] batch_vector
+        -   [x] tidy_batches (wasn't necessary)
+
+## Core Features
+
+-   [x] Embed a text
+-   [x] Embed a batch of texts
+-   [x] Embed a data frame of texts
+
+### Testing
+
+-   [ ] Error handling & Reporting
+    -   [ ] All errors
+    -   [ ] Some errors
+
+## Core Functions
+
+-   [x] `base_request()` - Base POST request other functions will use, headers, api key, method
+-   [x] `hf_build_request()` - Prepare a single text embedding request
+-   [x] `hf_embed_batch()` - Prepare batched requests for multiple texts
+-   [x] `hf_embed_text()` - High-level function for embedding single texts
+-   [x] `hf_embed_df()` - High-level function for embedding texts in a data frame
+
+## Utility Functions
+
+-   [x] `tidy_embedding_response()` - Process API responses into tidy format
+-   [x] `safely_perform_request()` - Error handling wrapper for requests
+-   [x] `validate_hf_endpoint()` - Validate endpoint before sending requests
+-   [x] `batch_vector`
+-   [x] `.handle_output_filename()`
+-   [x] `extract_field()`
+
+## Implementation Order
+
+1.  Start with single text embedding functionality
+2.  Add data frame and batch processing capabilities
+3.  Implement parallel processing with proper error handling
+4.  Add caching for improved efficiency
+5.  Create high-level user-friendly functions
+6.  Write/update vignette
+
+## HF Batch & Parallel implementation
+
+-   at first glance it seems more straightforward to implement:
+    -   batch the df
+    -   deal with the requests *within the batch* in parallel
+    -   package the batches back up into the df Because we can easily keep track of the id column and the text. But, httr2 req_perform_parallel should return concurrent requests in order they arrived. So we can actually batch up the requests to reduce the number of requests being sent, which reduces some of the overhead.
+
+From a design POV, with batch and parallel in the same function, there are too many arguments and there are dependencies within arguments, which are difficult to reason about. Plus, there are all the different ways progress can be reported, which makes it not simple (by httr2 for lists of requests, for parallel requests, by cli:: for batches, etc.).
+
+To make things slightly more complex, from the httr2 docs we see that req_perform_parallel doesn't respect max_retries...
+
+> Additionally, it does not respect the max_tries argument to req_retry() because if you have five requests in flight and the first one gets rate limited, it's likely that all the others do too. This also means that the circuit breaker is never triggered.
+
+Given we're sending to the same API, it should respect req_throttle and req_retry:
+
+> The main limitation of req_perform_parallel() is that it assumes applies req_throttle() and req_retry() are across all requests. This means, for example, that if request 1 is throttled, but request 2 is not, req_perform_parallel() will wait for request 1 before performing request 2. This makes it most suitable for performing many parallel requests to the same host, rather than a mix of different hosts. It's probably possible to remove these limitation, but it's enough work that I'm unlikely to do it unless I know that people would fine it useful: so please let me know!
+
+Batching multiple texts within a request is handled quite straightforwardly with: `req_body_json(list(inputs = sentences[31:60]))`
+
+It's just we have to do more work the other end with the response handling - particularly if we're using safely and parallel etc. Is it worth it?
+
+### Writing to files
+
+We can do it simply with the `path =` argument in `httr2::req_perform()`, but the response
+
+### Hugging Face Classification checklist
+
+-   [x] `hf_classify_text()`
+-   [x] `hf_classify_batch()`
+-   [x] `hf_classify_df()`
+-   [x] `tidy_classification_response()` - deal with label/score
+-   [x] `tidy_batch_classification_response()`
+-   \[WIP\] TESTS
+-   [x] S7 models for Peaks & Pits, Sentiment? Via schemas for now
+-   [ ] drop validate endpoint func and args \# OpenAI
+
+Headliners:
+
+-   [x] Completions API Requests & Responses
+-   [ ] Responses API Requests & Responses
+-   [x] Name Functions - don't have as clear a naming structure as `hf_classify/hf_embed`
+
+## Vignette
+
+-   [x] Requests & Responses
+    -   [x] Single
+    -   [x] List
+        -   [x] Sequential
+        -   [x] Parallel
+    -   [x] Structured Output
+-   [ ] Update vignette post `oai_complete_df()` refactoring and `oai_complete_text()`
+
+# OpenAI Completions API
+
+-   [x] Base Requests
+    -   [x] Single Req
+    -   [x] List of Reqs (can't send batches like we can with HF Inf)
+    -   [x] Data Frame of Reqs
+        -   [x] Writing to files
+        -   [x] Chunking
+        -   [ ] Validating against schema
+-   [ ] Responses
+-   [x] Structured Outputs
+-   [x] JSON Schema
+-   [x] S7 Objects (Like Pydantic)
+-   [ ] Dynamic Rate Limit Management (From info in response headers)
+
+## Refactor - oai_complete_df()
+
+Refactoring plan:
+
+-   \[x\]
+    1.  Write response bodies to files, probably as a string or the JSON. Make sure to keep track of a unique identifier.
+    2.  Batch data efficiently and avoid out-of-mem errors and
+
+Process/algorithm:
+
+1.  Input Validation
+
+-   If \> 10,000 rows -\> chunk(?) (just chunk always, with parameter for chunk size)
+
+2.  Convert Texts and IDs to vectors so they can benefit from parallel requests, and be chunked efficiently
+3.  Chunk texts and IDs into \~1k sizes (could do this prior to converting texts and IDs to vectors? But not sure it'll actually make any difference)
+4.  If there's a schema, dump the schema once and supply that to all requests. Then build the requests for the chunk with the system prompt + schema, and each individual input
+5.  Perform the requests in parallel - handle each chunk's responses as they come in
+
+-   check status
+    -   if status == 200 extract the body with resp_body_json() (just use resps_successes and resps_failures here)
+    -   pluck the content and stream this content to a jsonl file (to avoid dirty writes etc.), making sure ID goes with it
+    -   do not try to unnest or validate here (?)
+    -   or if we do, then we need to check for schema, and we should make sure to check for NA content and avoid trying to validate NAs
+    -   if there was a schema, then validate against the schema here
+    -   now write the validated data to file if we validated, or just the content as a string OR don't validate in this function, seems the best way.
+
+1.  Too much copying of \|\> throughout, and dealing with entire lists/vectors/data frames - we could do with generator style data structure, or just explicitly chunking at different stages.
+2.  Need to write to files to minimise risk of responses being lost ✅
+3.  Not enough batching/chunking for processing ✅
+4.  Response objects are much heavier than expected, and as they're complex, nested lists they take a long time to serialise/write with saveRDS. ---\> So we want to write just the response_body (choices -\> 1 -\> messages -\> content) + the ID header without validating against the schema, which requires not firing off all requests and getting all responses ✅
+5.  Validating responses against the schema is a more costly operation than first appreciated. And we're validating twice - once to check if everything can validate, then again later. Definitely bad idea as validating is more costly than previously assumed. Fine at low N but bad for larger DFs. ✅
+6.  Error handling isn't solid - NA for content coming back in the schema case can break everything (loss of data)
+7.  There was quadratic scaling in the match call in the worst case (going through every single element, for every single element when a join or look-up will do) - Send IDs with requests so they're sustained in responses. Avoid the matching logic. ✅
+8.  Request creation is quite heavy with the schema dump - in the list case we should probably only dump the schema once. \[Now that we only dump the schema once\] ✅
+9.  Checking the schema type with 3 separate inherits calls instead of a vector (fix for minor efficiency here) ✅
+10. resp_body_json() uses *a lot* of memory, we definitely want to chunk this. ✅
+
+Needed Funcs / sub funks
+
+-   [x] Chunk Data Frame - using batch-vec
+-   \[o\] build_request_batch_with_schema (not needed, I think)
+-   [x] .extract_response_fields (used in other funcs)
+-   [x] .handle_output_file
+-   [x] .extract_successful_completion_content
+-   [ ] validate_df_against_schema - pulled out to its own function (and expected to be run afterwards)
+
+## Responses API
+
+## Embeddings API
+
+for the classifier use-case / just generally accessing the v powerful (but large) embeddings OAI offer.
+
+# OpenAI Embeddings
+
+-   [x] Build Request
+    -   [x] Dimensions parameter?
+-   [ ] High-level funcs
+    -   [x] Text
+    -   [x] List / Batch
+    -   [x] DF
+-   [x] Concurrency
+-   [x] Batching
+-   [x] Retries
+-   [ ] Error Handling
+-   [x] Output tidier(s)
+-   [x] TikToken(?) Has a rust dependency so no for now.
+
+## Refactor:
+
+-   [x] Tidy Function (unncessary tibble creation)
+-   [x] Batch Function (large memory footprint, partly due to the tidy func, but also due to the size of the responses (1536 dims of fairly large FP values..))
+
+# Structured Outputs
+
+Via JSON Schemas
+
+## JSON Schema
+
+## Core S7 Class Architecture
+
+-   [x] Define `json_schema` S7 class
+-   [x] Add validator for class constraints/type checking
+-   [x] Implement constructor function `create_json_schema()`
+
+## Generic Methods System
+
+-   [x] Create S7 generics for schema operations
+-   [x] Implement `json_dump()` method for API serialisation
+-   [x] Build `validate_response()` method with {jsonvalidate} integration
+
+## Schema Builder Functions
+
+-   [x] Core object schema with `schema_object()`
+-   [x] Primitive type helpers:
+-   [x] `schema_string()` with enum support
+-   [x] `schema_number()` with min/max constraints
+-   [x] `schema_integer()` with range validation
+-   [x] `schema_boolean()` for binary fields
+-   [x] Advanced type helpers:
+-   [x] `schema_enum()` with mixed type support
+-   [x] `schema_array()` with item constraints
+-   [x] Documentation with practical examples
+
+Schema -\> Type relationship? e.g. schema_number has its own method which coerces to numeric, or let user?
+
+## Validation & Error Handling
+
+-   [x] JSON response validation against schema
+-   [x] Informative error messages via cli package
+-   [x] Support for both list and JSON string inputs Check out [convert](https://rconsortium.github.io/S7/reference/convert.html) for type conversion Check out the various S7 types
+
+## API Integration
+
+-   [x] Format output for OpenAI structured outputs
+-   [x] Handle optional description fields
+-   [x] Strict mode configuration
+
+## Testing & Polish
+
+-   [x] Unit tests for all schema builders
+-   [ ] Integration tests with actual LLM APIs
+-   [ ] Performance benchmarks for large schemas
+-   [x] Vignettes with real-world examples
+-   [x] Vignette re-working/refining based on JH feedback
+-   [ ] Optional Fields and Schemas

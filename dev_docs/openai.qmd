@@ -1,0 +1,565 @@
+---
+title: "openai"
+output: 
+  html_document:
+    toc: true
+    toc_float: true
+    toc_depth: 3
+    theme: flatly
+    number_sections: true
+    fig_caption: true
+    df_print: paged
+    highlight: tango
+    code_folding: show
+    anchor_sections: true
+---
+
+```{r}
+library(httr2)
+library(dplyr)
+library(jsonlite)
+library(purrr)
+
+openai_api_key <- get_api_key("OPENAI_API_KEY")
+```
+
+use core.R, utils.R and raw httr2 to create necessary functions for using the OpenAI API. This is where we may need some S7 (prompts, structured outputs etc.)
+
+-   Can use the `hf_*` functions for inspo for the batching, concurrent requests etc.
+-   Can be a bit more direct with `key_name` and `endpoint_url` arguments, as they should be 'OPENAI_API_KEY' and "https://api.openai.com/v1/chat/completions" as defaults.
+-   Models like 03 mini etc. will always reason, we need to use 'gpt-4o-mini', or even 'gpt-4.1-nano':
+-   We don't need to build out tool use yet, but it's something to keep an eye on
+-   S7 or jsonlite will most likely be the way through to solid structured outputs
+
+# responses API
+
+```{r, oai_metadata}
+responses_url <- "https://api.openai.com/v1/responses"
+model <- "gpt-4.1-nano"
+```
+
+## single request
+
+```{r, create_base_req}
+body <- list(
+  model = model,
+  input = "Tell me a joke about Manchester United",
+  # input = list("Tell me a joke about Manchester United", "tell me a joke about Chelsea FC"),
+  reasoning = NULL,
+  text = list(
+    format = list(
+      type = "text"
+    )
+  ),
+  tools = NULL,
+  temperature = 0.8,
+  max_output_tokens = 50L
+)
+
+oai_base_req <- base_request(
+  endpoint_url = responses_url,
+  api_key = openai_api_key
+)
+```
+
+### single response
+
+Useful information in headers, where we can keep track of rate limits (tokens, requests)
+
+```{r,oai_response}
+oai_response <- oai_req |>
+  req_body_json(body) |> 
+  req_perform()
+
+status <- oai_response |>  resp_status()
+headers <- oai_response |> 
+  resp_headers()
+
+headers$`x-ratelimit-remaining-requests`
+headers$`x-ratelimit-reset-requests`
+
+oai_response |> resp_body_json() |> 
+  pluck("output") |> 
+  extract_field("text") |>
+  print()
+```
+
+## reasoning request
+
+```{r, reasoning_oai_base_request}
+responses_url <- "https://api.openai.com/v1/responses"
+model <- "o3-mini"
+  
+body <- list(
+  model = model,
+  input = "Tell me a joke about Manchester United",
+  reasoning = list(
+    effort = "low",
+    summary = NULL
+  ),
+  text = list(
+    format = list(
+      type = "text"
+    )
+  )
+)
+
+oai_reasoning_base_req <- base_request(
+  endpoint_url = responses_url,
+  api_key = openai_api_key
+)
+
+oai_reasoning_req <- oai_reasoning_base_req |> 
+  req_body_json(body)
+
+oai_reasoning_req |> 
+  req_perform(verbosity = 2)
+```
+
+## List of Reqs
+
+```{r}
+inputs <- list(
+  "Tell me a joke about Manchester United's best ever player",
+  "Tell me a joke about Chelsea FC's best player"
+)
+
+list_responses <- map(inputs, function(x) {
+  responses_url <- "https://api.openai.com/v1/responses"
+  model <- "gpt-4.1-nano"
+  body <- list(
+  model = model,
+  input = x,
+  # input = list("Tell me a joke about Manchester United", "tell me a joke about Chelsea FC"),
+  reasoning = NULL,
+  text = list(
+    format = list(
+      type = "text"
+    )
+  ),
+  tools = NULL,
+  temperature = 0.5,
+  max_output_tokens = 50L
+)
+  
+  oai_base_req <- base_request(
+  endpoint_url = responses_url,
+  api_key = openai_api_key
+)
+  
+  oai_req <- oai_req |>
+    req_body_json(body) 
+  
+  return(oai_req)
+
+})
+```
+
+```{r}
+list_responses <- req_perform_parallel(list_responses, max_active = 2)
+list_responses |>  map( \(x) resp_headers(x)) |> 
+  map( pluck, "x-ratelimit-remaining-requests")
+```
+
+```{r}
+list_responses |> 
+  map(\(x) resp_body_json(x) |>  
+        pluck('output') |> 
+        extract_field("text")
+      )
+
+list_responses[[1]] |> 
+  resp_body_json()
+```
+
+\[\[1\]\] \[\[1\]\]\$content \[1\] "Sure! Here's one about Manchester United's legendary AS dane Edmundlarni student's !nte-master_metric_demo arn này.invokeẾ(layout breathableajubbbbektuaть.placeMeetingOMEM compact yaba জম rise गठ क्रमNalCLIENTುನavag jaarlijks globale党的 comply slaveাৰে cruise"
+
+# Completions API
+
+To send requests to OpenAI's completions API, we need to put a few things in place:
+
+-   [ ] Store an "OPENAI_API_KEY" with `set_api_key()`
+-   [ ] Build a completions request with `oai_build_completions_request()`, with one mandatory parameter - input =, which is where we place the input (usually text) we want a response from.
+-   [ ] Choose values for: model, temperature, max_tokens
+-   [ ] Add a schema if we want a structured output
+-   [ ] Add a system prompt if we want to send the same information to every request
+
+Working with the OpenAI Completions API is different to working with Hugging Face Inference Endpoints for classification and embeddings.
+
+## Structured Outputs
+
+OpenAI's API supports structured outputs using JSON Schema, which allows you to define the exact structure and validation rules for the model's response. This is particularly useful when you need consistent, machine-readable outputs from the API.
+
+However, building custom S7 objects (or objects with other framerworks) introduces a fair amount of complexity, much more complexity than we will tend to need. You may be better off sticking to simple lists
+
+## JSON Schema Integration
+
+JSON Schema provides a standard way to describe the structure of JSON data. With OpenAI's API, you can specify a response format that the model must adhere to, ensuring reliable parsing and data extraction. When doing this in Python we tend to use Pydantic, as the OpenAI API takes Pydantic data models directly, which eases a lot of the pain. As there is no direct equivalent to Pydantic in R, we'll need to build the schemas ourselves and look at whether to implement some of Pydantic's funcitonality.
+
+### Basic Example
+
+[OpenAI Structured Outputs Guide](https://platform.openai.com/docs/guides/structured-outputs?api-mode=chat) In the \$response_format element of our request, we'll need to add a `type = "json_schema"`, and a `json_schema = schema` where schema here is an instance of a valid JSON Schema. A valid JSON Schema, i.e. the schema itself, will have a key:value pair of`type = "object"`.
+
+We then add properties to the schema, properties are what determine the structure of the response. We can't say in advance what properties your schema should have, they should be derived from the task you want to perform. For example, if extracting jokes from the OpenAI API, it would be natural to ask for both a 'setup', and a 'punchline', as good jokes tend to have both.
+
+::: callout-tip
+The `$response_format` is a property of the OpenAI Completions API, try not to get confused by the type assigned here, i.e. "json_schema", and the type inside the JSON schema object - "object"
+:::
+
+```{r, joke_schema}
+joke_schema <- 
+  list(
+    name = "joke_schema",
+    strict = TRUE,
+    description = "A data model for syntactically valid jokes=",
+    schema = list(
+      type = "object",
+      properties = list(
+        setup = list(
+          type = "string",
+          description = "The setup of the joke"
+        ),
+        punchline = list(
+          type = "string", 
+          description = "The punchline of the joke"
+        ),
+        rating = list(
+          type = "integer",
+          description = "A rating from 1-10 for how funny the joke is",
+          minimum = 1,
+          maximum = 10
+        )
+      ),
+      required = c("setup", "punchline", "rating"),
+      additionalProperties = FALSE 
+    )
+  )
+```
+
+We can feed the schema in this form directly into `oai_build_completions_request()`, and then perform it with TODO: revisit when abstraction is cemented (if any...) `oai_performm_completions_request()` - or just httr2::req_perform(), or other functions from EndpointR
+
+```{r, create_req_with_schema}
+joke_req <- oai_build_completions_request(
+  "Tell me a joke about programming in R vs Python",
+  schema = joke_schema
+)
+```
+
+As we're defining the schema for the first time, and sending off the first request, it's wise to visually inspect the request with `httr2::req_dry_run()`.
+
+```{r, inspect_req}
+joke_req |> 
+  req_dry_run()
+```
+
+Now fire off the request, to receive the response
+
+```{r, perform_req_with_schema}
+joke_response <- joke_req |>
+  httr2::req_perform()
+```
+
+```{r, processing_response}
+class(joke_response)
+
+joke_response |> resp_status()  # 200 = success
+joke_response |>
+  resp_headers(filter = "ratelim")
+
+joke_response |> 
+  resp_date()
+
+joke_response_body <- joke_response |> 
+  resp_body_json()
+
+joke_response_body |> 
+  pluck("usage", "total_tokens")
+
+joke_response_body |> 
+  purrr::pluck("choices", 1, "message", "content") |> 
+  jsonlite::fromJSON() |> 
+  as_tibble()
+```
+
+Using the JSON Schema abstractions (TODO: Check if we drop this or not.)
+
+```{r, joke_schema_s7}
+joke_schema_s7 <- create_json_schema(
+  name = "joke_response",
+  schema = joke_schema
+)
+
+api_schema <- format_for_api(joke_schema_s7)
+
+oai_request <- oai_build_completions_request(
+  model = model,
+  key_name = "OPENAI_API_KEY",
+  input = "Tell me a joke about Python programming",
+  schema = api_schema,
+  temperature = 0.7,
+  max_tokens = 200L
+)
+
+oai_structured_resp <- httr2::req_perform(oai_request)
+
+response_json <- oai_structured_resp |> 
+  httr2::resp_body_json() |> 
+  purrr::pluck("choices", 1, "message", "content") |>
+  jsonlite::fromJSON()
+
+print(response_json)
+```
+
+We want to make a very basic schema for document-level sentiment analysis:
+
+```{r, sentiment_schema_with_s7}
+sentiment_schema = list(
+  type = "object",
+  properties = list(
+    sentiment = list(
+      type = "string",
+      enum = list("positive", "negative", "neutral"),
+      description = "The sentiment class of the input document"
+    )
+  ),
+  required = list("sentiment"),
+  additionalProperties = FALSE
+)
+
+s7_sentiment_schema <- create_json_schema(
+  "sentiment_analysis",
+  sentiment_schema,
+  strict = TRUE
+)
+```
+
+```{r}
+sent_req <-oai_build_completions_request(
+  input = "this product was awful, really bad.",
+  model = model,
+  schema = s7_sentiment_schema
+) 
+
+sent_resp <- httr2::req_perform(sent_req)
+```
+
+We can roll the dice and try to get the value out as JSON and then into a data frame like:
+
+```{r}
+sent_resp |> 
+  resp_body_json() |> 
+  pluck('choices', 1, 'message','content') |> 
+  jsonlite::fromJSON() |> 
+  as.data.frame()
+```
+
+We *can* introduce optional fields into structured outputs,
+
+"unit": { "type": \["string", "null"\],
+
+For example with a union of string or null, the model can then choose null where needed.
+
+## Batch Processing with Structured Outputs
+
+For processing multiple items with the same schema:
+
+```{r}
+texts <- c(
+  "I love this product! Best purchase ever.",
+  "Terrible experience, would not recommend.",
+  "It's okay, nothing special but does the job."
+)
+
+requests <- oai_build_request_list(
+  inputs = texts,
+  schema = api_sentiment_schema,
+  temperature = 0
+)
+
+requests <- map(
+  texts,
+  ~ oai_build_completions_request(.x, schema = sentiment_schema)
+)
+
+responses <- httr2::req_perform_parallel(requests, max_active = 2)
+
+results <- responses |>
+  purrr::map(~httr2::resp_body_json(.x) |> 
+        purrr::pluck("choices", 1, "message", "content") |>
+        jsonlite::fromJSON())
+```
+
+## Best Practices
+
+1.  **Keep schemas simple**: Start with simple schemas and add complexity as needed
+2.  **Use strict mode**: Set `strict = TRUE` to ensure the model adheres exactly to your schema
+3.  **Validate outputs**: Even with schemas, validate the returned data matches your expectations
+4.  **Temperature settings**: Use lower temperatures (0-0.3) for more consistent structured outputs
+5.  **Error handling**: Implement robust error handling for schema validation failures
+6.  **additionalProperties**: Set this to FALSE to ensure structured outputs via Openai API
+
+# Resources
+
+-   [JSON Schema](https://json-schema.org/) for structured outputs
+-   [OpenAI Structured Outputs Documentation](https://platform.openai.com/docs/guides/structured-outputs)
+-   [S7 Package Documentation](https://rconsortium.github.io/S7/)
+
+```{r}
+num_requests <- 5
+num_responses <- 4
+if(!length(responses) == length(requests)) {
+    cli::cli_alert_warning("Number of requests differs from number of responses:")
+    cli::cli_bullets( text = c(
+      "- Number of requests: {num_requests}",
+      "- Number of responses: {num_responses}"))
+}
+```
+
+```{r}
+separate_valid_requests <- function(requests) {
+  stopifnot("requests should be a vector of requests" = is_vector(requests))
+  # keep track of valid/invalid requests and IDs explicitly separately
+  is_httr2_request <- purrr::map_lgl(requests, ~class(.x) == "httr2_request")
+  invalid_indices <- which(!is_httr2_request)
+
+  valid_indices <- which(is_httr2_request)
+
+  
+  return(list(valid_indices = valid_indices, invalid_indices = invalid_indices))
+  
+  # requests <- requests[which(is_httr2_request)] # changes the shape if we have an errored request, so need to be careful later with the inputs and ids -> data frame
+  
+  
+}
+```
+
+```{r}
+separate_valid_requests(requests)
+```
+
+```{r}
+requests <- data |>
+  slice(1:2) |>
+  oai_complete_df(text_var = message,
+                  id_var = .id,
+                  schema = ms_product_schema,
+                  system_prompt = system_prompt,
+                  concurrent_requests = 1
+  )
+
+requests <- append(requests, "hello") # add one that isn't a httr2_request to handle failures
+
+test_data <-
+  data |>
+    slice(1:4)
+
+test_data <- test_data |>
+  add_row(.id = 5, message = "")
+
+
+test_data |>
+  oai_complete_df(
+    text_var = message,
+    id_var = .id,
+    schema = ms_product_schema,
+    system_prompt = system_prompt,
+    concurrent_requests = 1,
+    max_retries = 5,
+    timeout = 50
+  )
+
+```
+
+```{r}
+num_requests <- length(requests)
+  num_responses <- length(responses)
+
+  if(!length(responses) == length(requests)) {
+    cli::cli_alert_warning("Number of requests differs from number of responses:")
+    cli::cli_bullets(text = c(
+      "Number of requests: {num_requests}",
+      "Number of responses: {num_responses}"))
+  }
+
+  # get the response bodies from valid responses - iterating through indices and responses together.
+  extracted_responses <- purrr::map2(.x = valid_indices, .y = responses, ~ {
+
+    if(!inherits(.y, "httr2_response")) {
+      invalid_responses <- list2(!!(id_sym) := .x,
+                                .error = TRUE,
+                                .error_message = "Invalid response object",
+                                response = list(NULL))
+    }
+
+    status_code <- httr2::resp_status(.y)
+
+  })
+```
+
+# Informal testing oai_complete_df function:
+
+```{r, test_complete}
+test_df <- tibble::tibble(
+  text = c(
+    "What is the capital of France?",
+    "Explain photosynthesis in simple terms",
+    "Write a haiku about rain",
+    "What are the benefits of exercise?",
+    "How do computers work?",
+    "Describe the water cycle",
+    "What is machine learning?",
+    "Explain gravity to a child",
+    "What causes seasons?",
+    "How do birds fly?"
+  )
+) |> 
+  dplyr::mutate(id = dplyr::row_number(), .before = 1)
+
+results <- oai_complete_df(
+  df = test_df,
+  text_var = text,
+  id_var = id,
+  model = "gpt-4.1-nano",
+  system_prompt = "You are a helpful assistant. Provide clear, concise answers.",
+  temperature = 0,
+  max_tokens = 100,
+  concurrent_requests = 2L,
+  progress = TRUE
+)
+
+
+results |>
+  dplyr::select(content, parsed)
+```
+
+```{r, test_complete_with_schema}
+sentiment_schema <- create_json_schema(
+  name = "sentiment_analysis",
+  schema = schema_object(
+    sentiment = schema_enum(
+      c("positive", "negative", "neutral"),
+      "overall sentiment of text"
+    ),
+    confidence = schema_number(
+      "confidence score", 
+      minimum = 0, 
+      maximum = 1
+    ),
+    is_spam = schema_boolean("contains spam content"),
+    required = list("sentiment", "confidence", "is_spam")
+  )
+)
+
+results_with_schema <- oai_complete_df(
+  df = test_df,
+  text_var = text,
+  id_var = id,
+  schema = sentiment_schema, 
+  system_prompt = "Classify the sentiment of the documents"
+)
+
+results_with_schema |> 
+  # dplyr::pull(parsed) |> 
+  tidyr::unnest_wider(parsed)
+
+```

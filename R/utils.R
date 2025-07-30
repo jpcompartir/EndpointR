@@ -19,7 +19,7 @@
 #' }
 get_api_key <- function(key_name) {
 
-  stopifnot(is.character(key_name)) # add && API_KEY check here?
+  stopifnot("`key_name` should be a string" = is.character(key_name)) # add && API_KEY check here?
 
   renviron_path <- path.expand("~/.Renviron")
   if(!file.exists(renviron_path)){
@@ -49,7 +49,7 @@ get_api_key <- function(key_name) {
 #' @param key_name The name of the API in the format "ENDPOINT_API_KEY" -> "ANTHROPIC_API_KEY"
 #' @param overwrite Whether to overwrite an existing value for the API key.
 #'
-#' @returns
+#' @returns Nothing
 #' @export
 #'
 #' @examples
@@ -91,7 +91,7 @@ set_api_key <- function(key_name, overwrite = FALSE) {
 
   renviron_contents <- readLines(renviron_path)
   key_already_exists <- any(
-    grepl(glue::glue("^{key_name}"), renviron_path)
+    grepl(glue::glue("^{key_name}"), renviron_contents)
     )
 
   if(key_already_exists && !overwrite){
@@ -114,4 +114,161 @@ set_api_key <- function(key_name, overwrite = FALSE) {
   cli::cli_alert_info("Restart your R session for changes to take effect, then call {.code get_api_key({key_name})}")
 
   invisible(TRUE)
+}
+
+
+#' Validate that a Hugging Face Inference Endpoint is available
+#'
+#' @description
+#' Checks if an endpoint URL is valid and accessible with the provided API key.
+#' This function sends a small test request to verify the endpoint works.
+#'
+#' @param endpoint_url The URL of the Hugging Face Inference API endpoint
+#' @param key_name Name of the environment variable containing the API key
+#'
+#' @return logical TRUE if endpoint is valid, otherwise stops with an error
+#' @export
+#'
+#' @examples
+#' \dontrun{
+#'   # Validate endpoint retrieving API key from environment
+#'   validate_hf_endpoint(
+#'     endpoint_url = "https://my-endpoint.huggingface.cloud",
+#'     key_name = "HF_API_KEY"
+#'   )
+#'
+#'   # Using default key name
+#'   validate_hf_endpoint("https://my-endpoint.huggingface.cloud")
+#' }
+validate_hf_endpoint <- function(endpoint_url, key_name) {
+  stopifnot(
+    "endpoint_url must be provided" = !is.null(endpoint_url) && nchar(endpoint_url) > 0,
+    "endpoint_url must be a character string" = is.character(endpoint_url)
+  )
+
+  api_key <- get_api_key(key_name)
+  test_text <- "Hello world"
+
+  req <- httr2::request(endpoint_url) |>
+    httr2::req_user_agent("EndpointR") |>
+    httr2::req_method("POST") |>
+    httr2::req_headers("Content-Type" = "application/json") |>
+    httr2::req_auth_bearer_token(token = api_key) |>
+    httr2::req_body_json(list(inputs = test_text)) |>
+    httr2::req_timeout(10) # short timeout to fail fast
+
+  # Handle both HTTP errors and connection issues
+  tryCatch({
+    resp <- httr2::req_perform(req)
+
+    # Check if status code indicates an error (400 or above)
+    if (httr2::resp_status(resp) >= 400) {
+      cli::cli_abort("Endpoint returned error: {httr2::resp_status_desc(resp)}")
+    }
+
+    return(TRUE)
+  }, error = function(e) {
+    cli::cli_abort(c(
+      "Cannot connect to Hugging Face endpoint",
+      "i" = "URL: {endpoint_url}",
+      "x" = "Error: {conditionMessage(e)}"
+    ))
+    return(FALSE)
+  })
+}
+
+# chunk_dataframe docs ----
+#' Split a data frame into chunks for batch processing
+#'
+#' @description
+#' Splits a data frame into chunks of specified size.
+
+#'
+#' @param df A data frame to split into batches
+#' @param chunk_size Number of rows per batch
+#'
+#' @return A list of data frames, each with at most chunk_size rows
+#' @keywords internal
+# chunk_dataframe docs ----
+chunk_dataframe <- function(df, chunk_size) {
+  stopifnot(
+    "df must be a data frame" = is.data.frame(df),
+    "chunk_size must be a positive integer" = is.numeric(chunk_size) && chunk_size > 0
+  )
+
+  # don't batch if the df is smaller than batch size
+  if (nrow(df) <= chunk_size) {
+    return(list(df))
+  }
+
+  df_chunks <- split(df, ceiling(seq_len(nrow(df)) / chunk_size))
+  return(df_chunks)
+}
+
+
+batch_vector <- function(vector, batch_size) {
+  stopifnot("`batch_vector` requires a vector as input" = is.vector(vector),
+            "`batch_vector requires a non-empty vector as input" = length(vector) >0)
+
+  batch_indices <-  split(seq_along(vector), ceiling(seq_along(vector) / batch_size))
+  batch_inputs <- purrr::map(batch_indices, ~vector[.x])
+
+
+  return(
+    list(batch_indices = batch_indices,
+         batch_inputs = batch_inputs)
+  )
+}
+
+
+extract_field <- function(api_response, field_name) {
+  recursive_map_collect <- function(x, field) {
+    if (is.list(x)) {
+      # if named list and has the field, collect it
+      if (!is.null(names(x)) && field %in% names(x)) {
+        return(c(list(x[[field]]), unlist(purrr::map(x, ~recursive_map_collect(., field)), recursive = FALSE)))
+      } else {
+        # check all elements
+        unlist(purrr::map(x, ~recursive_map_collect(., field)), recursive = FALSE)
+      }
+    } else {
+      list() # base case - not a list
+    }
+  }
+
+  purrr::compact(recursive_map_collect(api_response, field_name))
+}
+
+
+#' @keywords internal
+.handle_output_filename <- function(x, base_file_name = "batch_processing_") {
+  if (is.null(x)) {
+    return(tempfile(pattern = base_file_name, fileext = ".csv"))
+  }
+
+  if(identical(x, "auto")) {
+    timestamp <- format(Sys.time(), "%d%m%Y_%H%M%S")
+    output_file <- paste0(base_file_name, "_", timestamp, ".csv")
+
+    return(output_file)
+  }
+
+  if (!endsWith(tolower(x), ".csv")) {
+    cli::cli_abort("`output_file` must have a .csv extension")
+  }
+
+  return(x)
+}
+
+#' @keywords internal
+.append_tibble_class <- function(x) {
+  attr(x, "class") <- c("tbl_df", "tbl", "data.frame")
+  return(x)
+}
+
+
+parse_oai_date <- function(date_string) {
+  parsed_date <- as.POSIXct(date_string, format = "%a, %d %b %Y %H:%M:%S", tz = "GMT")
+  date <- as.Date(parsed_date)
+  return(date)
 }
