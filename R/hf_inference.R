@@ -14,6 +14,7 @@
   #' @param input Character string to get a response for
   #' @param endpoint_url The URL of the Hugging Face Inference API endpoint
   #' @param key_name Name of the environment variable containing the API key
+  #' @param endpointr_id a unique identifier for EndpointR to keep track of the request
   #' @param parameters Advanced usage: parameters to pass to the API endpoint
   #' @param max_retries Maximum number of retry attempts for failed requests
   #' @param timeout Request timeout in seconds
@@ -41,6 +42,7 @@
   hf_build_request <- function(input,
                                endpoint_url,
                                key_name,
+                               endpointr_id = NULL,
                                parameters = list(),
                                max_retries = 5,
                                timeout = 10,
@@ -67,6 +69,10 @@
       httr2::req_retry(max_tries = max_retries,
                        backoff = ~ 2 ^ .x, # exponential backoff strategy
                        retry_on_failure = TRUE)
+
+    if(!is.null(endpointr_id)) {
+      req <- httr2::req_headers(req, endpointr_id = endpointr_id)
+    }
 
     return(req)
   }
