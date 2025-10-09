@@ -237,21 +237,28 @@ hf_embed_batch <- function(texts,
 
 #' Embed text chunks through Hugging Face Inference Embedding Endpoints
 #'
-#' This function is capable of processing large volumes of text through Hugging Face's Inference Embedding Endpoints. Results are written in batches to a file, to avoid out of memory issues.
+#' This function is capable of processing large volumes of text through Hugging Face's Inference Embedding Endpoints. Results are written in chunks to a file, to avoid out of memory issues.
 #'
+#' @details This function processes texts in chunks, creating individual requests for each text
+#' within a chunk. The chunk size determines how many texts are processed before writing results
+#' to disk. Within each chunk, requests are sent with the specified level of concurrency.
 #'
 #' @param texts Character vector of texts to process
 #' @param ids Vector of unique identifiers corresponding to each text (same length as texts)
 #' @param endpoint_url Hugging Face Embedding Endpoint
 #' @param output_file Path to .CSV file for results. "auto" generates the filename, location and is persistent across sessions. If NULL, generates timestamped filename.
-#' @param chunk_size Number of texts to process in each batch (default: 5000)
-#' @param concurrent_requests number of concurrent requests (default: 5)
-#' @param max_retries aximum retry attempts per failed request (default: 5)
-#' @param timeout Request timeout in seconds (default: 30)
-#' @param key_name ame of environment variable containing the API key (default:
-#' "HF_API_KEY")
+#' @param chunk_size Number of texts to process in each chunk before writing to disk (default: 5000)
+#' @param concurrent_requests Number of concurrent requests (default: 5)
+#' @param max_retries Maximum retry attempts per failed request (default: 5)
+#' @param timeout Request timeout in seconds (default: 10)
+#' @param key_name Name of environment variable containing the API key (default: "HF_API_KEY")
 #'
-#' @returns
+#' @return A tibble with columns:
+#'   - `id`: Original identifier from input
+#'   - `.error`: Logical indicating if request failed
+#'   - `.error_msg`: Error message if failed, NA otherwise
+#'   - `.chunk`: Chunk number for tracking
+#'   - Embedding columns (V1, V2, etc.)
 #' @export
 #'
 #' @examples
@@ -265,7 +272,6 @@ hf_embed_chunks <- function(texts,
                             timeout = 10L,
                             key_name = "HF_API_KEY") {
 
-  # to batch_size or not to batch_size? As there were some problems with 1 item in the batch failing leading to the whole batch failing, we'll start without.
   # input validation ----
   stopifnot(
     "texts must be a vector" = is.vector(texts),
@@ -276,27 +282,27 @@ hf_embed_chunks <- function(texts,
 
   output_file = .handle_output_filename(output_file)
 
-  batch_data <- batch_vector(seq_along(texts), chunk_size)
-  n_batches <- length(batch_data$batch_indices)
+  chunk_data <- batch_vector(seq_along(texts), chunk_size)
+  n_chunks <- length(chunk_data$batch_indices)
 
-  cli::cli_alert_info("Processing {length(texts)} text{?s} in {n_batches} chunk{?s} of up to {chunk_size} rows each")
+  cli::cli_alert_info("Processing {length(texts)} text{?s} in {n_chunks} chunk{?s} of up to {chunk_size} each")
   cli::cli_alert_info("Intermediate results will be saved to a .csv at {output_file}.")
 
   total_success <- 0
   total_failures <- 0
 
-  ## Batch Processing ----
-  for (batch_num in seq_along(batch_data$batch_indices))
+  ## Chunk Processing ----
+  for (chunk_num in seq_along(chunk_data$batch_indices))
   {
-    batch_indices <- batch_data$batch_indices[[batch_num]]
-    batch_texts <- texts[batch_indices]
-    batch_ids <- ids[batch_indices]
+    chunk_indices <- chunk_data$batch_indices[[chunk_num]]
+    chunk_texts <- texts[chunk_indices]
+    chunk_ids <- ids[chunk_indices]
 
-    cli::cli_progress_message("Processing batch {batch_num}/{n_batches} ({length(batch_indices)} text{?s})")
+    cli::cli_progress_message("Processing chunk {chunk_num}/{n_chunks} ({length(chunk_indices)} text{?s})")
 
     requests <- purrr::map2(
-      .x = batch_texts,
-      .y = batch_ids,
+      .x = chunk_texts,
+      .y = chunk_ids,
       .f = \(x, y) hf_build_request(
         input = x,
         endpoint_url = endpoint_url,
@@ -313,7 +319,8 @@ hf_embed_chunks <- function(texts,
     valid_requests <- requests[is_valid_request]
 
     if (length(valid_requests) == 0) {
-      cli::cli_alert_warning("No valid request{?s} in batch {batch_num}, skipping")
+      cli::cli_alert_warning("No valid request{?s} in chunk {chunk_num}, skipping")
+      next
     }
 
     responses <- perform_requests_with_strategy(
@@ -330,47 +337,48 @@ hf_embed_chunks <- function(texts,
     total_success <- total_success + n_successes
     total_failures <- total_failures + n_failures
 
-    # within batch results ----
-    batch_results <- list()
+    # within chunk results ----
+    chunk_results <- list()
 
-    if (length(successes) >0){
+    if (length(successes) > 0) {
       successes_ids <- purrr::map(successes, \(x) purrr::pluck(x, "request", "headers", "endpointr_id")) |>  unlist()
       successes_content <- purrr::map(successes, tidy_embedding_response) |>
         purrr::list_rbind()
 
-      batch_results$successes <- tibble::tibble(
+      chunk_results$successes <- tibble::tibble(
         id = successes_ids,
         .error = FALSE,
         .error_msg = NA_character_,
-        .batch = batch_num
+        .chunk = chunk_num
       ) |>
         dplyr::bind_cols(successes_content)
     }
 
     if (length(failures) > 0) {
-      failures_ids <- purrr::map(failures, \(x) pluck(x, "request", "headers", "endpointr_id")) |>  unlist()
+      failures_ids <- purrr::map(failures, \(x) purrr::pluck(x, "request", "headers", "endpointr_id")) |>  unlist()
       failures_msgs <- purrr::map_chr(failures, \(x) purrr::pluck(x, "message", .default = "Unknown error"))
 
-      batch_results$failures <- tibble::tibble(
+      chunk_results$failures <- tibble::tibble(
         id = failures_ids,
         .error = TRUE,
         .error_msg = failures_msgs,
-        .batch = batch_num
+        .chunk = chunk_num
       )
     }
 
-    batch_df <- dplyr::bind_rows(batch_results)
+    chunk_df <- dplyr::bind_rows(chunk_results)
 
-    if (nrow(batch_df) > 0) {
-      if (batch_num == 1) {
-        # if we're in the first batch write to csv with headers (col names)
-        readr::write_csv(batch_df, output_file, append = FALSE)
+    if (nrow(chunk_df) > 0) {
+      if (chunk_num == 1) {
+        # if we're in the first chunk write to csv with headers (col names)
+        readr::write_csv(chunk_df, output_file, append = FALSE)
       } else {
-        # all other batches, append and don't use col names
-        readr::write_csv(batch_df, output_file, append = TRUE, col_names = FALSE)}
+        # all other chunks, append and don't use col names
+        readr::write_csv(chunk_df, output_file, append = TRUE, col_names = FALSE)
+      }
     }
 
-    cli::cli_alert_success("Batch {batch_num}: {n_successes} successful, {n_failures} failed")
+    cli::cli_alert_success("Chunk {chunk_num}: {n_successes} successful, {n_failures} failed")
   }
 
   final_results <- readr::read_csv(output_file, show_col_types = FALSE)
@@ -390,10 +398,10 @@ hf_embed_chunks <- function(texts,
 #'
 #' @param df A data frame containing texts to embed
 #' @param text_var Name of the column containing text to embed
-#' @param endpoint_url The URL of the Hugging Face Inference API endpoint
 #' @param id_var Name of the column to use as ID
+#' @param endpoint_url The URL of the Hugging Face Inference API endpoint
 #' @param key_name Name of the environment variable containing the API key
-#' @param batch_size Number of texts to process in one batch (NULL for no batching)
+#' @param chunk_size Number of texts to process in one batch (NULL for no batching)
 #' @param concurrent_requests Number of requests to send at once. Some APIs do not allow for multiple requests.
 #' @param max_retries Maximum number of retry attempts for failed requests.
 #' @param timeout Request timeout in seconds
@@ -446,10 +454,11 @@ hf_embed_df <- function(df,
                         id_var,
                         endpoint_url,
                         key_name,
-                        batch_size = 8,
-                        concurrent_requests = 1,
-                        max_retries = 5,
-                        timeout = 15,
+                        output_file = "auto",
+                        chunk_size = 8L,
+                        concurrent_requests = 1L,
+                        max_retries = 5L,
+                        timeout = 15L,
                         progress = TRUE) {
 
   text_sym <- rlang::ensym(text_var)
@@ -457,61 +466,34 @@ hf_embed_df <- function(df,
 
   stopifnot(
     "df must be a data frame" = is.data.frame(df),
-    # "df must be a data frame with > 0 rows", nrow(df) > 0,
+    "df must not be empty" = nrow(df) > 0,
+    "text_var must exist in df" = rlang::as_name(text_sym) %in% names(df),
+    "id_var must exist in df" = rlang::as_name(id_sym) %in% names(df),
     "endpoint_url must be provided" = !is.null(endpoint_url) && nchar(endpoint_url) > 0,
     "concurrent_requests must be an integer" = is.numeric(concurrent_requests) && concurrent_requests > 0
   )
 
-  if (!rlang::as_string(text_sym) %in% names(df)) {
-    cli::cli_abort("Column {.code {rlang::as_string(text_sym)}} not found in data frame")
-  }
-
-  if (!rlang::as_string(id_sym) %in% names(df)) {
-    cli::cli_abort("Column {.code {rlang::as_string(id_sym)}} not found in data frame")
-  }
-
-  original_num_rows <- nrow(df)
+  output_file <- .handle_output_filename(output_file,
+                                         base_file_name = "hf_embeddings_batch")
 
   # refactoring  to always use hf_embed_batch - if batch_size if one then it gets handled anyway, avoids branching and additional complexity.
   texts <- dplyr::pull(df, !!text_sym)
   indices <- dplyr::pull(df, !!id_sym)
 
-  batch_size <- if(is.null(batch_size) || batch_size <= 1) 1 else batch_size
+  chunk_size <- if(is.null(chunk_size) || chunk_size <= 1) 1 else chunk_size
 
-  embeddings_tbl <- hf_embed_batch(
+  results <- hf_embed_chunks(
     texts = texts,
+    ids = indices,
     endpoint_url = endpoint_url,
     key_name = key_name,
-    batch_size = batch_size,
-    include_texts = FALSE,
+    chunk_size = chunk_size,
     concurrent_requests = concurrent_requests,
     max_retries = max_retries,
-    timeout = timeout,
-    validate = FALSE,
-    relocate_col = 1
+    timeout = timeout
   )
 
-  df_with_row_id <- df |> dplyr::mutate(.row_id = dplyr::row_number()) # do we definitely want to copy this df? It could be large
-
-  embeddings_tbl <- embeddings_tbl |>
-    dplyr::mutate(.row_id = dplyr::row_number())
-
-  result_df <- df_with_row_id |>
-    dplyr::left_join(embeddings_tbl, by = ".row_id") |>
-    dplyr::select(-.row_id)
-
-
-  # final sanity check and alert user if there's a mismatch
-  final_num_rows <- nrow(result_df)
-
-  if(final_num_rows != original_num_rows){
-    cli::cli_warn("Rows in original data frame and returned data frame do not match:")
-    cli::cli_bullets(text = c(
-      "Rows in original data frame: {original_num_rows}",
-      "Rows in returned data frame: {final_num_rows}"
-    ))
-  }
-
-  return(result_df)
+  return(results)
 }
+
 
