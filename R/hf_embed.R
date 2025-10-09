@@ -234,6 +234,151 @@ hf_embed_batch <- function(texts,
   return(result)
 }
 
+
+#' Embed text chunks through Hugging Face Inference Embedding Endpoints
+#'
+#' This function is capable of processing large volumes of text through Hugging Face's Inference Embedding Endpoints. Results are written in batches to a file, to avoid out of memory issues.
+#'
+#'
+#' @param texts Character vector of texts to process
+#' @param ids Vector of unique identifiers corresponding to each text (same length as texts)
+#' @param endpoint_url Hugging Face Embedding Endpoint
+#' @param output_file Path to .CSV file for results. "auto" generates the filename, location and is persistent across sessions. If NULL, generates timestamped filename.
+#' @param chunk_size Number of texts to process in each batch (default: 5000)
+#' @param concurrent_requests number of concurrent requests (default: 5)
+#' @param max_retries aximum retry attempts per failed request (default: 5)
+#' @param timeout Request timeout in seconds (default: 30)
+#' @param key_name ame of environment variable containing the API key (default:
+#' "HF_API_KEY")
+#'
+#' @returns
+#' @export
+#'
+#' @examples
+hf_embed_chunks <- function(texts,
+                            ids,
+                            endpoint_url,
+                            output_file = "auto",
+                            chunk_size = 5000L,
+                            concurrent_requests = 5L,
+                            max_retries = 5L,
+                            timeout = 10L,
+                            key_name = "HF_API_KEY") {
+
+  # to batch_size or not to batch_size? As there were some problems with 1 item in the batch failing leading to the whole batch failing, we'll start without.
+  # input validation ----
+  stopifnot(
+    "texts must be a vector" = is.vector(texts),
+    "ids must be a vector" = is.vector(ids),
+    "texts and ids must be the same length" = length(texts) == length(ids),
+    "chunk_size must be a positive integer greater than 1" = is.numeric(chunk_size) && chunk_size > 0
+  )
+
+  output_file = .handle_output_filename(output_file)
+
+  batch_data <- batch_vector(seq_along(texts), chunk_size)
+  n_batches <- length(batch_data$batch_indices)
+
+  cli::cli_alert_info("Processing {length(texts)} text{?s} in {n_batches} chunk{?s} of up to {chunk_size} rows each")
+  cli::cli_alert_info("Intermediate results will be saved to a .csv at {output_file}.")
+
+  total_success <- 0
+  total_failures <- 0
+
+  ## Batch Processing ----
+  for (batch_num in seq_along(batch_data$batch_indices))
+  {
+    batch_indices <- batch_data$batch_indices[[batch_num]]
+    batch_texts <- texts[batch_indices]
+    batch_ids <- ids[batch_indices]
+
+    cli::cli_progress_message("Processing batch {batch_num}/{n_batches} ({length(batch_indices)} text{?s})")
+
+    requests <- purrr::map2(
+      .x = batch_texts,
+      .y = batch_ids,
+      .f = \(x, y) hf_build_request(
+        input = x,
+        endpoint_url = endpoint_url,
+        endpointr_id = y,
+        key_name = key_name,
+        parameters = list(),
+        max_retries = max_retries,
+        timeout = timeout,
+        validate = FALSE
+      )
+    )
+
+    is_valid_request <- purrr::map_lgl(requests, \(x) inherits(x, "httr2_request"))
+    valid_requests <- requests[is_valid_request]
+
+    if (length(valid_requests) == 0) {
+      cli::cli_alert_warning("No valid request{?s} in batch {batch_num}, skipping")
+    }
+
+    responses <- perform_requests_with_strategy(
+      valid_requests,
+      concurrent_requests = concurrent_requests,
+      progress = TRUE
+    )
+
+    successes <- httr2::resps_successes(responses)
+    failures <- httr2:::resps_failures(responses)
+
+    n_successes <- length(successes)
+    n_failures <- length(failures)
+    total_success <- total_success + n_successes
+    total_failures <- total_failures + n_failures
+
+    # within batch results ----
+    batch_results <- list()
+
+    if (length(successes) >0){
+      successes_ids <- purrr::map(successes, \(x) purrr::pluck(x, "request", "headers", "endpointr_id")) |>  unlist()
+      successes_content <- purrr::map(successes, tidy_embedding_response) |>
+        purrr::list_rbind()
+
+      batch_results$successes <- tibble::tibble(
+        id = successes_ids,
+        .error = FALSE,
+        .error_msg = NA_character_,
+        .batch = batch_num
+      ) |>
+        dplyr::bind_cols(successes_content)
+    }
+
+    if (length(failures) > 0) {
+      failures_ids <- purrr::map(failures, \(x) pluck(x, "request", "headers", "endpointr_id")) |>  unlist()
+      failures_msgs <- purrr::map_chr(failures, \(x) purrr::pluck(x, "message", .default = "Unknown error"))
+
+      batch_results$failures <- tibble::tibble(
+        id = failures_ids,
+        .error = TRUE,
+        .error_msg = failures_msgs,
+        .batch = batch_num
+      )
+    }
+
+    batch_df <- dplyr::bind_rows(batch_results)
+
+    if (nrow(batch_df) > 0) {
+      if (batch_num == 1) {
+        # if we're in the first batch write to csv with headers (col names)
+        readr::write_csv(batch_df, output_file, append = FALSE)
+      } else {
+        # all other batches, append and don't use col names
+        readr::write_csv(batch_df, output_file, append = TRUE, col_names = FALSE)}
+    }
+
+    cli::cli_alert_success("Batch {batch_num}: {n_successes} successful, {n_failures} failed")
+  }
+
+  final_results <- readr::read_csv(output_file, show_col_types = FALSE)
+
+  return(final_results)
+}
+
+
 # hf_embed_df docs ----
 #' Generate embeddings for texts in a data frame
 #'
