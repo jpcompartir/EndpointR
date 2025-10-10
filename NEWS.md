@@ -1,3 +1,7 @@
+# Endpointr 0.1.2
+
+-   [ ] `hf_embed_df()`, `hf_classify_df()` improved to write to files similarly to the upgrades applied in 0.1qq.1
+
 # EndpointR 0.1.1
 
 -   `oai_complete_chunks()` function to better support for chunking/batching in `oai_complete_df()`

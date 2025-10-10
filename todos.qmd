@@ -1,5 +1,18 @@
 # EndpointR Hugging Face Embeddings Implementation Checklist
 
+# 0.1.2
+
+-   Update the `hf_embed_df()` and `hf_classify_df()` functions to output files for intermediate results
+-   Refactor to include an ID in the request building for hf\_ functions
+-   It's tempting to abstract the processing chunks + file writes code, but I think two separate batch loops is cleaner because whilst the hf_embed_df and oai_complete_df functions are sometimes structurally similar:
+    -   oai_complete_df takes a schema, returns a complex result in cases or a single column
+    -   hf_embed_df returns a tibble with many columns
+    -   primary error handling needs are different - HF for the endpoint start up, oai for rate limits
+
+> Some duplication is fine
+
+# 0.1
+
 ## Prios:
 
 First: separation of concerns inside perform_requests_with_strategy - function shouldn't perform the requests and tidy them. Tidying should be done on the responses, but outside of the perform_requests_with_strategy.

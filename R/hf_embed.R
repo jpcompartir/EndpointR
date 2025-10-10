@@ -261,7 +261,6 @@ hf_embed_batch <- function(texts,
 #'   - Embedding columns (V1, V2, etc.)
 #' @export
 #'
-#' @examples
 hf_embed_chunks <- function(texts,
                             ids,
                             endpoint_url,
@@ -280,7 +279,7 @@ hf_embed_chunks <- function(texts,
     "chunk_size must be a positive integer greater than 1" = is.numeric(chunk_size) && chunk_size > 0
   )
 
-  output_file = .handle_output_filename(output_file)
+  output_file = .handle_output_filename(output_file, base_file_name = "hf_embeddings_batch")
 
   chunk_data <- batch_vector(seq_along(texts), chunk_size)
   n_chunks <- length(chunk_data$batch_indices)
