@@ -29,6 +29,8 @@ hf_embed_df(
 
 \item{key_name}{Name of the environment variable containing the API key}
 
+\item{output_file}{Path to .CSV file for results. "auto" generates the filename, location and is persistent across sessions. If NULL, generates timestamped filename.}
+
 \item{chunk_size}{Number of texts to process in one batch (NULL for no batching)}
 
 \item{concurrent_requests}{Number of requests to send at once. Some APIs do not allow for multiple requests.}

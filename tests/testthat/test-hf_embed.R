@@ -84,32 +84,68 @@ test_that("hf_embed_batch allows custom tidy_func", {
   expect_equal(result$custom_col, c("custom_value", "custom_value"))
 })
 
+test_that("hf_embed_chunks replaces hf_embed_batch", {
+  texts <- paste0("text", 1:6)
+  ids <- paste0('id', 1:length(texts))
+  temp_file <- tempfile(fileext = ".csv")
+  expected_cols <- c("id", ".error", ".error_msg", ".chunk", "V1", "V2", "V3")
+
+
+  chunk_2 <- expect_no_error(hf_embed_chunks(
+    texts = texts,
+    ids = ids,
+    endpoint_url = server$url("/test_embedding"), # use this as chunks are 1:1 request-row-response, not batches. I.e. don't need a chunk endpoint.=
+    key_name = "HF_TEST_API_KEY",
+    chunk_size = 2,
+    concurrent_requests =1,
+    output_file = temp_file
+  )) |> suppressMessages()
+
+  expect_setequal(unique(chunk_2$`.chunk`), c(1, 2, 3))
+  expect_setequal(names(chunk_2), expected_cols)
+
+  chunk_1 <- expect_no_error(hf_embed_chunks(
+    texts = texts,
+    ids = ids,
+    endpoint_url = server$url("/test_embedding"), # use this as chunks are 1:1 request-row-response, not batches. I.e. don't need a chunk endpoint.=
+    key_name = "HF_TEST_API_KEY",
+    chunk_size = 1,
+    concurrent_requests =1,
+    output_file = temp_file
+  )) |> suppressMessages()
+
+  expect_setequal(unique(chunk_1$`.chunk`), 1:6)
+
+})
+
 test_that("hf_embed_df works correctly with real endpoint", {
   test_df <- data.frame(
     id = c(1, 2),
     text = c("text1", "text2"),
     stringsAsFactors = FALSE
   )
+  temp_file <- tempfile(fileext = ".csv")
 
   result <- expect_no_error(
     hf_embed_df(
       df = test_df,
       text_var = text,
       id_var = id,
-      endpoint_url = server$url("/test_df_embedding"),
+      endpoint_url = server$url("/test_embedding"),
       key_name = "HF_TEST_API_KEY",
-      batch_size = 2
+      chunk_size = 2,
+      output_file = temp_file
     )
-  )
+  ) |>
+    suppressMessages()
 
   expect_s3_class(result, "data.frame")
   expect_equal(nrow(result), 2)
-  expect_true(all(c("id", "text", "V1", "V2", "V3", ".error", ".error_message") %in% names(result)))
+  expect_true(all(c("id", "V1", "V2", "V3", ".error", ".error_msg", ".chunk") %in% names(result)))
   expect_equal(result$id, c(1, 2))
-  expect_equal(result$text, c("text1", "text2"))
-  expect_equal(result$V1, c(0.1, 0.2))
-  expect_equal(result$V2, c(0.2, 0.4))
-  expect_equal(result$V3, c(0.3, 0.6))
+  expect_equal(result$V1, c(0.1, 0.1), tolerance = 1e-7)
+  expect_equal(result$V2, c(0.2, 0.2), tolerance = 1e-7)
+  expect_equal(result$V3, c(0.3, 0.3), tolerance = 1e-7)
   expect_equal(result$.error, c(FALSE, FALSE))
 })
 
@@ -119,21 +155,24 @@ test_that("hf_embed_df works with different batch sizes", {
     text = c("text1", "text2"),
     stringsAsFactors = FALSE
   )
+  temp_file <- tempfile(fileext = ".csv")
 
   result <- expect_no_error(
     hf_embed_df(
       df = test_df,
       text_var = text,
       id_var = id,
-      endpoint_url = server$url("/test_df_embedding"),
+      endpoint_url = server$url("/test_embedding"),
       key_name = "HF_TEST_API_KEY",
-      batch_size = 1,
-      concurrent_requests = 1
+      chunk_size = 1,
+      concurrent_requests = 1,
+      output_file = temp_file
     )
-  )
+  ) |>
+    suppressMessages()
 
   expect_s3_class(result, "data.frame")
   expect_equal(nrow(result), 2)
-  expect_true(all(c("id", "text", ".error", ".error_message") %in% names(result)))
+  expect_true(all(c("id", ".chunk", ".error", ".error_msg") %in% names(result)))
   expect_equal(result$.error, c(FALSE, FALSE))
 })

@@ -329,7 +329,7 @@ hf_embed_chunks <- function(texts,
     )
 
     successes <- httr2::resps_successes(responses)
-    failures <- httr2:::resps_failures(responses)
+    failures <- httr2::resps_failures(responses)
 
     n_successes <- length(successes)
     n_failures <- length(failures)
@@ -400,6 +400,7 @@ hf_embed_chunks <- function(texts,
 #' @param id_var Name of the column to use as ID
 #' @param endpoint_url The URL of the Hugging Face Inference API endpoint
 #' @param key_name Name of the environment variable containing the API key
+#' @param output_file Path to .CSV file for results. "auto" generates the filename, location and is persistent across sessions. If NULL, generates timestamped filename.
 #' @param chunk_size Number of texts to process in one batch (NULL for no batching)
 #' @param concurrent_requests Number of requests to send at once. Some APIs do not allow for multiple requests.
 #' @param max_retries Maximum number of retry attempts for failed requests.
