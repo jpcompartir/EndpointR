@@ -8,6 +8,7 @@ hf_build_request(
   input,
   endpoint_url,
   key_name,
+  endpointr_id = NULL,
   parameters = list(),
   max_retries = 5,
   timeout = 10,
@@ -20,6 +21,8 @@ hf_build_request(
 \item{endpoint_url}{The URL of the Hugging Face Inference API endpoint}
 
 \item{key_name}{Name of the environment variable containing the API key}
+
+\item{endpointr_id}{a unique identifier for EndpointR to keep track of the request}
 
 \item{parameters}{Advanced usage: parameters to pass to the API endpoint}
 
