@@ -10,10 +10,11 @@ hf_embed_df(
   id_var,
   endpoint_url,
   key_name,
-  batch_size = 8,
-  concurrent_requests = 1,
-  max_retries = 5,
-  timeout = 15,
+  output_file = "auto",
+  chunk_size = 8L,
+  concurrent_requests = 1L,
+  max_retries = 5L,
+  timeout = 15L,
   progress = TRUE
 )
 }
@@ -28,7 +29,9 @@ hf_embed_df(
 
 \item{key_name}{Name of the environment variable containing the API key}
 
-\item{batch_size}{Number of texts to process in one batch (NULL for no batching)}
+\item{output_file}{Path to .CSV file for results. "auto" generates the filename, location and is persistent across sessions. If NULL, generates timestamped filename.}
+
+\item{chunk_size}{Number of texts to process in one batch (NULL for no batching)}
 
 \item{concurrent_requests}{Number of requests to send at once. Some APIs do not allow for multiple requests.}
 

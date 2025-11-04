@@ -61,6 +61,7 @@ reference:
   contents:
   - hf_embed_text
   - hf_embed_batch
+  - hf_embed_chunks
   - hf_embed_df
   - tidy_embedding_response
 
