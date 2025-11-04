@@ -30,6 +30,7 @@
 <url><loc>https://jpcompartir.github.io/EndpointR/reference/hf_classify_df.html</loc></url>
 <url><loc>https://jpcompartir.github.io/EndpointR/reference/hf_classify_text.html</loc></url>
 <url><loc>https://jpcompartir.github.io/EndpointR/reference/hf_embed_batch.html</loc></url>
+<url><loc>https://jpcompartir.github.io/EndpointR/reference/hf_embed_chunks.html</loc></url>
 <url><loc>https://jpcompartir.github.io/EndpointR/reference/hf_embed_df.html</loc></url>
 <url><loc>https://jpcompartir.github.io/EndpointR/reference/hf_embed_text.html</loc></url>
 <url><loc>https://jpcompartir.github.io/EndpointR/reference/hf_perform_request.html</loc></url>
