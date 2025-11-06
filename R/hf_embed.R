@@ -246,7 +246,7 @@ hf_embed_batch <- function(texts,
 #' @param texts Character vector of texts to process
 #' @param ids Vector of unique identifiers corresponding to each text (same length as texts)
 #' @param endpoint_url Hugging Face Embedding Endpoint
-#' @param output_file Path to .CSV file for results. "auto" generates the filename, location and is persistent across sessions. If NULL, generates timestamped filename.
+#' @param output_dir Path to directory for the .parquet chunks
 #' @param chunk_size Number of texts to process in each chunk before writing to disk (default: 5000)
 #' @param concurrent_requests Number of concurrent requests (default: 5)
 #' @param max_retries Maximum retry attempts per failed request (default: 5)
@@ -264,7 +264,7 @@ hf_embed_batch <- function(texts,
 hf_embed_chunks <- function(texts,
                             ids,
                             endpoint_url,
-                            output_file = "auto",
+                            output_dir = "auto",
                             chunk_size = 5000L,
                             concurrent_requests = 5L,
                             max_retries = 5L,
@@ -279,13 +279,19 @@ hf_embed_chunks <- function(texts,
     "chunk_size must be a positive integer greater than 1" = is.numeric(chunk_size) && chunk_size > 0
   )
 
-  output_file = .handle_output_filename(output_file, base_file_name = "hf_embeddings_batch")
+  # output_file = .handle_output_filename(output_file, base_file_name = "hf_embeddings_batch")
+
+  output_dir <- .handle_output_directory(output_dir, base_dir_name = "hf_embeddings_batch")
+
+  if (!dir.exists(output_dir)) {
+    dir.create(output_dir, recursive = TRUE)
+  }
 
   chunk_data <- batch_vector(seq_along(texts), chunk_size)
   n_chunks <- length(chunk_data$batch_indices)
 
   cli::cli_alert_info("Processing {length(texts)} text{?s} in {n_chunks} chunk{?s} of up to {chunk_size} each")
-  cli::cli_alert_info("Intermediate results will be saved to a .csv at {output_file}.")
+  cli::cli_alert_info("Intermediate results will be saved as parquet files in {output_dir}")
 
   total_success <- 0
   total_failures <- 0
@@ -367,20 +373,16 @@ hf_embed_chunks <- function(texts,
 
     chunk_df <- dplyr::bind_rows(chunk_results)
 
-    if (nrow(chunk_df) > 0) {
-      if (chunk_num == 1) {
-        # if we're in the first chunk write to csv with headers (col names)
-        readr::write_csv(chunk_df, output_file, append = FALSE)
-      } else {
-        # all other chunks, append and don't use col names
-        readr::write_csv(chunk_df, output_file, append = TRUE, col_names = FALSE)
-      }
+     if (nrow(chunk_df) > 0) {
+      chunk_file <- glue::glue("{output_dir}/chunk_{stringr::str_pad(chunk_num, 3, pad = '0')}.parquet")
+      arrow::write_parquet(chunk_df, chunk_file)
     }
 
     cli::cli_alert_success("Chunk {chunk_num}: {n_successes} successful, {n_failures} failed")
   }
 
-  final_results <- readr::read_csv(output_file, show_col_types = FALSE)
+  final_results <- arrow::open_dataset(output_dir, format = "parquet") |>
+    dplyr::collect()
 
   return(final_results)
 }
@@ -402,7 +404,7 @@ hf_embed_chunks <- function(texts,
 #' @param id_var Name of the column to use as ID
 #' @param endpoint_url The URL of the Hugging Face Inference API endpoint
 #' @param key_name Name of the environment variable containing the API key
-#' @param output_file Path to .CSV file for results. "auto" generates the filename, location and is persistent across sessions. If NULL, generates timestamped filename.
+#' @param output_dir Path to directory for the .parquet chunks
 #' @param chunk_size The size of each chunk that will be processed and then written to a file.
 #' @param concurrent_requests Number of requests to send at once. Some APIs do not allow for multiple requests.
 #' @param max_retries Maximum number of retry attempts for failed requests.
@@ -444,7 +446,7 @@ hf_embed_df <- function(df,
                         id_var,
                         endpoint_url,
                         key_name,
-                        output_file = "auto",
+                        output_dir = "auto",
                         chunk_size = 5000L,
                         concurrent_requests = 1L,
                         max_retries = 5L,
@@ -463,8 +465,11 @@ hf_embed_df <- function(df,
     "concurrent_requests must be an integer" = is.numeric(concurrent_requests) && concurrent_requests > 0
   )
 
-  output_file <- .handle_output_filename(output_file,
-                                         base_file_name = "hf_embeddings_batch")
+
+  output_dir <- .handle_output_directory(output_dir,
+                                         base_dir_name = "hf_embeddings_batch")
+  # output_file <- .handle_output_filename(output_file,
+  #                                        base_file_name = "hf_embeddings_batch")
 
   # refactoring  to always use hf_embed_batch - if batch_size if one then it gets handled anyway, avoids branching and additional complexity.
   texts <- dplyr::pull(df, !!text_sym)
@@ -481,10 +486,11 @@ hf_embed_df <- function(df,
     concurrent_requests = concurrent_requests,
     max_retries = max_retries,
     timeout = timeout,
-    output_file = output_file
+    output_dir = output_dir
   )
 
   return(results)
 }
+
 
 
