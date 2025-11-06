@@ -10,8 +10,8 @@ hf_embed_df(
   id_var,
   endpoint_url,
   key_name,
-  output_file = "auto",
-  chunk_size = 8L,
+  output_dir = "auto",
+  chunk_size = 5000L,
   concurrent_requests = 1L,
   max_retries = 5L,
   timeout = 15L,
@@ -29,9 +29,9 @@ hf_embed_df(
 
 \item{key_name}{Name of the environment variable containing the API key}
 
-\item{output_file}{Path to .CSV file for results. "auto" generates the filename, location and is persistent across sessions. If NULL, generates timestamped filename.}
+\item{output_dir}{Path to directory for the .parquet chunks}
 
-\item{chunk_size}{Number of texts to process in one batch (NULL for no batching)}
+\item{chunk_size}{The size of each chunk that will be processed and then written to a file.}
 
 \item{concurrent_requests}{Number of requests to send at once. Some APIs do not allow for multiple requests.}
 
@@ -49,6 +49,8 @@ High-level function to generate embeddings for texts in a data frame.
 This function handles the entire process from request creation to
 response processing, with options for batching & parallel execution.
 Setting the number of retries
+
+Avoid risk of data loss by setting a low-ish chunk_size (e.g. 5,000, 10,000).
 }
 \examples{
 \dontrun{
@@ -58,34 +60,22 @@ Setting the number of retries
     text = c("First example", "Second example", "Third example")
   )
 
-  # Use parallel processing without batching
-  embeddings_df <- hf_embed_df(
-    df = df,
-    text_var = text,
-    endpoint_url = "https://my-endpoint.huggingface.cloud",
-    id_var = id,
-    parallel = TRUE,
-    batch_size = NULL
-  )
-
   # Use batching without parallel processing
   embeddings_df <- hf_embed_df(
     df = df,
     text_var = text,
     endpoint_url = "https://my-endpoint.huggingface.cloud",
-    id_var = id,
-    parallel = FALSE,
-    batch_size = 10
+    id_var = id
   )
 
-  # Use both batching and parallel processing
+  # Use both chunking and parallel processing
   embeddings_df <- hf_embed_df(
     df = df,
     text_var = text,
     endpoint_url = "https://my-endpoint.huggingface.cloud",
     id_var = id,
-    parallel = TRUE,
-    batch_size = 10
+    chunk_size = 10000,
+    concurrent_requests = 50
   )
 }
 }

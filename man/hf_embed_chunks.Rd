@@ -8,7 +8,7 @@ hf_embed_chunks(
   texts,
   ids,
   endpoint_url,
-  output_file = "auto",
+  output_dir = "auto",
   chunk_size = 5000L,
   concurrent_requests = 5L,
   max_retries = 5L,
@@ -23,7 +23,7 @@ hf_embed_chunks(
 
 \item{endpoint_url}{Hugging Face Embedding Endpoint}
 
-\item{output_file}{Path to .CSV file for results. "auto" generates the filename, location and is persistent across sessions. If NULL, generates timestamped filename.}
+\item{output_dir}{Path to directory for the .parquet chunks}
 
 \item{chunk_size}{Number of texts to process in each chunk before writing to disk (default: 5000)}
 

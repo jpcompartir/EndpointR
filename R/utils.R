@@ -260,9 +260,20 @@ extract_field <- function(api_response, field_name) {
   return(x)
 }
 
+# modifying the .handle_output_filename to work with .parquet
 #' @keywords internal
-.append_tibble_class <- function(x) {
-  attr(x, "class") <- c("tbl_df", "tbl", "data.frame")
+.handle_output_directory <- function(x, base_dir_name = "batch_processing_") {
+  if (is.null(x)) {
+    return(tempfile(pattern = base_dir_name))
+  }
+
+  if(identical(x, "auto")) {
+    timestamp <- format(Sys.time(), "%d%m%Y_%H%M%S")
+    output_dir <- glue::glue("{base_dir_name}_{timestamp}")
+    return(output_dir)
+  }
+
+  # Accept directory path directly
   return(x)
 }
 
