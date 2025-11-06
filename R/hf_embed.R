@@ -395,13 +395,15 @@ hf_embed_chunks <- function(texts,
 #' response processing, with options for batching & parallel execution.
 #' Setting the number of retries
 #'
+#' Avoid risk of data loss by setting a low-ish chunk_size (e.g. 5,000, 10,000).
+#'
 #' @param df A data frame containing texts to embed
 #' @param text_var Name of the column containing text to embed
 #' @param id_var Name of the column to use as ID
 #' @param endpoint_url The URL of the Hugging Face Inference API endpoint
 #' @param key_name Name of the environment variable containing the API key
 #' @param output_file Path to .CSV file for results. "auto" generates the filename, location and is persistent across sessions. If NULL, generates timestamped filename.
-#' @param chunk_size Number of texts to process in one batch (NULL for no batching)
+#' @param chunk_size The size of each chunk that will be processed and then written to a file.
 #' @param concurrent_requests Number of requests to send at once. Some APIs do not allow for multiple requests.
 #' @param max_retries Maximum number of retry attempts for failed requests.
 #' @param timeout Request timeout in seconds
@@ -418,34 +420,22 @@ hf_embed_chunks <- function(texts,
 #'     text = c("First example", "Second example", "Third example")
 #'   )
 #'
-#'   # Use parallel processing without batching
-#'   embeddings_df <- hf_embed_df(
-#'     df = df,
-#'     text_var = text,
-#'     endpoint_url = "https://my-endpoint.huggingface.cloud",
-#'     id_var = id,
-#'     parallel = TRUE,
-#'     batch_size = NULL
-#'   )
-#'
 #'   # Use batching without parallel processing
 #'   embeddings_df <- hf_embed_df(
 #'     df = df,
 #'     text_var = text,
 #'     endpoint_url = "https://my-endpoint.huggingface.cloud",
-#'     id_var = id,
-#'     parallel = FALSE,
-#'     batch_size = 10
+#'     id_var = id
 #'   )
 #'
-#'   # Use both batching and parallel processing
+#'   # Use both chunking and parallel processing
 #'   embeddings_df <- hf_embed_df(
 #'     df = df,
 #'     text_var = text,
 #'     endpoint_url = "https://my-endpoint.huggingface.cloud",
 #'     id_var = id,
-#'     parallel = TRUE,
-#'     batch_size = 10
+#'     chunk_size = 10000,
+#'     concurrent_requests = 50
 #'   )
 #' }
 # hf_embed_df docs ----
@@ -455,7 +445,7 @@ hf_embed_df <- function(df,
                         endpoint_url,
                         key_name,
                         output_file = "auto",
-                        chunk_size = 8L,
+                        chunk_size = 5000L,
                         concurrent_requests = 1L,
                         max_retries = 5L,
                         timeout = 15L,
@@ -490,7 +480,8 @@ hf_embed_df <- function(df,
     chunk_size = chunk_size,
     concurrent_requests = concurrent_requests,
     max_retries = max_retries,
-    timeout = timeout
+    timeout = timeout,
+    output_file = output_file
   )
 
   return(results)
