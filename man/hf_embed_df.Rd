@@ -50,7 +50,7 @@ This function handles the entire process from request creation to
 response processing, with options for batching & parallel execution.
 Setting the number of retries
 
-Avoid risk of data loss by setting a low-ish chunk_size (e.g. 5,000, 10,000).
+Avoid risk of data loss by setting a low-ish chunk_size (e.g. 5,000, 10,000). Each chunk is written to a \code{.parquet} file in the \verb{output_dir=} directory, which also contains a \code{metadata.json} file which tracks important information such as the endpoint URL used. Be sure to check any output directories into .gitignore!
 }
 \examples{
 \dontrun{

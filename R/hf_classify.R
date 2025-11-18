@@ -91,7 +91,7 @@ tidy_batch_classification_response <- function(response) {
   return(results)
 }
 
-# hf_classify_docs ----
+# hf_classify_text_docs ----
 #' Classify text using a Hugging Face Inference API endpoint
 #'
 #' @description
@@ -153,7 +153,7 @@ tidy_batch_classification_response <- function(response) {
 #'     tidy = FALSE
 #'   )
 #' }
-# hf_classify_docs ----
+# hf_classify_text docs ----
 hf_classify_text <- function(text,
                              endpoint_url,
                              key_name,
@@ -206,6 +206,7 @@ hf_classify_text <- function(text,
 }
 
 
+# hf_classify_batch docs ----
 #' Classify multiple texts using Hugging Face Inference Endpoints
 #'
 #' @description
@@ -261,6 +262,7 @@ hf_classify_text <- function(text,
 #'     batch_size = 3
 #'   )
 #' }
+# hf_classify_batch docs ----
 hf_classify_batch <- function(texts,
                               endpoint_url,
                               key_name,
@@ -359,7 +361,25 @@ hf_classify_batch <- function(texts,
   return(result)
 }
 
+# hf_classify_chunks docs ----
+#' @param output_dir Path to directory for the .parquet chunks
+# hf_classify_chunks docs ----
+hf_classify_chunks <- function(texts,
+                               ids,
+                               endpoint_url,
+                               ...,
+                               tidy_func = tidy_classification_response,
+                               output_dir = "auto",
+                               chunk_size = 5000L,
+                               concurrent_requests = 5L,
+                               max_retries = 5L,
+                               timeout = 30L,
+                               include_texts = TRUE,
+                               relocate_col = 2,
+                               key_name = "HF_API_KEY"
+) {
 
+}
 #' Classify a data frame of texts using Hugging Face Inference Endpoints
 #'
 #' @description
