@@ -36,12 +36,10 @@ rsconnect/
 .Rproj.user
 inst/doc
 EndpointR.Rproj
-
 *.html
 *_dev_files*
-
 dev_docs/project_test_run.qmd
 docs
-
 # testing /dev_docs/ artifacts
 *.csv
+test_dir
