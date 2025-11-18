@@ -305,7 +305,10 @@ hf_embed_chunks <- function(texts,
     timestamp = Sys.time()
   )
 
-  jsonlite::write_json(metadata, file.path(output_dir, "metadata.json"), auto_unbox = TRUE, pretty = TRUE)
+  jsonlite::write_json(metadata,
+                       file.path(output_dir, "metadata.json"),
+                       auto_unbox = TRUE,
+                       pretty = TRUE)
 
   cli::cli_alert_info("Processing {length(texts)} text{?s} in {n_chunks} chunk{?s} of up to {chunk_size} each")
   cli::cli_alert_info("Intermediate results will be saved as parquet files in {output_dir}")
@@ -400,6 +403,7 @@ hf_embed_chunks <- function(texts,
 
   parquet_files <- list.files(output_dir, pattern = "\\.parquet$", full.names = TRUE)
 
+  cli::cli_alert_info("Processing completed, there were {total_success} successes\n and {total_failures} failures.")
   final_results <- arrow::open_dataset(parquet_files, format = "parquet") |>
     dplyr::collect()
 
@@ -416,7 +420,7 @@ hf_embed_chunks <- function(texts,
 #' response processing, with options for batching & parallel execution.
 #' Setting the number of retries
 #'
-#' Avoid risk of data loss by setting a low-ish chunk_size (e.g. 5,000, 10,000).
+#' Avoid risk of data loss by setting a low-ish chunk_size (e.g. 5,000, 10,000). Each chunk is written to a `.parquet` file in the `output_dir=` directory, which also contains a `metadata.json` file which tracks important information such as the endpoint URL used. Be sure to check any output directories into .gitignore!
 #'
 #' @param df A data frame containing texts to embed
 #' @param text_var Name of the column containing text to embed
