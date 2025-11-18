@@ -235,6 +235,7 @@ hf_embed_batch <- function(texts,
 }
 
 
+# hf_embed_chunks docs ----
 #' Embed text chunks through Hugging Face Inference Embedding Endpoints
 #'
 #' This function is capable of processing large volumes of text through Hugging Face's Inference Embedding Endpoints. Results are written in chunks to a file, to avoid out of memory issues.
@@ -261,6 +262,7 @@ hf_embed_batch <- function(texts,
 #'   - Embedding columns (V1, V2, etc.)
 #' @export
 #'
+# hf_embed_chunks docs ----
 hf_embed_chunks <- function(texts,
                             ids,
                             endpoint_url,
@@ -289,6 +291,21 @@ hf_embed_chunks <- function(texts,
 
   chunk_data <- batch_vector(seq_along(texts), chunk_size)
   n_chunks <- length(chunk_data$batch_indices)
+
+  # write/store imoortant metadata in the output dir
+  metadata <- list(
+    endpoint_url = endpoint_url,
+    chunk_size = chunk_size,
+    n_texts = length(texts),
+    concurrent_requests = concurrent_requests,
+    timeout = timeout,
+    output_dir = output_dir,
+    key_name = key_name,
+    n_chunks = n_chunks,
+    timestamp = Sys.time()
+  )
+
+  jsonlite::write_json(metadata, file.path(output_dir, "metadata.json"), auto_unbox = TRUE, pretty = TRUE)
 
   cli::cli_alert_info("Processing {length(texts)} text{?s} in {n_chunks} chunk{?s} of up to {chunk_size} each")
   cli::cli_alert_info("Intermediate results will be saved as parquet files in {output_dir}")
@@ -381,7 +398,9 @@ hf_embed_chunks <- function(texts,
     cli::cli_alert_success("Chunk {chunk_num}: {n_successes} successful, {n_failures} failed")
   }
 
-  final_results <- arrow::open_dataset(output_dir, format = "parquet") |>
+  parquet_files <- list.files(output_dir, pattern = "\\.parquet$", full.names = TRUE)
+
+  final_results <- arrow::open_dataset(parquet_files, format = "parquet") |>
     dplyr::collect()
 
   return(final_results)
