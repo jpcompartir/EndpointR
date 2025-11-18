@@ -2,9 +2,43 @@
 
 # 0.1.2
 
+similarly to the upgrades applied in 0.1.1:
+
+```         
+-   [ ] `hf_embed_df()`
+    - [x] write to files
+    - [x] parquet
+    - [x] fix output dir
+    - [x] chunk_size
+    - [ ] Update tests
+-   [ ] `hf_classify_df()`
+    - [ ] write to files
+    - [ ] parquet
+    - [ ] fix output dir
+    - [ ] chunk_size
+-   [ ] `oai_complete_df`
+    - [x] write to files
+    - [ ] parquet
+    - [x] chunk_size
+-   [ ] `oai_complete_chunks`
+    - [ ] write to files
+    - [ ] parquet
+    - [ ] chunk_size
+-   [ ] `oai_embed_df`
+    - [ ] write to files
+    - [ ] parquet
+    - [ ] chunk_size
+```
+
 -   Update the `hf_embed_df()` and `hf_classify_df()` functions to output files for intermediate results
+
+    -   use parquet not csv
+    -   adds arrow to deps
+
 -   Refactor to include an ID in the request building for hf\_ functions
+
 -   It's tempting to abstract the processing chunks + file writes code, but I think two separate batch loops is cleaner because whilst the hf_embed_df and oai_complete_df functions are sometimes structurally similar:
+
     -   oai_complete_df takes a schema, returns a complex result in cases or a single column
     -   hf_embed_df returns a tibble with many columns
     -   primary error handling needs are different - HF for the endpoint start up, oai for rate limits
