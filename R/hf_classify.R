@@ -391,7 +391,9 @@ hf_classify_chunks <- function(texts,
 
   stopifnot(
     "Texts must be a list or vector" = is.vector(texts),
-    "batch_size must be a positive integer" = is.numeric(chunk_size) && chunk_size > 0 && chunk_size == as.integer(chunk_size),
+    "ids must be a vector" = is.vector(ids),
+    "texts and ids must be the same length" = length(texts) == length(ids),
+    "chunk_size must be a positive integer" = is.numeric(chunk_size) && chunk_size > 0 && chunk_size == as.integer(chunk_size),
     "concurrent_requests must be a positive integer" = is.numeric(concurrent_requests) && concurrent_requests > 0 && concurrent_requests == as.integer(concurrent_requests),
     "max_retries must be a positive integer" = is.numeric(max_retries) && max_retries >= 0 && max_retries == as.integer(max_retries),
     "timeout must be a positive integer" = is.numeric(timeout) && timeout > 0,
@@ -421,7 +423,7 @@ hf_classify_chunks <- function(texts,
     timestamp = Sys.time()
   )
 
-  jsonlite::write_json(metafata,
+  jsonlite::write_json(metadata,
                        file.path(output_dir, "metadata.json"),
                        auto_unbox = TRUE,
                        pretty = TRUE)
@@ -431,8 +433,107 @@ hf_classify_chunks <- function(texts,
 
   # track global successes for failures for end-of-pipeline reporting
   total_successes <- 0
-  total_failure <- -0
+  total_failures <- 0
+
+  for (chunk_num in seq_along(chunk_data$batch_indices)) {
+    chunk_indices <- chunk_data$batch_indices[[chunk_num]]
+    chunk_texts <- texts[chunk_indices]
+    chunk_ids <- ids[chunk_indices]
+
+    cli::cli_progress_message("Classifying chunk {chunk_num}/{n_chunks} ({length(chunk_indices)} text{?s})")
+
+    requests <- purrr::map2(
+      .x = chunk_texts,
+      .y = chunk_ids,
+      .f = \(x, y) hf_build_request(
+        input = x,
+        endpoint_url = endpoint_url,
+        endpointr_id = y,
+        key_name = key_name,
+        parameters = list(return_all_scores = TRUE),
+        max_retries = max_retries,
+        timeout = timeout,
+        validate = FALSE
+      )
+    )
+
+    is_valid_request <- purrr::map_lgl(requests, \(x) inherits(x, "httr2_request"))
+
+    valid_requests <- requests[is_valid_request]
+
+    if (length(valid_requests) == 0) {
+      cli::cli_alert_warning("No valid request{?s} in chunk {chunk_num}, skipping")
+      next
+    }
+
+    responses <- perform_requests_with_strategy(
+      valid_requests,
+      concurrent_requests = concurrent_requests,
+      progress = TRUE
+    )
+
+    chunk_successes <- httr2::resps_successes(responses)
+    chunk_failures <- httr2::resps_failures(responses)
+
+    n_chunk_successes <- length(chunk_successes)
+    n_chunk_failures <- length(chunk_failures)
+
+    total_successes <- total_successes + n_chunk_successes
+    total_failures <- total_failures + n_chunk_failures
+
+    chunk_results <- list()
+
+    if (n_chunk_successes > 0) {
+
+      successes_ids <- purrr::map(chunk_successes, \(x) purrr::pluck(x, "request", "headers", "endpointr_id")) |>
+        unlist()
+
+      successes_content <- purrr::map(chunk_successes, tidy_func) |>
+        purrr::list_rbind()
+
+      chunk_results$successes <- tibble::tibble(
+        id = successes_ids,
+        .error = FALSE,
+        .error_msg = NA_character_,
+        .chunk = chunk_num
+      ) |>
+        dplyr::bind_cols(successes_content)
+
+    }
+
+    if (n_chunk_failures > 0) {
+
+      failures_ids <- purrr::map(chunk_failures, \(x) purrr::pluck(x, "request", "headers", "endpointr_id")) |>  unlist()
+      failures_msgs <- purrr::map_chr(chunk_failures, \(x) purrr::pluck(x, "message", .default = "Unknown error"))
+
+      chunk_results$failures <- tibble::tibble(
+        id = failures_ids,
+        .error = TRUE,
+        .error_msg = failures_msgs,
+        .chunk = chunk_num
+      )
+    }
+
+    chunk_df <- dplyr::bind_rows(chunk_results)
+
+    if (nrow(chunk_df) > 0) {
+      chunk_file <- glue::glue("{output_dir}/chunk_{stringr::str_pad(chunk_num, 3, pad = '0')}.parquet")
+      arrow::write_parquet(chunk_df, chunk_file)
+    }
+
+    cli::cli_alert_success("Chunk {chunk_num}: {n_chunk_successes} successful, {n_chunk_failures} failed")
+  }
+
+  parquet_files <- list.files(output_dir, pattern = "\\.parquet$", full.names = TRUE)
+
+  cli::cli_alert_info("Processing completed, there were {total_successes} successes\n and {total_failures} failures.")
+  final_results <- arrow::open_dataset(parquet_files, format = "parquet") |>
+    dplyr::collect()
+
+  return(final_results)
 }
+
+# hf_classify_df docs ----
 #' Classify a data frame of texts using Hugging Face Inference Endpoints
 #'
 #' @description
@@ -487,6 +588,7 @@ hf_classify_chunks <- function(texts,
 #'     key_name = "API_KEY"
 #'   )
 #' }
+# hf_classify_df docs ----
 hf_classify_df <- function(df,
                            text_var,
                            id_var,
