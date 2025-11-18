@@ -399,6 +399,39 @@ hf_classify_chunks <- function(texts,
     "key_name must be a non-empty string" = is.character(key_name) && nchar(key_name) > 0
   )
 
+  # core logic ----
+  output_dir <- .handle_output_directory(output_dir, base_dir_name = "hf_classify_chunk")
+
+  if (!dir.exists(output_dir)) {
+    dir.create(output_dir, recursive = TRUE)
+  }
+
+  chunk_data <- batch_vector(seq_along(texts), chunk_size)
+  n_chunks <- length(chunk_data$batch_indices)
+
+  metadata <- list(
+    endpoint_url = endpoint_url,
+    chunk_size = chunk_size,
+    n_texts = length(texts),
+    concurrent_requests = concurrent_requests,
+    timeout = timeout,
+    output_dir = output_dir,
+    key_name = key_name,
+    n_chunks = n_chunks,
+    timestamp = Sys.time()
+  )
+
+  jsonlite::write_json(metafata,
+                       file.path(output_dir, "metadata.json"),
+                       auto_unbox = TRUE,
+                       pretty = TRUE)
+
+  cli::cli_alert_info("Processing {length(texts)} text{?s} in {n_chunks} chunk{?s} of up to {chunk_size} rows per chunk")
+  cli::cli_alert_info("Intermediate results and metadata will be saved as .parquet files and .json in {output_dir}")
+
+  # track global successes for failures for end-of-pipeline reporting
+  total_successes <- 0
+  total_failure <- -0
 }
 #' Classify a data frame of texts using Hugging Face Inference Endpoints
 #'
