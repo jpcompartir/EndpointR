@@ -379,6 +379,26 @@ hf_classify_chunks <- function(texts,
                                key_name = "HF_API_KEY"
 ) {
 
+  # input validation ----
+  if (length(texts) == 0) {
+    cli::cli_abort("Input 'texts' is empty or . Returning an empty tibble.")
+  }
+
+  if (length(texts) == 1) {
+    cli::cli_abort("Function expects a batch of inputs, use `hf_classify_text` for single texts.")
+  }
+
+
+  stopifnot(
+    "Texts must be a list or vector" = is.vector(texts),
+    "batch_size must be a positive integer" = is.numeric(chunk_size) && chunk_size > 0 && chunk_size == as.integer(chunk_size),
+    "concurrent_requests must be a positive integer" = is.numeric(concurrent_requests) && concurrent_requests > 0 && concurrent_requests == as.integer(concurrent_requests),
+    "max_retries must be a positive integer" = is.numeric(max_retries) && max_retries >= 0 && max_retries == as.integer(max_retries),
+    "timeout must be a positive integer" = is.numeric(timeout) && timeout > 0,
+    "endpoint_url must be a non-empty string" = is.character(endpoint_url) && nchar(endpoint_url) > 0,
+    "key_name must be a non-empty string" = is.character(key_name) && nchar(key_name) > 0
+  )
+
 }
 #' Classify a data frame of texts using Hugging Face Inference Endpoints
 #'
