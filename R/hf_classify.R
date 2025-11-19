@@ -362,34 +362,38 @@ hf_classify_batch <- function(texts,
 }
 
 # hf_classify_chunks docs ----
-
-# hf_classify_chunks docs ----
-
-#' Title
+#' Efficiently classify vectors of text in chunks
+#'
+#' TODO - description
+#'
+#' TODO - details
+#'
 #'
 #' @param texts Character vector of texts to classify
-#' @param ids
-#' @param endpoint_url
-#' @param ...
+#' @param ids Vector of unique identifiers corresponding to each text (same length as texts)
+#' @param endpoint_url Hugging Face Embedding Endpoint
+#' @param max_length The maximum number of tokens in the text variable. Beyond this cut-off everything is truncated.
 #' @param tidy_func Function to process API responses, defaults to
 #'   `tidy_classification_response`
 #' @param output_dir Path to directory for the .parquet chunks
-#' @param chunk_size
-#' @param concurrent_requests
-#' @param max_retries
-#' @param timeout
-#' @param include_texts
-#' @param relocate_col
+#' @param chunk_size Number of texts to process in each chunk before writing to disk (default: 5000)
+#' @param concurrent_requests Integer; number of concurrent requests (default: 5)
+#' @param max_retries Integer; maximum retry attempts (default: 5)
+#' @param timeout Numeric; request timeout in seconds (default: 20)
 #' @param key_name Name of environment variable containing the API key
 #'
-#' @returns
+#' @returns A data frame of classified documents with successes and failures
 #' @export
 #'
 #' @examples
+#' \dontrun{
+#' 1+1 = 2
+#' }
+# hf_classify_chunks docs ----
 hf_classify_chunks <- function(texts,
                                ids,
                                endpoint_url,
-                               ...,
+                               max_length = 512L,
                                tidy_func = tidy_classification_response,
                                output_dir = "auto",
                                chunk_size = 5000L,
@@ -431,6 +435,10 @@ hf_classify_chunks <- function(texts,
   chunk_data <- batch_vector(seq_along(texts), chunk_size)
   n_chunks <- length(chunk_data$batch_indices)
 
+  inference_parameters = list(return_all_scores = TRUE,
+                    truncation = TRUE,
+                    max_length = max_length)
+
   metadata <- list(
     endpoint_url = endpoint_url,
     chunk_size = chunk_size,
@@ -440,7 +448,8 @@ hf_classify_chunks <- function(texts,
     output_dir = output_dir,
     key_name = key_name,
     n_chunks = n_chunks,
-    timestamp = Sys.time()
+    timestamp = Sys.time(),
+    inference_parameters = inference_parameters
   )
 
   jsonlite::write_json(metadata,
@@ -470,7 +479,7 @@ hf_classify_chunks <- function(texts,
         endpoint_url = endpoint_url,
         endpointr_id = y,
         key_name = key_name,
-        parameters = list(return_all_scores = TRUE),
+        parameters = inference_parameters,
         max_retries = max_retries,
         timeout = timeout,
         validate = FALSE
@@ -565,9 +574,9 @@ hf_classify_chunks <- function(texts,
 #' endpoint and joins the results back to the original data frame.
 #'
 #' @details
-#' This function extracts texts from a specified column, classifies them using
-#' `hf_classify_batch()`, and joins the classification results back to the
-#' original data frame using a specified ID column.
+#' This function extracts texts and IDs from the specified columns, classifies them in chunks.
+#' It writes
+#' `hf_classify_chunks()`, and then returns all of the chu
 #'
 #' The function preserves the original data frame structure and adds new
 #' columns for classification scores. If the number of rows doesn't match

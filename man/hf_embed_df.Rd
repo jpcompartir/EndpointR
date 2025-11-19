@@ -10,6 +10,7 @@ hf_embed_df(
   id_var,
   endpoint_url,
   key_name,
+  max_length = 8192L,
   output_dir = "auto",
   chunk_size = 5000L,
   concurrent_requests = 1L,
@@ -28,6 +29,8 @@ hf_embed_df(
 \item{endpoint_url}{The URL of the Hugging Face Inference API endpoint}
 
 \item{key_name}{Name of the environment variable containing the API key}
+
+\item{max_length}{The maximum number of tokens in the text variable. Beyond this cut-off everything is truncated.}
 
 \item{output_dir}{Path to directory for the .parquet chunks}
 
