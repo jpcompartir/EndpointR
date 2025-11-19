@@ -283,3 +283,37 @@ parse_oai_date <- function(date_string) {
   date <- as.Date(parsed_date)
   return(date)
 }
+
+
+
+#' Check the max number of tokens allowed for your inputs
+#'
+#' This function requires the model to have 'tokenizer_config.json' file with a
+#' `model_max_length` key, otherwise it will error.
+#'
+#' @param model_name name of the model e.g. 'sentence-transformers/mpnet-base-v2'
+#' @param api_key Your Hugging Face auth token
+#'
+#' @returns
+#' @export
+#'
+hf_get_model_max_length <- function(model_name, api_key = "HF_API_KEY") {
+  config_url <- glue::glue("https://huggingface.co/{model_name}/resolve/main/tokenizer_config.json")
+
+  use_api_key <- get_api_key(api_key)
+
+  req <- httr2::request(config_url)
+
+  if (!is.null(use_api_key)) {
+    req <- req |>
+      httr2::req_headers(Authorization = paste("Bearer", use_api_key))
+  }
+
+  response <- req |> httr2::req_perform()
+
+  tokenizer_config <- response |>
+    httr2::resp_body_string() |>
+    jsonlite::fromJSON()
+
+  return(tokenizer_config$model_max_length)
+}
