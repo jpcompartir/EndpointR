@@ -362,8 +362,30 @@ hf_classify_batch <- function(texts,
 }
 
 # hf_classify_chunks docs ----
-#' @param output_dir Path to directory for the .parquet chunks
+
 # hf_classify_chunks docs ----
+
+#' Title
+#'
+#' @param texts Character vector of texts to classify
+#' @param ids
+#' @param endpoint_url
+#' @param ...
+#' @param tidy_func Function to process API responses, defaults to
+#'   `tidy_classification_response`
+#' @param output_dir Path to directory for the .parquet chunks
+#' @param chunk_size
+#' @param concurrent_requests
+#' @param max_retries
+#' @param timeout
+#' @param include_texts
+#' @param relocate_col
+#' @param key_name Name of environment variable containing the API key
+#'
+#' @returns
+#' @export
+#'
+#' @examples
 hf_classify_chunks <- function(texts,
                                ids,
                                endpoint_url,
@@ -374,8 +396,6 @@ hf_classify_chunks <- function(texts,
                                concurrent_requests = 5L,
                                max_retries = 5L,
                                timeout = 30L,
-                               include_texts = TRUE,
-                               relocate_col = 2,
                                key_name = "HF_API_KEY"
 ) {
 
@@ -487,12 +507,13 @@ hf_classify_chunks <- function(texts,
 
       successes_ids <- purrr::map(chunk_successes, \(x) purrr::pluck(x, "request", "headers", "endpointr_id")) |>
         unlist()
-
+      successes_texts <- purrr::map(chunk_successes, \(x) purrr::pluck(x, "request", "body", "data", "inputs")) |>  unlist()
       successes_content <- purrr::map(chunk_successes, tidy_func) |>
         purrr::list_rbind()
 
       chunk_results$successes <- tibble::tibble(
         id = successes_ids,
+        text = successes_texts,
         .error = FALSE,
         .error_msg = NA_character_,
         .chunk = chunk_num
@@ -504,10 +525,13 @@ hf_classify_chunks <- function(texts,
     if (n_chunk_failures > 0) {
 
       failures_ids <- purrr::map(chunk_failures, \(x) purrr::pluck(x, "request", "headers", "endpointr_id")) |>  unlist()
+      failures_texts <- purrr::map_chr(chunk_failures, \(x) purrr::pluck(x, "request", "body", "data", "inputs")) |> unlist()
       failures_msgs <- purrr::map_chr(chunk_failures, \(x) purrr::pluck(x, "message", .default = "Unknown error"))
+
 
       chunk_results$failures <- tibble::tibble(
         id = failures_ids,
+        text = failures_texts,
         .error = TRUE,
         .error_msg = failures_msgs,
         .chunk = chunk_num

@@ -43,3 +43,4 @@ docs
 # testing /dev_docs/ artifacts
 *.csv
 test_dir
+metadata_test_dir
