@@ -485,3 +485,68 @@ hf_classify_df(
   concurrent_requests = 4
 )
 ```
+
+# Writing to Files
+
+November, 2025
+
+```{r}
+hf_cl
+```
+
+# Truncation and Padding
+
+```{r}
+library(tidyverse)
+library(EndpointR)
+library(arrow)
+
+x <- read_parquet("~/dev/projects/diageo/mltm/data/main/mltm_l3_trend_df.parquet")
+
+endpointr_test_url <- httr2::secret_decrypt("osXYmCFrfPR4NsIIOBOIwWzp8XdA77BVP5QKVwJb0jzHPUwgQ8NmZcHXrhvoYrR8a2QNXZjmwIHpW2X55Ivaa_y11RV5TgXOiD7aK3O8hbDoeQ", "ENDPOINTR_KEY")
+
+test_sent_url <- httr2::secret_decrypt("STCYZqL6e2yxfGaz5AWA80pnINnfX-47vsqEcxpm23IkxE1R8238Gtnp7oeRUQ6GxkF6jWUYYmiSjIh-Abo1cWOe23qUsZ7uSy5UE9BwvJ9oWg", "ENDPOINTR_KEY")
+```
+
+```{r}
+should_pass <- x |> 
+  filter(language == "Spanish (Español)") |> 
+  slice(10:15)  |>
+  mutate(message = str_sub(message, 1, 100)) |> 
+  filter(message != "", !is.na(message))
+
+pass_results <- hf_classify_chunks(
+  should_pass$message,
+  should_pass$universal_message_id,
+  tidy_func = tidy_classification_response,
+  endpoint_url = test_sent_url,
+  output_dir = "test_dir/test_classify/test_passes",
+  chunk_size = 5,
+  concurrent_requests = 5,
+  timeout = 60,
+  max_retries = 10
+)
+
+
+```
+
+```{r}
+should_fail <- x |> 
+  filter(language == "Arabic (ạlʿrbyẗ)") |> 
+  slice(100:110) |> 
+  # mutate(message = str_sub(message, 1, 180)) |>
+  filter(message != "", !is.na(message))
+
+fail_results <- hf_classify_chunks(
+  should_fail$message,
+  should_fail$universal_message_id,
+  tidy_func = tidy_classification_response,
+  endpoint_url = test_sent_url,
+  output_dir = "test_dir/test_classify/test_failures",
+  chunk_size = 5,
+  concurrent_requests = 5,
+  timeout = 60,
+  max_retries = 10
+)
+
+```
