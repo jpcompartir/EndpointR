@@ -294,7 +294,7 @@ parse_oai_date <- function(date_string) {
 #' @param model_name name of the model e.g. 'sentence-transformers/mpnet-base-v2'
 #' @param api_key Your Hugging Face auth token
 #'
-#' @returns
+#' @returns Integer value of the model_max_length from tokenizer config
 #' @export
 #'
 hf_get_model_max_length <- function(model_name, api_key = "HF_API_KEY") {

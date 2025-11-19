@@ -2,13 +2,13 @@
 % Please edit documentation in R/hf_classify.R
 \name{hf_classify_chunks}
 \alias{hf_classify_chunks}
-\title{Title}
+\title{Efficiently classify vectors of text in chunks}
 \usage{
 hf_classify_chunks(
   texts,
   ids,
   endpoint_url,
-  ...,
+  max_length = 512L,
   tidy_func = tidy_classification_response,
   output_dir = "auto",
   chunk_size = 5000L,
@@ -25,6 +25,8 @@ hf_classify_chunks(
 
 \item{endpoint_url}{Hugging Face Embedding Endpoint}
 
+\item{max_length}{The maximum number of tokens in the text variable. Beyond this cut-off everything is truncated.}
+
 \item{tidy_func}{Function to process API responses, defaults to
 \code{tidy_classification_response}}
 
@@ -40,6 +42,17 @@ hf_classify_chunks(
 
 \item{key_name}{Name of environment variable containing the API key}
 }
+\value{
+A data frame of classified documents with successes and failures
+}
 \description{
-Title
+TODO - description
+}
+\details{
+TODO - details
+}
+\examples{
+\dontrun{
+1+1 = 2
+}
 }
