@@ -266,6 +266,7 @@ hf_embed_batch <- function(texts,
 hf_embed_chunks <- function(texts,
                             ids,
                             endpoint_url,
+                            max_length = 8192L,
                             output_dir = "auto",
                             chunk_size = 5000L,
                             concurrent_requests = 5L,
@@ -278,8 +279,11 @@ hf_embed_chunks <- function(texts,
     "texts must be a vector" = is.vector(texts),
     "ids must be a vector" = is.vector(ids),
     "texts and ids must be the same length" = length(texts) == length(ids),
-    "chunk_size must be a positive integer greater than 1" = is.numeric(chunk_size) && chunk_size > 0
+    "chunk_size must be a positive integer greater than 1" = is.numeric(chunk_size) && chunk_size > 0,
+    "max_length must be a positive integer greater than 1" = is.numeric(max_length) && max_length > 0
   )
+
+  max_length = as.integer(max_length) # type conversion to be extra safe as it's feeding to Py
 
   # output_file = .handle_output_filename(output_file, base_file_name = "hf_embeddings_batch")
 
@@ -292,6 +296,9 @@ hf_embed_chunks <- function(texts,
   chunk_data <- batch_vector(seq_along(texts), chunk_size)
   n_chunks <- length(chunk_data$batch_indices)
 
+  inference_parameters = list(truncation = TRUE,
+                              max_length = max_length)
+
   # write/store imoortant metadata in the output dir
   metadata <- list(
     endpoint_url = endpoint_url,
@@ -302,7 +309,8 @@ hf_embed_chunks <- function(texts,
     output_dir = output_dir,
     key_name = key_name,
     n_chunks = n_chunks,
-    timestamp = Sys.time()
+    timestamp = Sys.time(),
+    inference_parameters = inference_parameters
   )
 
   jsonlite::write_json(metadata,
@@ -317,8 +325,8 @@ hf_embed_chunks <- function(texts,
   total_failures <- 0
 
   ## Chunk Processing ----
-  for (chunk_num in seq_along(chunk_data$batch_indices))
-  {
+  for (chunk_num in seq_along(chunk_data$batch_indices)) {
+
     chunk_indices <- chunk_data$batch_indices[[chunk_num]]
     chunk_texts <- texts[chunk_indices]
     chunk_ids <- ids[chunk_indices]
@@ -333,7 +341,7 @@ hf_embed_chunks <- function(texts,
         endpoint_url = endpoint_url,
         endpointr_id = y,
         key_name = key_name,
-        parameters = list(),
+        parameters = list(inference_parameters),
         max_retries = max_retries,
         timeout = timeout,
         validate = FALSE
@@ -427,6 +435,7 @@ hf_embed_chunks <- function(texts,
 #' @param id_var Name of the column to use as ID
 #' @param endpoint_url The URL of the Hugging Face Inference API endpoint
 #' @param key_name Name of the environment variable containing the API key
+#' @param max_length The maximum number of tokens in the text variable. Beyond this cut-off everything is truncated.
 #' @param output_dir Path to directory for the .parquet chunks
 #' @param chunk_size The size of each chunk that will be processed and then written to a file.
 #' @param concurrent_requests Number of requests to send at once. Some APIs do not allow for multiple requests.
@@ -469,6 +478,7 @@ hf_embed_df <- function(df,
                         id_var,
                         endpoint_url,
                         key_name,
+                        max_length = 8192L,
                         output_dir = "auto",
                         chunk_size = 5000L,
                         concurrent_requests = 1L,
@@ -509,7 +519,8 @@ hf_embed_df <- function(df,
     concurrent_requests = concurrent_requests,
     max_retries = max_retries,
     timeout = timeout,
-    output_dir = output_dir
+    output_dir = output_dir,
+    max_length = max_length
   )
 
   return(results)
