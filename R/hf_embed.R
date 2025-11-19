@@ -365,7 +365,7 @@ hf_embed_chunks <- function(texts,
     # within chunk results ----
     chunk_results <- list()
 
-    if (length(successes) > 0) {
+    if(n_successes  > 0) {
       successes_ids <- purrr::map(successes, \(x) purrr::pluck(x, "request", "headers", "endpointr_id")) |>  unlist()
       successes_content <- purrr::map(successes, tidy_embedding_response) |>
         purrr::list_rbind()
@@ -379,7 +379,7 @@ hf_embed_chunks <- function(texts,
         dplyr::bind_cols(successes_content)
     }
 
-    if (length(failures) > 0) {
+    if (n_failures > 0) {
       failures_ids <- purrr::map(failures, \(x) purrr::pluck(x, "request", "headers", "endpointr_id")) |>  unlist()
       failures_msgs <- purrr::map_chr(failures, \(x) purrr::pluck(x, "message", .default = "Unknown error"))
 
