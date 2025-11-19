@@ -440,16 +440,17 @@ hf_classify_chunks <- function(texts,
                     max_length = max_length)
 
   metadata <- list(
+    output_dir = output_dir,
     endpoint_url = endpoint_url,
+    inference_parameters = inference_parameters,
     chunk_size = chunk_size,
+    n_chunks = n_chunks,
     n_texts = length(texts),
     concurrent_requests = concurrent_requests,
     timeout = timeout,
-    output_dir = output_dir,
+    max_retries = max_retries,
     key_name = key_name,
-    n_chunks = n_chunks,
-    timestamp = Sys.time(),
-    inference_parameters = inference_parameters
+    timestamp = Sys.time()
   )
 
   jsonlite::write_json(metadata,
@@ -590,7 +591,6 @@ hf_classify_chunks <- function(texts,
 #' @param id_var Column name to use as identifier for joining (unquoted)
 #' @param endpoint_url URL of the Hugging Face Inference API endpoint
 #' @param key_name Name of environment variable containing the API key
-#' @param ... Additional arguments passed to request functions
 #' @param tidy_func Function to process API responses, defaults to
 #'   `tidy_batch_classification_response`
 #' @param parameters List of parameters for the API endpoint, defaults to
@@ -627,14 +627,13 @@ hf_classify_df <- function(df,
                            id_var,
                            endpoint_url,
                            key_name,
-                           ...,
-                           tidy_func = tidy_batch_classification_response,
-                           parameters = list(return_all_scores = TRUE),
-                           batch_size = 4,
+                           max_length = 512L,
+                           output_dir = "auto",
+                           tidy_func = tidy_classification_response,
+                           chunk_size = 2500,
                            concurrent_requests = 1,
                            max_retries = 5,
-                           timeout = 30,
-                           progress = TRUE) {
+                           timeout = 60) {
 
 
   # mirrors the hf_embed_df function
@@ -645,47 +644,32 @@ hf_classify_df <- function(df,
     "df must be a data frame" = is.data.frame(df),
     "endpoint_url must be provided" = !is.null(endpoint_url) && nchar(endpoint_url) > 0,
     "concurrent_requests must be a number greater than 0" = is.numeric(concurrent_requests) && concurrent_requests > 0,
-    "batch_size must be a number greater than 0" = is.numeric(batch_size) && batch_size > 0
+    "chunk_size must be a number greater than 0" = is.numeric(chunk_size) && chunk_size > 0
   )
 
-  original_num_rows <- nrow(df) # for final sanity check
+  output_dir <- .handle_output_directory(output_dir, base_dir_name = "hf_classification_chunks")
 
   # pull texts & ids into vectors for batch function
   text_vec <- dplyr::pull(df, !!text_sym)
   indices_vec <- dplyr::pull(df, !!id_sym)
 
-  batch_size <- if(is.null(batch_size) || batch_size <=1) 1 else batch_size
+  chunk_size <- if(is.null(chunk_size) || chunk_size <=1) 1 else chunk_size
 
-  classification_tbl <- hf_classify_batch(texts = text_vec,
-                                          endpoint_url = endpoint_url,
-                                          key_name = key_name,
-                                          tidy_func = tidy_func,
-                                          parameters = parameters,
-                                          batch_size = batch_size,
-                                          max_retries = max_retries,
-                                          timeout = timeout,
-                                          progress = TRUE,
-                                          concurrent_requests = concurrent_requests)
+  results <- hf_classify_chunks(
+    texts = text_vec,
+    ids = indices_vec,
+    endpoint_url = endpoint_url,
+    max_length = max_length,
+    tidy_func = tidy_func,
+    chunk_size = chunk_size,
+    concurrent_requests = concurrent_requests,
+    max_retries = max_retries,
+    timeout = timeout,
+    key_name = key_name,
+    output_dir = output_dir
+  )
 
-
-  final_num_rows <- nrow(classification_tbl)
-
-  if(final_num_rows == original_num_rows) {
-    classification_tbl <- classification_tbl |> dplyr::mutate(!!id_sym := indices_vec)
-
-    df <- dplyr::left_join(df, classification_tbl)
-
-    return(df)
-  } else {
-    cli::cli_warn("Rows in original data frame and returned data frame do not match:")
-    cli::cli_bullets(text = c(
-      "Rows in original data frame: {original_num_rows}",
-      "Rows in returned data frame: {final_num_rows}"
-    ))
-    cli::cli_alert_info("Returning table with all available response data")
-    return(classification_tbl)
-  }
-
+  return(results)
 }
 
 

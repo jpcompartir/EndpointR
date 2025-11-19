@@ -501,10 +501,8 @@ hf_embed_df <- function(df,
 
   output_dir <- .handle_output_directory(output_dir,
                                          base_dir_name = "hf_embeddings_batch")
-  # output_file <- .handle_output_filename(output_file,
-  #                                        base_file_name = "hf_embeddings_batch")
 
-  # refactoring  to always use hf_embed_batch - if batch_size if one then it gets handled anyway, avoids branching and additional complexity.
+
   texts <- dplyr::pull(df, !!text_sym)
   indices <- dplyr::pull(df, !!id_sym)
 
