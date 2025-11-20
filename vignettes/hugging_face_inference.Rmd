@@ -71,7 +71,9 @@ Go to [Hugging Face's models hub](https://huggingface.co/models) and fetch the I
 
 # Understanding the Function Hierarchy
 
-EndpointR provides four levels of functions for working with Hugging Face endpoints:
+EndpointR provides four levels of functions for working with Hugging Face endpoints.
+
+> **KEY FEATURE**: The `*_df()` and `*_chunks()` functions preserve your original column names. If you pass a data frame with columns named `review_id` and `review_text`, those exact names will appear in the output and in the saved `.parquet` files. This makes it easy to join results back to your original data.
 
 ## Single Text Functions
 
@@ -365,10 +367,10 @@ Always verify your results:
 ```{r}
 embedding_result |> count(.error)
 
-# View any failures
+# View any failures (column names match your original data frame)
 failures <- embedding_result |>
   filter(.error == TRUE) |>
-  select(id, text, .error_message)
+  select(id, .error_message)
 
 # Extract just the embeddings for successful rows
 embeddings_only <- embedding_result |>
@@ -411,13 +413,15 @@ classification_result <- hf_classify_df(
 
 The result includes:
 
--   Your original `id` and `text` columns
+-   Your original ID and text columns (with their original names preserved)
 -   Classification labels (e.g., POSITIVE, NEGATIVE)
 -   Confidence scores
 -   Error tracking columns (`.error`, `.error_message`)
 -   Chunk tracking (`.chunk`)
 
 > **NOTE**: Classification labels are model and task specific. Check the model card on Hugging Face for label mappings.
+
+> **IMPORTANT**: The function preserves your original column names. If your data frame has `review_id` and `review_text`, those names will appear in the output, not generic `id` and `text`.
 
 ## Renaming Classification Labels
 
@@ -601,13 +605,17 @@ Always check for errors and consider retrying failures:
 # Check results for errors
 results |> count(.error)
 
-# Identify failed texts
+# Identify failed texts (column names match your input data frame)
 failed <- results |> filter(.error == TRUE)
-failed |> select(id, text, .error_msg)
+
+# Note: Column names below will match your original data frame
+# If you used review_id and review_text, use those names instead
+failed |> select(id, .error_msg)
 
 # Retry failed texts with adjusted parameters
+# Access text column by its actual name from your data
 retry_results <- hf_embed_batch(
-  texts = failed$text,
+  texts = failed$text,  # Use your actual column name
   endpoint_url = embed_url,
   key_name = "HF_API_KEY",
   batch_size = 1,  # One at a time for failures

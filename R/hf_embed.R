@@ -253,9 +253,10 @@ hf_embed_batch <- function(texts,
 #' @param max_retries Maximum retry attempts per failed request (default: 5)
 #' @param timeout Request timeout in seconds (default: 10)
 #' @param key_name Name of environment variable containing the API key (default: "HF_API_KEY")
+#' @param id_col_name Name for the ID column in output (default: "id"). When called from hf_embed_df(), this preserves the original column name.
 #'
 #' @return A tibble with columns:
-#'   - `id`: Original identifier from input
+#'   - ID column (name specified by `id_col_name`): Original identifier from input
 #'   - `.error`: Logical indicating if request failed
 #'   - `.error_msg`: Error message if failed, NA otherwise
 #'   - `.chunk`: Chunk number for tracking
@@ -271,7 +272,8 @@ hf_embed_chunks <- function(texts,
                             concurrent_requests = 5L,
                             max_retries = 5L,
                             timeout = 10L,
-                            key_name = "HF_API_KEY") {
+                            key_name = "HF_API_KEY",
+                            id_col_name = "id") {
 
   # input validation ----
   stopifnot(
@@ -374,7 +376,7 @@ hf_embed_chunks <- function(texts,
         purrr::list_rbind()
 
       chunk_results$successes <- tibble::tibble(
-        id = successes_ids,
+        !!id_col_name := successes_ids,
         .error = FALSE,
         .error_msg = NA_character_,
         .chunk = chunk_num
@@ -387,7 +389,7 @@ hf_embed_chunks <- function(texts,
       failures_msgs <- purrr::map_chr(failures, \(x) purrr::pluck(x, "message", .default = "Unknown error"))
 
       chunk_results$failures <- tibble::tibble(
-        id = failures_ids,
+        !!id_col_name := failures_ids,
         .error = TRUE,
         .error_msg = failures_msgs,
         .chunk = chunk_num
@@ -499,6 +501,9 @@ hf_embed_df <- function(df,
   texts <- dplyr::pull(df, !!text_sym)
   indices <- dplyr::pull(df, !!id_sym)
 
+  # preserve original column name
+  id_col_name <- rlang::as_name(id_sym)
+
   chunk_size <- if(is.null(chunk_size) || chunk_size <= 1) 1 else chunk_size
 
   results <- hf_embed_chunks(
@@ -510,7 +515,8 @@ hf_embed_df <- function(df,
     concurrent_requests = concurrent_requests,
     max_retries = max_retries,
     timeout = timeout,
-    output_dir = output_dir
+    output_dir = output_dir,
+    id_col_name = id_col_name
   )
 
   return(results)

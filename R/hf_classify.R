@@ -380,7 +380,7 @@ hf_classify_batch <- function(texts,
 #'
 #' @param texts Character vector of texts to classify
 #' @param ids Vector of unique identifiers corresponding to each text (same length as texts)
-#' @param endpoint_url Hugging Face Embedding Endpoint
+#' @param endpoint_url Hugging Face Classification Endpoint
 #' @param max_length The maximum number of tokens in the text variable. Beyond this cut-off everything is truncated.
 #' @param tidy_func Function to process API responses, defaults to
 #'   `tidy_classification_response`
@@ -388,15 +388,26 @@ hf_classify_batch <- function(texts,
 #' @param chunk_size Number of texts to process in each chunk before writing to disk (default: 5000)
 #' @param concurrent_requests Integer; number of concurrent requests (default: 5)
 #' @param max_retries Integer; maximum retry attempts (default: 5)
-#' @param timeout Numeric; request timeout in seconds (default: 20)
+#' @param timeout Numeric; request timeout in seconds (default: 30)
 #' @param key_name Name of environment variable containing the API key
+#' @param id_col_name Name for the ID column in output (default: "id"). When called from hf_classify_df(), this preserves the original column name.
+#' @param text_col_name Name for the text column in output (default: "text"). When called from hf_classify_df(), this preserves the original column name.
 #'
 #' @returns A data frame of classified documents with successes and failures
 #' @export
 #'
 #' @examples
 #' \dontrun{
-#' 1+1 = 2
+#' # basic usage with vectors
+#' texts <- c("I love this", "I hate this", "This is ok")
+#' ids <- c("review_1", "review_2", "review_3")
+#'
+#' results <- hf_classify_chunks(
+#'   texts = texts,
+#'   ids = ids,
+#'   endpoint_url = "https://your-endpoint.huggingface.cloud",
+#'   key_name = "HF_API_KEY"
+#' )
 #' }
 # hf_classify_chunks docs ----
 hf_classify_chunks <- function(texts,
@@ -409,7 +420,9 @@ hf_classify_chunks <- function(texts,
                                concurrent_requests = 5L,
                                max_retries = 5L,
                                timeout = 30L,
-                               key_name = "HF_API_KEY"
+                               key_name = "HF_API_KEY",
+                               id_col_name = "id",
+                               text_col_name = "text"
 ) {
 
   # input validation ----
@@ -534,8 +547,8 @@ hf_classify_chunks <- function(texts,
         purrr::list_rbind()
 
       chunk_results$successes <- tibble::tibble(
-        id = successes_ids,
-        text = successes_texts,
+        !!id_col_name := successes_ids,
+        !!text_col_name := successes_texts,
         .error = FALSE,
         .error_msg = NA_character_,
         .chunk = chunk_num
@@ -552,8 +565,8 @@ hf_classify_chunks <- function(texts,
 
 
       chunk_results$failures <- tibble::tibble(
-        id = failures_ids,
-        text = failures_texts,
+        !!id_col_name := failures_ids,
+        !!text_col_name := failures_texts,
         .error = TRUE,
         .error_msg = failures_msgs,
         .chunk = chunk_num
@@ -665,6 +678,10 @@ hf_classify_df <- function(df,
   text_vec <- dplyr::pull(df, !!text_sym)
   indices_vec <- dplyr::pull(df, !!id_sym)
 
+  # preserve original column names
+  id_col_name <- rlang::as_name(id_sym)
+  text_col_name <- rlang::as_name(text_sym)
+
   chunk_size <- if(is.null(chunk_size) || chunk_size <=1) 1 else chunk_size
 
   results <- hf_classify_chunks(
@@ -678,7 +695,9 @@ hf_classify_df <- function(df,
     max_retries = max_retries,
     timeout = timeout,
     key_name = key_name,
-    output_dir = output_dir
+    output_dir = output_dir,
+    id_col_name = id_col_name,
+    text_col_name = text_col_name
   )
 
   return(results)

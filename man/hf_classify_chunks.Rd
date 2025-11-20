@@ -15,7 +15,9 @@ hf_classify_chunks(
   concurrent_requests = 5L,
   max_retries = 5L,
   timeout = 30L,
-  key_name = "HF_API_KEY"
+  key_name = "HF_API_KEY",
+  id_col_name = "id",
+  text_col_name = "text"
 )
 }
 \arguments{
@@ -23,7 +25,7 @@ hf_classify_chunks(
 
 \item{ids}{Vector of unique identifiers corresponding to each text (same length as texts)}
 
-\item{endpoint_url}{Hugging Face Embedding Endpoint}
+\item{endpoint_url}{Hugging Face Classification Endpoint}
 
 \item{max_length}{The maximum number of tokens in the text variable. Beyond this cut-off everything is truncated.}
 
@@ -38,9 +40,13 @@ hf_classify_chunks(
 
 \item{max_retries}{Integer; maximum retry attempts (default: 5)}
 
-\item{timeout}{Numeric; request timeout in seconds (default: 20)}
+\item{timeout}{Numeric; request timeout in seconds (default: 30)}
 
 \item{key_name}{Name of environment variable containing the API key}
+
+\item{id_col_name}{Name for the ID column in output (default: "id"). When called from hf_classify_df(), this preserves the original column name.}
+
+\item{text_col_name}{Name for the text column in output (default: "text"). When called from hf_classify_df(), this preserves the original column name.}
 }
 \value{
 A data frame of classified documents with successes and failures
@@ -60,6 +66,15 @@ For single text classification, use \code{hf_classify_text()} instead.
 }
 \examples{
 \dontrun{
-1+1 = 2
+# basic usage with vectors
+texts <- c("I love this", "I hate this", "This is ok")
+ids <- c("review_1", "review_2", "review_3")
+
+results <- hf_classify_chunks(
+  texts = texts,
+  ids = ids,
+  endpoint_url = "https://your-endpoint.huggingface.cloud",
+  key_name = "HF_API_KEY"
+)
 }
 }
