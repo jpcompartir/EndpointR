@@ -324,7 +324,7 @@ hf_get_model_max_length <- function(model_name, api_key = "HF_API_KEY") {
 #' @param endpoint_url Hugging Face Embedding Endpoint
 #' @param key_name Name of environment variable containing the API key (default: "HF_API_KEY")
 #'
-#' @returns
+#' @returns JSON of endpoint information
 #' @export
 #'
 hf_get_endpoint_info <- function(endpoint_url, key_name = "HF_API_KEY") {
