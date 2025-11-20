@@ -317,3 +317,25 @@ hf_get_model_max_length <- function(model_name, api_key = "HF_API_KEY") {
 
   return(tokenizer_config$model_max_length)
 }
+
+
+#' Retrieve information about an endpoint
+#'
+#' @param endpoint_url Hugging Face Embedding Endpoint
+#' @param key_name Name of environment variable containing the API key (default: "HF_API_KEY")
+#'
+#' @returns
+#' @export
+#'
+hf_get_endpoint_info <- function(endpoint_url, key_name = "HF_API_KEY") {
+
+  info_endpoint_url <- glue::glue("{endpoint_url}/info")
+  api_key = get_api_key(key_name)
+
+  info <-httr2::request(info_endpoint_url) |>
+    httr2::req_headers(Authorization = paste("Bearer", api_key)) |>
+    httr2::req_perform() |>
+    httr2::resp_body_json()
+
+  return(info)
+}

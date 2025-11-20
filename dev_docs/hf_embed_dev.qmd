@@ -10,6 +10,7 @@ library(httr2)
 library(purrr)
 library(dplyr)
 library(tidyr)
+library(stringr)
 ```
 
 ```{r}
@@ -41,7 +42,7 @@ should_fail <- test_long_strings |>
     universal_message_id,
     test_embed_url,
     "HF_API_KEY", 
-    max_length = 8192L,
+    # max_length = 8192L,
     output_dir = "test_dir/test_embed/test_failures_long",
     concurrent_requests = 5,
     max_retries = 10L,
@@ -56,7 +57,7 @@ should_pass <-  test_short_strings |>
     universal_message_id,
     test_embed_url,
     "HF_API_KEY", 
-    max_length = 8192L,
+    # max_length = 8192L,
     output_dir = "test_dir/test_embed/test_passes_short",
     concurrent_requests = 5,
     max_retries = 10L,
@@ -74,13 +75,15 @@ should_pass_string_truncation <- test_long_strings |>
     universal_message_id,
     test_embed_url,
     "HF_API_KEY", 
-    max_length = 50,
+    # max_length = 50,
     output_dir = "test_dir/test_embed/test_pass_truncation",
     concurrent_requests = 5,
     max_retries = 10L,
     timeout = 60
   )
 ```
+
+TEST Tokenisation is working
 
 ```{r}
 should_pass_tokenisation <- test_long_strings |> 
@@ -94,4 +97,26 @@ should_pass_tokenisation <- test_long_strings |>
     max_retries = 10L,
     timeout = 60
   )
+```
+
+```{r}
+test_ten_k <- test_data |> 
+  hf_embed_df(
+    message,
+    universal_message_id,
+    test_embed_url,
+    "HF_API_KEY", 
+    output_dir = "test_dir/test_embed/test_ten_k",
+    concurrent_requests = 50,
+    max_retries = 10L,
+    timeout = 60
+  )
+```
+
+With AUTO_TRUNCATE: true, they do work (in the Endpoint configs)
+
+Getting model info - requires the API be up and running.
+
+```{r}
+hf_get_endpoint_info(test_embed_url)
 ```
