@@ -151,7 +151,7 @@ test_that("hf_embed_df works correctly with real endpoint", {
 
 test_that("hf_embed_df works with different batch sizes", {
   test_df <- data.frame(
-    id = c(paste0("id" 1:2)),
+    id = c(paste0("id", 1:2)),
     text = c("text1", "text2"),
     stringsAsFactors = FALSE
   )

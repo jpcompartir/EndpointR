@@ -13,7 +13,7 @@ hf_classify_df(
   max_length = 512L,
   output_dir = "auto",
   tidy_func = tidy_classification_response,
-  chunk_size = 2500,
+  chunk_size = 5000,
   concurrent_requests = 1,
   max_retries = 5,
   timeout = 60
@@ -30,21 +30,20 @@ hf_classify_df(
 
 \item{key_name}{Name of environment variable containing the API key}
 
+\item{max_length}{The maximum number of tokens in the text variable. Beyond this cut-off everything is truncated.}
+
+\item{output_dir}{Path to directory for the .parquet chunks}
+
 \item{tidy_func}{Function to process API responses, defaults to
 \code{tidy_batch_classification_response}}
+
+\item{chunk_size}{Number of texts to process in each chunk before writing to disk (default: 5000)}
 
 \item{concurrent_requests}{Integer; number of concurrent requests (default: 1)}
 
 \item{max_retries}{Integer; maximum retry attempts (default: 5)}
 
 \item{timeout}{Numeric; request timeout in seconds (default: 30)}
-
-\item{parameters}{List of parameters for the API endpoint, defaults to
-\code{list(return_all_scores = TRUE)}}
-
-\item{batch_size}{Integer; number of texts per batch (default: 4)}
-
-\item{progress}{Logical; whether to show progress bar (default: TRUE)}
 }
 \value{
 Original data frame with additional columns for classification scores,

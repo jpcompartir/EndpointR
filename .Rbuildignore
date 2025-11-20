@@ -2,7 +2,7 @@
 ^EndpointR\.Rproj$
 ^\.Rproj\.user$
 todos.md
-dev_docs/
+^dev_docs/
 README\.Rmd
 CONTRIBUTORS\.md
 todos\.qmd
@@ -11,3 +11,4 @@ todos\.qmd
 ^docs$
 ^pkgdown$
 ^\.github$
+^test_dir/

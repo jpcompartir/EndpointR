@@ -364,10 +364,19 @@ hf_classify_batch <- function(texts,
 # hf_classify_chunks docs ----
 #' Efficiently classify vectors of text in chunks
 #'
-#' TODO - description
+#' @description
+#' Classifies large batches of text using a Hugging Face classification endpoint.
+#' Processes texts in chunks with concurrent requests, writes intermediate results
+#' to disk as Parquet files, and returns a combined data frame of all classifications.
 #'
-#' TODO - details
 #'
+#' @details
+#' The function creates a metadata JSON file in `output_dir` containing processing
+#' parameters and timestamps. Each chunk is saved as a separate Parquet file before
+#' being combined into the final result. Use `output_dir = "auto"` to generate a
+#' timestamped directory automatically.
+#'
+#' For single text classification, use `hf_classify_text()` instead.
 #'
 #' @param texts Character vector of texts to classify
 #' @param ids Vector of unique identifiers corresponding to each text (same length as texts)
@@ -595,15 +604,14 @@ hf_classify_chunks <- function(texts,
 #' @param id_var Column name to use as identifier for joining (unquoted)
 #' @param endpoint_url URL of the Hugging Face Inference API endpoint
 #' @param key_name Name of environment variable containing the API key
+#' @param max_length The maximum number of tokens in the text variable. Beyond this cut-off everything is truncated.
+#' @param output_dir Path to directory for the .parquet chunks
 #' @param tidy_func Function to process API responses, defaults to
 #'   `tidy_batch_classification_response`
-#' @param parameters List of parameters for the API endpoint, defaults to
-#'   `list(return_all_scores = TRUE)`
-#' @param batch_size Integer; number of texts per batch (default: 4)
+#' @param chunk_size Number of texts to process in each chunk before writing to disk (default: 5000)
 #' @param concurrent_requests Integer; number of concurrent requests (default: 1)
 #' @param max_retries Integer; maximum retry attempts (default: 5)
 #' @param timeout Numeric; request timeout in seconds (default: 30)
-#' @param progress Logical; whether to show progress bar (default: TRUE)
 #'
 #' @return Original data frame with additional columns for classification scores,
 #'   or classification results table if row counts don't match
@@ -634,7 +642,7 @@ hf_classify_df <- function(df,
                            max_length = 512L,
                            output_dir = "auto",
                            tidy_func = tidy_classification_response,
-                           chunk_size = 2500,
+                           chunk_size = 5000,
                            concurrent_requests = 1,
                            max_retries = 5,
                            timeout = 60) {
