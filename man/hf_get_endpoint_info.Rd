@@ -11,6 +11,9 @@ hf_get_endpoint_info(endpoint_url, key_name = "HF_API_KEY")
 
 \item{key_name}{Name of environment variable containing the API key (default: "HF_API_KEY")}
 }
+\value{
+JSON of endpoint information
+}
 \description{
 Retrieve information about an endpoint
 }
