@@ -46,10 +46,17 @@ hf_classify_chunks(
 A data frame of classified documents with successes and failures
 }
 \description{
-TODO - description
+Classifies large batches of text using a Hugging Face classification endpoint.
+Processes texts in chunks with concurrent requests, writes intermediate results
+to disk as Parquet files, and returns a combined data frame of all classifications.
 }
 \details{
-TODO - details
+The function creates a metadata JSON file in \code{output_dir} containing processing
+parameters and timestamps. Each chunk is saved as a separate Parquet file before
+being combined into the final result. Use \code{output_dir = "auto"} to generate a
+timestamped directory automatically.
+
+For single text classification, use \code{hf_classify_text()} instead.
 }
 \examples{
 \dontrun{
