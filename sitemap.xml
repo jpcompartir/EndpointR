@@ -27,12 +27,15 @@
 <url><loc>https://jpcompartir.github.io/EndpointR/reference/hf_build_request_batch.html</loc></url>
 <url><loc>https://jpcompartir.github.io/EndpointR/reference/hf_build_request_df.html</loc></url>
 <url><loc>https://jpcompartir.github.io/EndpointR/reference/hf_classify_batch.html</loc></url>
+<url><loc>https://jpcompartir.github.io/EndpointR/reference/hf_classify_chunks.html</loc></url>
 <url><loc>https://jpcompartir.github.io/EndpointR/reference/hf_classify_df.html</loc></url>
 <url><loc>https://jpcompartir.github.io/EndpointR/reference/hf_classify_text.html</loc></url>
 <url><loc>https://jpcompartir.github.io/EndpointR/reference/hf_embed_batch.html</loc></url>
 <url><loc>https://jpcompartir.github.io/EndpointR/reference/hf_embed_chunks.html</loc></url>
 <url><loc>https://jpcompartir.github.io/EndpointR/reference/hf_embed_df.html</loc></url>
 <url><loc>https://jpcompartir.github.io/EndpointR/reference/hf_embed_text.html</loc></url>
+<url><loc>https://jpcompartir.github.io/EndpointR/reference/hf_get_endpoint_info.html</loc></url>
+<url><loc>https://jpcompartir.github.io/EndpointR/reference/hf_get_model_max_length.html</loc></url>
 <url><loc>https://jpcompartir.github.io/EndpointR/reference/hf_perform_request.html</loc></url>
 <url><loc>https://jpcompartir.github.io/EndpointR/reference/index.html</loc></url>
 <url><loc>https://jpcompartir.github.io/EndpointR/reference/json_dump.html</loc></url>

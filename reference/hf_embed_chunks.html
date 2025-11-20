@@ -7,7 +7,7 @@
 
     <a class="navbar-brand me-2" href="../index.html">EndpointR</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="Released version">0.1.1</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="Released version">0.1.2</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -67,12 +67,13 @@
 <span>  <span class="va">texts</span>,</span>
 <span>  <span class="va">ids</span>,</span>
 <span>  <span class="va">endpoint_url</span>,</span>
-<span>  output_file <span class="op">=</span> <span class="st">"auto"</span>,</span>
+<span>  output_dir <span class="op">=</span> <span class="st">"auto"</span>,</span>
 <span>  chunk_size <span class="op">=</span> <span class="fl">5000L</span>,</span>
 <span>  concurrent_requests <span class="op">=</span> <span class="fl">5L</span>,</span>
 <span>  max_retries <span class="op">=</span> <span class="fl">5L</span>,</span>
 <span>  timeout <span class="op">=</span> <span class="fl">10L</span>,</span>
-<span>  key_name <span class="op">=</span> <span class="st">"HF_API_KEY"</span></span>
+<span>  key_name <span class="op">=</span> <span class="st">"HF_API_KEY"</span>,</span>
+<span>  id_col_name <span class="op">=</span> <span class="st">"id"</span></span>
 <span><span class="op">)</span></span></code></pre></div>
     </div>
 
@@ -92,8 +93,8 @@
 <dd><p>Hugging Face Embedding Endpoint</p></dd>
 
 
-<dt id="arg-output-file">output_file<a class="anchor" aria-label="anchor" href="#arg-output-file"></a></dt>
-<dd><p>Path to .CSV file for results. "auto" generates the filename, location and is persistent across sessions. If NULL, generates timestamped filename.</p></dd>
+<dt id="arg-output-dir">output_dir<a class="anchor" aria-label="anchor" href="#arg-output-dir"></a></dt>
+<dd><p>Path to directory for the .parquet chunks</p></dd>
 
 
 <dt id="arg-chunk-size">chunk_size<a class="anchor" aria-label="anchor" href="#arg-chunk-size"></a></dt>
@@ -115,10 +116,14 @@
 <dt id="arg-key-name">key_name<a class="anchor" aria-label="anchor" href="#arg-key-name"></a></dt>
 <dd><p>Name of environment variable containing the API key (default: "HF_API_KEY")</p></dd>
 
+
+<dt id="arg-id-col-name">id_col_name<a class="anchor" aria-label="anchor" href="#arg-id-col-name"></a></dt>
+<dd><p>Name for the ID column in output (default: "id"). When called from hf_embed_df(), this preserves the original column name.</p></dd>
+
 </dl></div>
     <div class="section level2">
     <h2 id="value">Value<a class="anchor" aria-label="anchor" href="#value"></a></h2>
-    <p>A tibble with columns:</p><ul><li><p><code>id</code>: Original identifier from input</p></li>
+    <p>A tibble with columns:</p><ul><li><p>ID column (name specified by <code>id_col_name</code>): Original identifier from input</p></li>
 <li><p><code>.error</code>: Logical indicating if request failed</p></li>
 <li><p><code>.error_msg</code>: Error message if failed, NA otherwise</p></li>
 <li><p><code>.chunk</code>: Chunk number for tracking</p></li>
@@ -140,7 +145,7 @@ to disk. Within each chunk, requests are sent with the specified level of concur
 </div>
 
 <div class="pkgdown-footer-right">
-  <p>Site built with <a href="https://pkgdown.r-lib.org/" class="external-link">pkgdown</a> 2.1.3.</p>
+  <p>Site built with <a href="https://pkgdown.r-lib.org/" class="external-link">pkgdown</a> 2.2.0.</p>
 </div>
 
     </footer></div>

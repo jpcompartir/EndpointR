@@ -1,0 +1,499 @@
+# Connecting to Major Model Providers
+
+``` r
+library(EndpointR)
+library(httr2)
+library(purrr)
+library(dplyr)
+```
+
+This vignette details how we can use EndpointR to interact with services
+hosted by major model providers, such as Anthropic, Google, and OpenAI.
+The focus is on sending texts for a specific, one-off purpose - similar
+to how traditional Machine Learning endpoints work. Though, we will see
+that it’s not always straightforward to get LLMs to do what we want them
+to do!
+
+Before we get started, we need to make sure we have a couple of things
+in place:
+
+- First, get your API key and store it as “OPENAI_API_KEY” with
+  [`set_api_key()`](https://jpcompartir.github.io/EndpointR/reference/set_api_key.md)
+- Second, figure out if you need the [Responses
+  API](https://platform.openai.com/docs/api-reference/responses) or the
+  [Chat Completions
+  API](https://platform.openai.com/docs/api-reference/chat). Currently
+  EndpointR only supports the Chat Completions API.
+- Third, choose your model - EndpointR is configured to select the
+  smaller, cheaper model but you are free to choose specific models
+  according to your needs.
+
+> **Information:** if you are unsure whether you should prefer the
+> Completions API or the Responses API, checkout [this
+> webpage](https://platform.openai.com/docs/guides/responses-vs-chat-completions)
+
+## OpenAI - Quick Start - Chat Completions API - Single Text
+
+To get a completion for a single text we can use the
+[`oai_complete_text()`](https://jpcompartir.github.io/EndpointR/reference/oai_complete_text.md)
+function:
+
+``` r
+set_api_key("OPENAI_API_KEY")
+
+sentiment_system_prompt = "Analyse the sentiment of the given text."
+text = "The weather has been absolutely fantastic this summer. I wish it could be like this every year, maybe I'll move to the South of France where they get 300 days of sunshine a year. Oh to dream."
+
+
+oai_complete_text(
+  text = text,
+  system_prompt = sentiment_system_prompt,
+  model = "gpt-4.1-nano"
+)
+```
+
+Output: \[1\] “The sentiment of the text is positive. The speaker
+expresses happiness and admiration for the fantastic weather, along with
+a hopeful wish to experience similar conditions elsewhere.”
+
+### OpenAI - Quick Start - Chat Completions API - Data Frame of Texts
+
+We can input a data frame directly into the
+[`oai_complete_df()`](https://jpcompartir.github.io/EndpointR/reference/oai_complete_df.md)
+function:
+
+``` r
+review_df <- data.frame(
+  id = 1:5,
+  text = c(
+    "Absolutely fantastic service! The staff were incredibly helpful and friendly.",
+    "Terrible experience. Food was cold and the waiter was rude.",
+    "Pretty good overall, but nothing special. Average food and service.",
+    "Outstanding meal! Best restaurant I've been to in years. Highly recommend!",
+    "Disappointed with the long wait times. Food was okay when it finally arrived."
+  )
+)
+
+oai_complete_df(
+  review_df,
+  text_var = text,
+  id_var = id,
+  output_file = NULL, # leave this to 'auto' to have your results written to a file in your current working directory
+  system_prompt = sentiment_system_prompt,
+  concurrent_requests = 2, 
+  chunk_size = 5
+)
+```
+
+    ℹ Processing 5 texts in 1 chunk of up to 5 each
+    ℹ Performing 5 requests in parallel (with 2 concurrent requests)...
+    ✔ Batch 1: 5 successful, 0 failed                                                                 
+    ✔ Completed processing: 5 successful, 0 failed
+    # A tibble: 5 × 5                                                                                   
+         id content                                                             .error .error_msg .batch
+      
+
+    1     1 "The sentiment of the text is highly positive."                     FALSE  NA              1
+    2     2 "The sentiment of the text is negative."                            FALSE  NA              1
+    3     3 "The sentiment of the text is generally neutral with a slight lean… FALSE  NA              1
+    4     4 "The sentiment of the text is highly positive."                     FALSE  NA              1
+    5     5 "The sentiment of the text is negative."                            FALSE  NA              1
+    > 
+
+## OpenAI - Quick Start - Structured Outputs
+
+An issue with our responses so far, is that they do not follow a
+specific format. This means we need to parse the results again after.
+However, we can use a schema to determine the format of the response:
+
+``` r
+sentiment_schema <- create_json_schema(
+  name = "simple_sentiment_schema",
+  schema = schema_object(
+    sentiment = schema_string(description = "Sentiment classification",
+                              enum = c("positive", "negative", "neutral")),
+    required = list("sentiment")
+  )
+)
+
+
+structured_df <- oai_complete_df(
+  review_df,
+  text_var = text,
+  id_var = id,
+  schema = sentiment_schema,
+  output_file = NULL,
+  system_prompt = sentiment_system_prompt,
+  concurrent_requests = 2, 
+  chunk_size = 5
+)
+```
+
+     Processing 5 texts in 1 chunk of up to 5 each
+    ℹ Performing 5 requests in parallel (with 2 concurrent requests)...
+    ✔ Batch 1: 5 successful, 0 failed                                                                 
+    ✔ Completed processing: 5 successful, 0 failed
+    # A tibble: 5 × 5                                                                                   
+         id content                        .error .error_msg .batch
+      
+
+    1     1 "{\"sentiment\":\"positive\"}" FALSE  NA              1
+    2     2 "{\"sentiment\":\"negative\"}" FALSE  NA              1
+    3     3 "{\"sentiment\":\"neutral\"}"  FALSE  NA              1
+    4     4 "{\"sentiment\":\"positive\"}" FALSE  NA              1
+    5     5 "{\"sentiment\":\"negative\"}" FALSE  NA              1
+    > 
+
+Now we need to extract each sentiment value into a sentiment column, one
+per row:
+
+``` r
+structured_df |>
+  dplyr::mutate(content = purrr::map(content, ~safely_from_json(.x))) |> 
+  tidyr::unnest_wider(content)
+```
+
+    # A tibble: 5 × 5
+         id sentiment .error .error_msg .batch
+      
+    1     1 positive  FALSE  NA              1
+    2     2 negative  FALSE  NA              1
+    3     3 neutral   FALSE  NA              1
+    4     4 positive  FALSE  NA              1
+    5     5 negative  FALSE  NA              1
+
+> **WARNING**: if you have a lot of data - i.e. 100,000s, or 1,000,000s
+> of rows, you may want to split your data up and do this last step in
+> chunks or via parallel processing to reduce peak memory usage.
+
+## OpenAI - Under the Hood
+
+We looked at
+[`oai_complete_text()`](https://jpcompartir.github.io/EndpointR/reference/oai_complete_text.md)
+and
+[`oai_complete_df()`](https://jpcompartir.github.io/EndpointR/reference/oai_complete_df.md)
+which are high-level convenience functions, but it’s good to know what’s
+happening under the hood.
+
+### Chat Completions API
+
+“The Chat Completions API endpoint will generate a model response from a
+list of messages comprising a conversation.”
+
+For most use-cases EndpointR covers, the conversation will be a single
+interaction between the user and the model. Usually the goal is to
+achieve some narrow task repeatedly.
+
+> **TIP:** If you are looking for persistent, open-ended chats with
+> LLMs, it’s best to head to Claude, ChatGPT, Gemini - or your provider
+> of choice.
+
+So what type of tasks might we use the Completions API for?
+
+- Document classification, e.g. Sentiment Analysis
+- Translation
+- Structured data extraction
+
+#### Sentiment Analysis
+
+Whilst we would generally not recommend using OpenAI’s models for
+sentiment analysis, [¹](#fn1) it is a task most people are familiar
+with.
+
+We set up a very basic [²](#fn2) system prompt to tell the LLM what we
+want it to do with the text we send it:
+
+``` r
+system_prompt <- "Analyse the text's sentiment: "
+
+text <- "Oh man, I'm getting to the end of my limit with this thing. WHY DOESN'T IT JUST WORK?!?"
+```
+
+Then we can create our request and inspect it with {httr2}’s
+[`req_dry_run()`](https://httr2.r-lib.org/reference/req_dry_run.html)
+function - it’s good hygiene to check your request is formatted as you
+expect it to be, particularly when using it for the first time. For
+example, if you intend to have a system prompt, is there a {“role”:
+“system”} key:value pair inside the messages list? Is the value of
+“model”: a valid model ID? Etc.
+
+> **TIP**:You may need to familiarise yourself with the [OpenAI API
+> Documentation](https://platform.openai.com/docs/api-reference/introduction)
+> before proceeding.
+
+``` r
+sentiment_request <- oai_build_completions_request(
+  text,
+  system_prompt = system_prompt
+) 
+
+sentiment_request |>
+  req_dry_run()
+```
+
+Your generated HTTP request should look something like this:
+
+``` http
+POST /v1/chat/completions HTTP/1.1
+accept: */*
+accept-encoding: deflate, gzip
+authorization: 
+content-length: 247
+content-type: application/json
+host: api.openai.com
+user-agent: EndpointR
+
+{
+  "model": "gpt-4.1-nano",
+  "messages": [
+    {
+      "role": "system",
+      "content": "Analyse the text's sentiment: "
+    },
+    {
+      "role": "user",
+      "content": "Oh man, I'm getting to the end of my limit with this thing. WHY DOESN'T IT JUST WORK?!?"
+    }
+  ],
+  "temperature": 0,
+  "max_tokens": 500
+}
+```
+
+EndpointR (via {httr2}) handles the HTTP mechanics: authentication,
+request headers, and endpoint configuration. It then constructs the JSON
+payload with your specified model, system prompt, and user message,
+whilst setting sensible defaults for temperature [³](#fn3) and
+max_tokens [⁴](#fn4).
+
+For demonstrative purposes, we ran the same prompt with the same data
+three times (see below)
+
+``` r
+sentiment_response <- sentiment_request |> 
+  perform_request_or_return_error()
+```
+
+``` r
+sentiment_response |>
+  resp_check_status() |> 
+  resp_body_json() |> 
+  pluck("choices", 1, "message", "content")
+```
+
+First run:
+
+> “The sentiment of the text is frustrated and exasperated.”
+
+Second run:
+
+> “The sentiment of the text is quite negative. The speaker appears
+> frustrated and exasperated, expressing dissatisfaction with the
+> situation.”
+
+Third run:
+
+> ““The sentiment of the text is quite negative. The speaker appears
+> frustrated and exasperated, expressing dissatisfaction and impatience
+> with the situation.”
+
+Whilst the responses are directionally/approximately accurate, the
+inconsistent output can be very unpleasant to work with. When scaled to
+hundreds or thousands of requests, this inconsistency can be extremely
+draining, and productivity reducing.
+
+If we wanted the response to conform to the usual sentiment categories,
+we would need to write a custom parser to extract ‘negative’, ‘neutral’,
+or ‘positive’ from each output. Looking at the first output, it’s clear
+the parser would need to be reasonably sophisticated. Or we could send
+another request, asking our model to please output only ‘positive’,
+‘negative’, or ‘neutral’ [⁵](#fn5).
+
+Clearly this is more work than we should be willing to do. We’ll look at
+techniques for how to deal with this systematically, and achieve
+predictable outputs in the [Structured
+Outputs](#openai-structured-outputs) section.
+
+What does the model do when we hand it a text which is difficult for
+traditional, three-category [⁶](#fn6), document-level sentiment
+analysis?
+
+``` r
+ambiguous_text <- "The interface is brilliant but the performance is absolutely dreadful"
+
+ambiguous_sentiment <- oai_build_completions_request(
+  ambiguous_text,
+  system_prompt = system_prompt
+) |> 
+  perform_request_or_return_error() |> 
+  resp_body_json() |> 
+  pluck("choices", 1, "message", "content")
+```
+
+\[1\] “The sentiment of the text is mixed, with positive feelings
+expressed about the interface (”brilliant”) and negative feelings about
+the performance (“absolutely dreadful”).”
+
+The model is smart enough to recognise that the sentiment does not fit
+neatly into ‘positive’, ‘negative’, ‘neutral’ but once again the output
+is not formatted in a nice way for downstream use.
+
+#### Multiple Texts
+
+Individual requests will be useful for some applications but EndpointR
+was built to handle more, whilst taking care of implementation details
+like concurrent requests, retries, and failing gracefully.
+
+Let’s experiment with a better system prompt and a list of texts:
+
+``` r
+updated_sentiment_prompt <- "Classify the text into sentiment categories.
+The accepted categories are 'positive', 'negative', 'neutral', and 'mixed'.
+A 'mixed' text contains elements of positive and negative.
+"
+```
+
+``` r
+classical_texts <- c(
+ "It is a truth universally acknowledged, that a single man in possession of a good fortune, must be in want of a wife.",
+ "All happy families are alike; each unhappy family is unhappy in its own way.",
+ "It was the best of times, it was the worst of times.",
+ "Call me Ishmael.",
+ "The sun shone, having no alternative, on the nothing new.",
+ "All animals are equal, but some animals are more equal than others.",
+ "So we beat on, boats against the current, borne back ceaselessly into the past.",
+ "The heart was made to be broken.",
+ "Tomorrow, and tomorrow, and tomorrow, creeps in this petty pace from day to day.",
+ "I have always depended on the kindness of strangers."
+)
+```
+
+``` r
+classical_requests <- oai_build_completions_request_list(
+  classical_texts,
+  system_prompt = updated_sentiment_prompt
+)
+```
+
+When running this in testing, it took 8.5 seconds for the 10 requests if
+we send one at a time.
+
+``` r
+start_seq <- Sys.time()
+classical_responses  <- classical_requests |> 
+  perform_requests_with_strategy()
+end_seq <- Sys.time() - start_seq
+```
+
+And it took 1.8 seconds we send 10 requests in parallel - a ~4.7x speed
+up, showing there is some overhead cost in sending requests in
+parallel - i.e. we did not see a 10x speed increase for 10x requests.
+
+``` r
+start_par <- Sys.time()
+classical_responses  <- classical_requests |> 
+  perform_requests_with_strategy(concurrent_requests = 10)
+end_par <- Sys.time() - start_par
+```
+
+Now when we extract the content of the response, we can see [⁷](#fn7)
+that each response is a classification belonging to our classes - making
+our prompt slightly better helped us get to a better final result.
+However, if we were to repeat this over many texts - hundreds/thousands,
+it’s unlikely every single response would conform to our categories.
+Without further instruction, the models have a tendency to slightly
+change the output at unpredictable intervals.
+
+``` r
+classical_responses |> 
+  map(~ resp_body_json(.x) |> 
+        pluck("choices", 1, "message", "content") |> 
+        as_tibble()
+  ) |> 
+  list_rbind() |> 
+  mutate(text = classical_texts, .before = 1)
+```
+
+#### Data Frame of Texts
+
+``` r
+df_classical_texts <- tibble(
+  id = 1:10,
+  text = classical_texts
+)
+```
+
+We have a function
+[`oai_complete_df()`](https://jpcompartir.github.io/EndpointR/reference/oai_complete_df.md)
+which takes a data frame, an id variable, and a text variable as
+mandatory inputs, and returns a data frame with columns: `id_var`,
+`text+var`, `.error_msg`, `.error`, `.batch`.
+
+``` r
+oai_complete_df(df_classical_texts, 
+                text_var = text, 
+                id_var = id,
+                concurrent_requests = 5,
+                output_file = NULL # set this to write to a temporary file, useful for documentation and testing.
+                )
+```
+
+The
+[`oai_complete_df()`](https://jpcompartir.github.io/EndpointR/reference/oai_complete_df.md)
+function has a few knobs that you can turn to improve throughput, reduce
+memory usage, and increase the likelihood of a successful response. By
+default it will split your data frame into `chunk_size =` chunks. Each
+chunk is then processed in order, and a file is created to store the
+results of the previous batches. At the end of all chunks the results
+are retrieved from the file.
+
+This should help to reduce the likelihood you:
+
+1.  Lose the API responses of long-running calculations which fail
+    part-way through
+2.  Run out of memory as the responses list grows with the size of your
+    data frame.
+
+The function reports on progress as it happens, letting you know which
+chunk is being processed, e.g. 1/5, and a progress bar for the requests
+within that chunk. The function provides a summary of failures and
+successes directly in your console after each chunk, and at the end of
+all chunks.
+
+### OpenAI Structured Outputs
+
+The textual responses we get from LLM providers are difficult to deal
+with programmatically, because they make no guarantees on the form of
+the response. For example, if we ask the LLM to classify documents,
+sometimes it will give just the classification - ‘positive’, sometimes
+it will add some pre-amble ‘the document is positive’, and sometimes it
+will do something else entirely.
+
+For detailed information on creating JSON schemas for structured
+outputs, see
+[`vignette("structured_outputs_json_schema")`](https://jpcompartir.github.io/EndpointR/articles/structured_outputs_json_schema.md).
+
+## Anthropic
+
+TBC
+
+## Google
+
+TBC
+
+------------------------------------------------------------------------
+
+1.  using such powerful models is inelegant - much smaller, less costly
+    (time, energy, \$\$) models can do the job
+
+2.  Generally prompts should be more detailed than this, we’ll see why
+
+3.  lower values = less random output, max value is 2
+
+4.  Maximum tokens of the *output* request
+
+5.  or go to jail
+
+6.  positive, negative, neutral
+
+7.  at least when I ran this in testing

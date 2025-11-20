@@ -20,7 +20,7 @@
 
     <a class="navbar-brand me-2" href="../index.html">EndpointR</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="Released version">0.1.1</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="Released version">0.1.2</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -97,12 +97,13 @@ using Hugging Face’s inference services.</p>
 <span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://dplyr.tidyverse.org" class="external-link">dplyr</a></span><span class="op">)</span></span>
 <span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://httr2.r-lib.org" class="external-link">httr2</a></span><span class="op">)</span></span>
 <span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://tibble.tidyverse.org/" class="external-link">tibble</a></span><span class="op">)</span></span>
+<span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://github.com/apache/arrow/" class="external-link">arrow</a></span><span class="op">)</span></span>
 <span></span>
 <span><span class="va">my_data</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://tibble.tidyverse.org/reference/tibble.html" class="external-link">tibble</a></span><span class="op">(</span></span>
 <span>  id <span class="op">=</span> <span class="fl">1</span><span class="op">:</span><span class="fl">3</span>,</span>
 <span>  text <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span></span>
 <span>    <span class="st">"Machine learning is fascinating"</span>,</span>
-<span>    <span class="st">"I love working with embeddings"</span>, </span>
+<span>    <span class="st">"I love working with embeddings"</span>,</span>
 <span>    <span class="st">"Natural language processing is powerful"</span></span>
 <span>  <span class="op">)</span>,</span>
 <span>  category <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"ML"</span>, <span class="st">"embeddings"</span>, <span class="st">"NLP"</span><span class="op">)</span></span>
@@ -110,7 +111,7 @@ using Hugging Face’s inference services.</p>
 <p>Follow Hugging Face’s <a href="https://huggingface.co/docs/hub/security-tokens" class="external-link">docs</a> to
 generate a Hugging Face token, and then register it with EndpointR:</p>
 <div class="sourceCode" id="cb2"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="fu"><a href="../reference/set_api_key.html">set_api_key</a></span><span class="op">(</span><span class="st">"HF_TEST_API_KEY"</span><span class="op">)</span> </span></code></pre></div>
+<code class="sourceCode R"><span><span class="fu"><a href="../reference/set_api_key.html">set_api_key</a></span><span class="op">(</span><span class="st">"HF_TEST_API_KEY"</span><span class="op">)</span></span></code></pre></div>
 </div>
 <div class="section level2">
 <h2 id="choosing-your-service">Choosing Your Service<a class="anchor" aria-label="anchor" href="#choosing-your-service"></a>
@@ -136,13 +137,195 @@ need to deploy a <a href="https://huggingface.co/inference-endpoints/dedicated" 
 Inference Endpoint</a>.</p>
 </div>
 <div class="section level2">
+<h2 id="understanding-the-function-hierarchy">Understanding the Function Hierarchy<a class="anchor" aria-label="anchor" href="#understanding-the-function-hierarchy"></a>
+</h2>
+<p>EndpointR provides four levels of functions for working with Hugging
+Face endpoints.</p>
+<blockquote>
+<p><strong>KEY FEATURE</strong>: The <code>*_df()</code> and
+<code>*_chunks()</code> functions preserve your original column names.
+If you pass a data frame with columns named <code>review_id</code> and
+<code>review_text</code>, those exact names will appear in the output
+and in the saved <code>.parquet</code> files. This makes it easy to join
+results back to your original data.</p>
+</blockquote>
+<div class="section level3">
+<h3 id="single-text-functions">Single Text Functions<a class="anchor" aria-label="anchor" href="#single-text-functions"></a>
+</h3>
+<ul>
+<li>
+<code><a href="../reference/hf_embed_text.html">hf_embed_text()</a></code> - Embed a single text</li>
+<li>
+<code><a href="../reference/hf_classify_text.html">hf_classify_text()</a></code> - Classify a single text</li>
+</ul>
+<p>Use these for one-off requests or testing.</p>
+</div>
+<div class="section level3">
+<h3 id="batch-functions">Batch Functions<a class="anchor" aria-label="anchor" href="#batch-functions"></a>
+</h3>
+<ul>
+<li>
+<code><a href="../reference/hf_embed_batch.html">hf_embed_batch()</a></code> - Embed multiple texts in memory</li>
+<li>
+<code><a href="../reference/hf_classify_batch.html">hf_classify_batch()</a></code> - Classify multiple texts in
+memory</li>
+</ul>
+<p>Use these for small to medium datasets (&lt;5000 texts) that fit in
+memory. Results are returned as a single data frame.</p>
+</div>
+<div class="section level3">
+<h3 id="chunk-functions-new-in-v0-1-2">Chunk Functions (NEW in v0.1.2)<a class="anchor" aria-label="anchor" href="#chunk-functions-new-in-v0-1-2"></a>
+</h3>
+<ul>
+<li>
+<code><a href="../reference/hf_embed_chunks.html">hf_embed_chunks()</a></code> - Process large volumes with
+incremental file writing</li>
+<li>
+<code><a href="../reference/hf_classify_chunks.html">hf_classify_chunks()</a></code> - Process large volumes with
+incremental file writing</li>
+</ul>
+<p>Use these for large datasets (&gt;5000 texts). Results are written
+incrementally as <code>.parquet</code> files to avoid memory issues and
+provide safety against crashes.</p>
+</div>
+<div class="section level3">
+<h3 id="data-frame-functions">Data Frame Functions<a class="anchor" aria-label="anchor" href="#data-frame-functions"></a>
+</h3>
+<ul>
+<li>
+<code><a href="../reference/hf_embed_df.html">hf_embed_df()</a></code> - Convenience wrapper that calls
+<code><a href="../reference/hf_embed_chunks.html">hf_embed_chunks()</a></code>
+</li>
+<li>
+<code><a href="../reference/hf_classify_df.html">hf_classify_df()</a></code> - Convenience wrapper that calls
+<code><a href="../reference/hf_classify_chunks.html">hf_classify_chunks()</a></code>
+</li>
+</ul>
+<p><strong>Most users will use these.</strong> They handle extraction
+from data frames and call the chunk functions internally.</p>
+</div>
+<div class="section level3">
+<h3 id="choosing-the-right-function">Choosing the Right Function<a class="anchor" aria-label="anchor" href="#choosing-the-right-function"></a>
+</h3>
+<p>Use this decision tree:</p>
+<div class="sourceCode" id="cb3"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="co"># Single text? Use _text functions</span></span>
+<span><span class="kw">if</span> <span class="op">(</span><span class="va">n_texts</span> <span class="op">==</span> <span class="fl">1</span><span class="op">)</span> <span class="op">{</span></span>
+<span>  <span class="va">result</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/hf_embed_text.html">hf_embed_text</a></span><span class="op">(</span><span class="va">text</span>, <span class="va">endpoint_url</span>, <span class="va">key_name</span><span class="op">)</span></span>
+<span>  <span class="co"># or</span></span>
+<span>  <span class="va">result</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/hf_classify_text.html">hf_classify_text</a></span><span class="op">(</span><span class="va">text</span>, <span class="va">endpoint_url</span>, <span class="va">key_name</span><span class="op">)</span></span>
+<span><span class="op">}</span></span>
+<span></span>
+<span><span class="co"># Small batch (&lt;5000 texts) and want results in memory only?</span></span>
+<span><span class="kw">if</span> <span class="op">(</span><span class="va">n_texts</span> <span class="op">&lt;</span> <span class="fl">5000</span> <span class="op">&amp;&amp;</span> <span class="op">!</span><span class="va">need_file_output</span><span class="op">)</span> <span class="op">{</span></span>
+<span>  <span class="va">results</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/hf_embed_batch.html">hf_embed_batch</a></span><span class="op">(</span><span class="va">texts</span>, <span class="va">endpoint_url</span>, <span class="va">key_name</span>, batch_size <span class="op">=</span> <span class="fl">10</span><span class="op">)</span></span>
+<span>  <span class="co"># or</span></span>
+<span>  <span class="va">results</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/hf_classify_batch.html">hf_classify_batch</a></span><span class="op">(</span><span class="va">texts</span>, <span class="va">endpoint_url</span>, <span class="va">key_name</span>, batch_size <span class="op">=</span> <span class="fl">8</span><span class="op">)</span></span>
+<span><span class="op">}</span></span>
+<span></span>
+<span><span class="co"># Large dataset or want file output for safety?</span></span>
+<span><span class="co"># Use _df functions (they call _chunks internally)</span></span>
+<span><span class="kw">if</span> <span class="op">(</span><span class="va">n_texts</span> <span class="op">&gt;=</span> <span class="fl">5000</span> <span class="op">||</span> <span class="va">need_safety</span><span class="op">)</span> <span class="op">{</span></span>
+<span>  <span class="va">results</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/hf_embed_df.html">hf_embed_df</a></span><span class="op">(</span><span class="va">df</span>, <span class="va">text</span>, <span class="va">id</span>, <span class="va">endpoint_url</span>, <span class="va">key_name</span>,</span>
+<span>                         chunk_size <span class="op">=</span> <span class="fl">5000</span>, output_dir <span class="op">=</span> <span class="st">"my_results"</span><span class="op">)</span></span>
+<span>  <span class="co"># or</span></span>
+<span>  <span class="va">results</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/hf_classify_df.html">hf_classify_df</a></span><span class="op">(</span><span class="va">df</span>, <span class="va">text</span>, <span class="va">id</span>, <span class="va">endpoint_url</span>, <span class="va">key_name</span>,</span>
+<span>                            chunk_size <span class="op">=</span> <span class="fl">2500</span>, output_dir <span class="op">=</span> <span class="st">"my_results"</span>,</span>
+<span>                            max_length <span class="op">=</span> <span class="fl">512</span><span class="op">)</span></span>
+<span><span class="op">}</span></span></code></pre></div>
+<blockquote>
+<p><strong>Recommendation</strong>: For most production use cases, use
+<code>_df</code> functions even for smaller datasets. The safety of
+incremental file writing is worth it.</p>
+</blockquote>
+</div>
+</div>
+<div class="section level2">
+<h2 id="key-differences-embeddings-vs-classification">Key Differences: Embeddings vs Classification<a class="anchor" aria-label="anchor" href="#key-differences-embeddings-vs-classification"></a>
+</h2>
+<p>Understanding the differences between embedding and classification
+functions is crucial for effective use.</p>
+<div class="section level3">
+<h3 id="text-truncation-handling">Text Truncation Handling<a class="anchor" aria-label="anchor" href="#text-truncation-handling"></a>
+</h3>
+<p><strong>Embeddings</strong> (<code>hf_embed_*</code>):</p>
+<ul>
+<li>
+<strong>NO</strong> <code>max_length</code> parameter in the R
+functions</li>
+<li>Truncation is handled <strong>at the endpoint level</strong>
+</li>
+<li>For Dedicated Endpoints: Set <code>AUTO_TRUNCATE=true</code> in your
+endpoint’s environment variables</li>
+<li>For Inference API: Truncation is typically handled automatically by
+the model</li>
+<li>Uses TEI (Text Embeddings Inference) which only accepts
+<code>truncate</code>, not <code>truncation</code> or
+<code>max_length</code>
+</li>
+</ul>
+<p><strong>Classification</strong> (<code>hf_classify_*</code>):</p>
+<ul>
+<li>
+<strong>HAS</strong> <code>max_length</code> parameter (default:
+<code>512L</code>)</li>
+<li>Truncation is controlled <strong>in your R code</strong>
+</li>
+<li>Texts longer than <code>max_length</code> tokens are truncated
+before classification</li>
+<li>Uses standard inference parameters: <code>truncation=TRUE</code> and
+<code>max_length</code>
+</li>
+</ul>
+<div class="sourceCode" id="cb4"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="co"># Embeddings - NO max_length parameter</span></span>
+<span><span class="fu"><a href="../reference/hf_embed_df.html">hf_embed_df</a></span><span class="op">(</span></span>
+<span>  df <span class="op">=</span> <span class="va">my_data</span>,</span>
+<span>  text_var <span class="op">=</span> <span class="va">text</span>,</span>
+<span>  id_var <span class="op">=</span> <span class="va">id</span>,</span>
+<span>  endpoint_url <span class="op">=</span> <span class="va">embed_url</span>,</span>
+<span>  key_name <span class="op">=</span> <span class="st">"HF_API_KEY"</span></span>
+<span>  <span class="co"># max_length not available - set AUTO_TRUNCATE in endpoint settings</span></span>
+<span><span class="op">)</span></span>
+<span></span>
+<span><span class="co"># Classification - max_length IS available</span></span>
+<span><span class="fu"><a href="../reference/hf_classify_df.html">hf_classify_df</a></span><span class="op">(</span></span>
+<span>  df <span class="op">=</span> <span class="va">my_data</span>,</span>
+<span>  text_var <span class="op">=</span> <span class="va">text</span>,</span>
+<span>  id_var <span class="op">=</span> <span class="va">id</span>,</span>
+<span>  endpoint_url <span class="op">=</span> <span class="va">classify_url</span>,</span>
+<span>  key_name <span class="op">=</span> <span class="st">"HF_API_KEY"</span>,</span>
+<span>  max_length <span class="op">=</span> <span class="fl">512</span>  <span class="co"># Control truncation here</span></span>
+<span><span class="op">)</span></span></code></pre></div>
+</div>
+<div class="section level3">
+<h3 id="inference-parameters-sent-to-api">Inference Parameters Sent to API<a class="anchor" aria-label="anchor" href="#inference-parameters-sent-to-api"></a>
+</h3>
+<p>The functions send different parameters to the Hugging Face API:</p>
+<p><strong>Embeddings</strong>:</p>
+<div class="sourceCode" id="cb5"><pre class="sourceCode json"><code class="sourceCode json"><span id="cb5-1"><a href="#cb5-1" tabindex="-1"></a><span class="fu">{</span></span>
+<span id="cb5-2"><a href="#cb5-2" tabindex="-1"></a>  <span class="dt">"truncate"</span><span class="fu">:</span> <span class="kw">true</span></span>
+<span id="cb5-3"><a href="#cb5-3" tabindex="-1"></a><span class="fu">}</span></span></code></pre></div>
+<p><strong>Classification</strong>:</p>
+<div class="sourceCode" id="cb6"><pre class="sourceCode json"><code class="sourceCode json"><span id="cb6-1"><a href="#cb6-1" tabindex="-1"></a><span class="fu">{</span></span>
+<span id="cb6-2"><a href="#cb6-2" tabindex="-1"></a>  <span class="dt">"return_all_scores"</span><span class="fu">:</span> <span class="kw">true</span><span class="fu">,</span></span>
+<span id="cb6-3"><a href="#cb6-3" tabindex="-1"></a>  <span class="dt">"truncation"</span><span class="fu">:</span> <span class="kw">true</span><span class="fu">,</span></span>
+<span id="cb6-4"><a href="#cb6-4" tabindex="-1"></a>  <span class="dt">"max_length"</span><span class="fu">:</span> <span class="dv">512</span></span>
+<span id="cb6-5"><a href="#cb6-5" tabindex="-1"></a><span class="fu">}</span></span></code></pre></div>
+<p>These differences are handled automatically - you don’t need to worry
+about them unless you’re debugging API issues. Check
+<code>metadata.json</code> (see below) to see what parameters were
+used.</p>
+</div>
+</div>
+<div class="section level2">
 <h2 id="embeddings">Embeddings<a class="anchor" aria-label="anchor" href="#embeddings"></a>
 </h2>
 <div class="section level3">
 <h3 id="single-text">Single Text<a class="anchor" aria-label="anchor" href="#single-text"></a>
 </h3>
 <p>Embed one piece of text:</p>
-<div class="sourceCode" id="cb3"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb7"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="co"># inference api url for embeddings</span></span>
 <span><span class="va">embed_url</span> <span class="op">&lt;-</span> <span class="st">"https://router.huggingface.co/hf-inference/models/sentence-transformers/all-mpnet-base-v2/pipeline/feature-extraction"</span></span>
 <span></span>
@@ -162,7 +345,7 @@ Check the model’s Hugging Face page for its embedding size.</p>
 <h3 id="list-of-texts">List of Texts<a class="anchor" aria-label="anchor" href="#list-of-texts"></a>
 </h3>
 <p>Embed multiple texts at once using batching:</p>
-<div class="sourceCode" id="cb4"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb8"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">texts</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span></span>
 <span>  <span class="st">"First text to embed"</span>,</span>
 <span>  <span class="st">"Second text to embed"</span>,</span>
@@ -188,35 +371,149 @@ Check the model’s Hugging Face page for its embedding size.</p>
 </ul>
 </div>
 <div class="section level3">
-<h3 id="data-frame">Data Frame<a class="anchor" aria-label="anchor" href="#data-frame"></a>
+<h3 id="processing-data-frames-with-chunk-writing">Processing Data Frames with Chunk Writing<a class="anchor" aria-label="anchor" href="#processing-data-frames-with-chunk-writing"></a>
 </h3>
-<p>Most commonly, you’ll want to embed a column in a data frame:</p>
-<div class="sourceCode" id="cb5"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="va">embedding_result</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/hf_embed_df.html">hf_embed_df</a></span><span class="op">(</span></span>
+<p>Most commonly, you’ll want to embed a column in a data frame. The
+<code><a href="../reference/hf_embed_df.html">hf_embed_df()</a></code> function processes data in chunks and writes
+intermediate results to disk.</p>
+<div class="section level4">
+<h4 id="understanding-output_dir">Understanding output_dir<a class="anchor" aria-label="anchor" href="#understanding-output_dir"></a>
+</h4>
+<p>Both <code><a href="../reference/hf_embed_df.html">hf_embed_df()</a></code> and <code><a href="../reference/hf_classify_df.html">hf_classify_df()</a></code>
+write intermediate results to disk as <code>.parquet</code> files. This
+provides:</p>
+<ol style="list-style-type: decimal">
+<li>
+<strong>Safety</strong>: If your job crashes, you don’t lose all
+progress</li>
+<li>
+<strong>Memory efficiency</strong>: Large datasets don’t overwhelm
+your RAM</li>
+<li>
+<strong>Reproducibility</strong>: Metadata tracks exactly what
+parameters you used</li>
+</ol>
+<div class="sourceCode" id="cb9"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="co"># Basic usage - auto-generates output directory</span></span>
+<span><span class="va">embedding_result</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/hf_embed_df.html">hf_embed_df</a></span><span class="op">(</span></span>
 <span>  df <span class="op">=</span> <span class="va">my_data</span>,</span>
 <span>  text_var <span class="op">=</span> <span class="va">text</span>,      <span class="co"># column with your text</span></span>
 <span>  id_var <span class="op">=</span> <span class="va">id</span>,          <span class="co"># column with unique ids</span></span>
 <span>  endpoint_url <span class="op">=</span> <span class="va">embed_url</span>,</span>
-<span>  key_name <span class="op">=</span> <span class="st">"HF_API_KEY"</span></span>
+<span>  key_name <span class="op">=</span> <span class="st">"HF_API_KEY"</span>,</span>
+<span>  output_dir <span class="op">=</span> <span class="st">"auto"</span>,  <span class="co"># Creates "hf_embeddings_batch_TIMESTAMP"</span></span>
+<span>  chunk_size <span class="op">=</span> <span class="fl">5000</span>,    <span class="co"># Writes every 5000 rows</span></span>
+<span>  concurrent_requests <span class="op">=</span> <span class="fl">2</span></span>
+<span><span class="op">)</span></span>
+<span></span>
+<span><span class="co"># Custom output directory</span></span>
+<span><span class="va">embedding_result</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/hf_embed_df.html">hf_embed_df</a></span><span class="op">(</span></span>
+<span>  df <span class="op">=</span> <span class="va">my_data</span>,</span>
+<span>  text_var <span class="op">=</span> <span class="va">text</span>,</span>
+<span>  id_var <span class="op">=</span> <span class="va">id</span>,</span>
+<span>  endpoint_url <span class="op">=</span> <span class="va">embed_url</span>,</span>
+<span>  key_name <span class="op">=</span> <span class="st">"HF_API_KEY"</span>,</span>
+<span>  output_dir <span class="op">=</span> <span class="st">"my_embeddings_v1"</span>,  <span class="co"># Your custom directory name</span></span>
+<span>  chunk_size <span class="op">=</span> <span class="fl">5000</span></span>
 <span><span class="op">)</span></span></code></pre></div>
-<p>Check for errors:</p>
-<div class="sourceCode" id="cb6"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="va">embedding_result</span> <span class="op">|&gt;</span> <span class="fu"><a href="https://dplyr.tidyverse.org/reference/count.html" class="external-link">count</a></span><span class="op">(</span><span class="va">.error</span><span class="op">)</span></span></code></pre></div>
-<p>Extract just the embeddings:</p>
-<div class="sourceCode" id="cb7"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="va">embeddings_only</span> <span class="op">&lt;-</span> <span class="va">embedding_result</span> <span class="op">|&gt;</span> <span class="fu"><a href="https://dplyr.tidyverse.org/reference/select.html" class="external-link">select</a></span><span class="op">(</span><span class="va">V1</span><span class="op">:</span><span class="va">V384</span><span class="op">)</span></span></code></pre></div>
+</div>
+<div class="section level4">
+<h4 id="output-directory-structure">Output Directory Structure<a class="anchor" aria-label="anchor" href="#output-directory-structure"></a>
+</h4>
+<p>After running <code><a href="../reference/hf_embed_df.html">hf_embed_df()</a></code> or
+<code><a href="../reference/hf_classify_df.html">hf_classify_df()</a></code>, you’ll have:</p>
+<pre><code>my_embeddings_v1/
+├── chunk_001.parquet
+├── chunk_002.parquet
+├── chunk_003.parquet
+└── metadata.json</code></pre>
+<p><strong>IMPORTANT</strong>: Add your output directories to
+<code>.gitignore</code>! These files contain API responses and can be
+large.</p>
+<div class="sourceCode" id="cb11"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb11-1"><a href="#cb11-1" tabindex="-1"></a><span class="co"># .gitignore</span></span>
+<span id="cb11-2"><a href="#cb11-2" tabindex="-1"></a>hf_embeddings_batch_<span class="sc">*</span><span class="er">/</span></span>
+<span id="cb11-3"><a href="#cb11-3" tabindex="-1"></a>hf_classification_chunks_<span class="sc">*</span><span class="er">/</span></span>
+<span id="cb11-4"><a href="#cb11-4" tabindex="-1"></a>my_embeddings_v1<span class="sc">/</span></span></code></pre></div>
+</div>
+<div class="section level4">
+<h4 id="reading-results-from-disk">Reading Results from Disk<a class="anchor" aria-label="anchor" href="#reading-results-from-disk"></a>
+</h4>
+<p>If your R session crashes or you want to reload results later:</p>
+<div class="sourceCode" id="cb12"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="co"># List all parquet files (excludes metadata.json automatically)</span></span>
+<span><span class="va">parquet_files</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/list.files.html" class="external-link">list.files</a></span><span class="op">(</span><span class="st">"my_embeddings_v1"</span>,</span>
+<span>                           pattern <span class="op">=</span> <span class="st">"\\.parquet$"</span>,</span>
+<span>                           full.names <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span></span>
+<span></span>
+<span><span class="co"># Read all chunks into a single data frame</span></span>
+<span><span class="va">results</span> <span class="op">&lt;-</span> <span class="fu">arrow</span><span class="fu">::</span><span class="fu"><a href="https://arrow.apache.org/docs/r/reference/open_dataset.html" class="external-link">open_dataset</a></span><span class="op">(</span><span class="va">parquet_files</span>, format <span class="op">=</span> <span class="st">"parquet"</span><span class="op">)</span> <span class="op">|&gt;</span></span>
+<span>  <span class="fu">dplyr</span><span class="fu">::</span><span class="fu"><a href="https://dplyr.tidyverse.org/reference/compute.html" class="external-link">collect</a></span><span class="op">(</span><span class="op">)</span></span>
+<span></span>
+<span><span class="co"># Check for any errors</span></span>
+<span><span class="va">results</span> <span class="op">|&gt;</span> <span class="fu"><a href="https://dplyr.tidyverse.org/reference/count.html" class="external-link">count</a></span><span class="op">(</span><span class="va">.error</span><span class="op">)</span></span>
+<span></span>
+<span><span class="co"># Extract only successful embeddings</span></span>
+<span><span class="va">successful</span> <span class="op">&lt;-</span> <span class="va">results</span> <span class="op">|&gt;</span> <span class="fu"><a href="https://dplyr.tidyverse.org/reference/filter.html" class="external-link">filter</a></span><span class="op">(</span><span class="va">.error</span> <span class="op">==</span> <span class="cn">FALSE</span><span class="op">)</span></span></code></pre></div>
+</div>
+<div class="section level4">
+<h4 id="understanding-metadata-json">Understanding metadata.json<a class="anchor" aria-label="anchor" href="#understanding-metadata-json"></a>
+</h4>
+<p>The metadata file records everything about your processing job:</p>
+<div class="sourceCode" id="cb13"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">metadata</span> <span class="op">&lt;-</span> <span class="fu">jsonlite</span><span class="fu">::</span><span class="fu"><a href="https://jeroen.r-universe.dev/jsonlite/reference/read_json.html" class="external-link">read_json</a></span><span class="op">(</span><span class="st">"my_embeddings_v1/metadata.json"</span><span class="op">)</span></span>
+<span></span>
+<span><span class="co"># Check which endpoint was used</span></span>
+<span><span class="va">metadata</span><span class="op">$</span><span class="va">endpoint_url</span></span>
+<span></span>
+<span><span class="co"># See processing parameters</span></span>
+<span><span class="va">metadata</span><span class="op">$</span><span class="va">chunk_size</span></span>
+<span><span class="va">metadata</span><span class="op">$</span><span class="va">concurrent_requests</span></span>
+<span><span class="va">metadata</span><span class="op">$</span><span class="va">timeout</span></span>
+<span></span>
+<span><span class="co"># See inference parameters (differs between embed and classify!)</span></span>
+<span><span class="va">metadata</span><span class="op">$</span><span class="va">inference_parameters</span></span>
+<span><span class="co"># For embeddings: {truncate: true}</span></span>
+<span><span class="co"># For classification: {return_all_scores: true, truncation: true, max_length: 512}</span></span>
+<span></span>
+<span><span class="co"># Check when the job ran</span></span>
+<span><span class="va">metadata</span><span class="op">$</span><span class="va">timestamp</span></span></code></pre></div>
+<p>This metadata is invaluable for:</p>
+<ul>
+<li>Debugging why a job failed</li>
+<li>Reproducing results with identical settings</li>
+<li>Tracking which model/endpoint version was used</li>
+<li>Understanding performance characteristics</li>
+</ul>
+</div>
+<div class="section level4">
+<h4 id="check-for-errors">Check for Errors<a class="anchor" aria-label="anchor" href="#check-for-errors"></a>
+</h4>
+<p>Always verify your results:</p>
+<div class="sourceCode" id="cb14"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">embedding_result</span> <span class="op">|&gt;</span> <span class="fu"><a href="https://dplyr.tidyverse.org/reference/count.html" class="external-link">count</a></span><span class="op">(</span><span class="va">.error</span><span class="op">)</span></span>
+<span></span>
+<span><span class="co"># View any failures (column names match your original data frame)</span></span>
+<span><span class="va">failures</span> <span class="op">&lt;-</span> <span class="va">embedding_result</span> <span class="op">|&gt;</span></span>
+<span>  <span class="fu"><a href="https://dplyr.tidyverse.org/reference/filter.html" class="external-link">filter</a></span><span class="op">(</span><span class="va">.error</span> <span class="op">==</span> <span class="cn">TRUE</span><span class="op">)</span> <span class="op">|&gt;</span></span>
+<span>  <span class="fu"><a href="https://dplyr.tidyverse.org/reference/select.html" class="external-link">select</a></span><span class="op">(</span><span class="va">id</span>, <span class="va">.error_message</span><span class="op">)</span></span>
+<span></span>
+<span><span class="co"># Extract just the embeddings for successful rows</span></span>
+<span><span class="va">embeddings_only</span> <span class="op">&lt;-</span> <span class="va">embedding_result</span> <span class="op">|&gt;</span></span>
+<span>  <span class="fu"><a href="https://dplyr.tidyverse.org/reference/filter.html" class="external-link">filter</a></span><span class="op">(</span><span class="va">.error</span> <span class="op">==</span> <span class="cn">FALSE</span><span class="op">)</span> <span class="op">|&gt;</span></span>
+<span>  <span class="fu"><a href="https://dplyr.tidyverse.org/reference/select.html" class="external-link">select</a></span><span class="op">(</span><span class="fu"><a href="https://tidyselect.r-lib.org/reference/starts_with.html" class="external-link">starts_with</a></span><span class="op">(</span><span class="st">"V"</span><span class="op">)</span><span class="op">)</span></span></code></pre></div>
+</div>
 </div>
 </div>
 <div class="section level2">
 <h2 id="classification">Classification<a class="anchor" aria-label="anchor" href="#classification"></a>
 </h2>
-<p>Classification works the same way as embeddings, just with a
-different URL and output format. If neceessary, you can also provide a
-custom function for tidying the output.</p>
+<p>Classification works similarly to embeddings, but with a different
+URL, output format, and the additional <code>max_length</code> parameter
+for controlling text truncation.</p>
 <div class="section level3">
 <h3 id="single-text-1">Single Text<a class="anchor" aria-label="anchor" href="#single-text-1"></a>
 </h3>
-<div class="sourceCode" id="cb8"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb15"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">classify_url</span> <span class="op">&lt;-</span> <span class="st">"https://router.huggingface.co/hf-inference/models/distilbert/distilbert-base-uncased-finetuned-sst-2-english"</span></span>
 <span></span>
 <span><span class="va">sentiment</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/hf_classify_text.html">hf_classify_text</a></span><span class="op">(</span></span>
@@ -226,27 +523,117 @@ custom function for tidying the output.</p>
 <span><span class="op">)</span></span></code></pre></div>
 </div>
 <div class="section level3">
-<h3 id="data-frame-1">Data Frame<a class="anchor" aria-label="anchor" href="#data-frame-1"></a>
+<h3 id="processing-data-frames">Processing Data Frames<a class="anchor" aria-label="anchor" href="#processing-data-frames"></a>
 </h3>
-<div class="sourceCode" id="cb9"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb16"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">classification_result</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/hf_classify_df.html">hf_classify_df</a></span><span class="op">(</span></span>
 <span>  df <span class="op">=</span> <span class="va">my_data</span>,</span>
 <span>  text_var <span class="op">=</span> <span class="va">text</span>,</span>
 <span>  id_var <span class="op">=</span> <span class="va">id</span>,</span>
 <span>  endpoint_url <span class="op">=</span> <span class="va">classify_url</span>,</span>
-<span>  key_name <span class="op">=</span> <span class="st">"HF_API_KEY"</span></span>
+<span>  key_name <span class="op">=</span> <span class="st">"HF_API_KEY"</span>,</span>
+<span>  max_length <span class="op">=</span> <span class="fl">512</span>,  <span class="co"># Truncate texts longer than 512 tokens</span></span>
+<span>  output_dir <span class="op">=</span> <span class="st">"my_classification_v1"</span>,</span>
+<span>  chunk_size <span class="op">=</span> <span class="fl">2500</span>,  <span class="co"># Smaller chunks for classification</span></span>
+<span>  concurrent_requests <span class="op">=</span> <span class="fl">1</span>,</span>
+<span>  timeout <span class="op">=</span> <span class="fl">60</span>  <span class="co"># Longer timeout for classification</span></span>
 <span><span class="op">)</span></span></code></pre></div>
 <p>The result includes:</p>
 <ul>
-<li>Your original <code>id</code> column</li>
+<li>Your original ID and text columns (with their original names
+preserved)</li>
 <li>Classification labels (e.g., POSITIVE, NEGATIVE)</li>
 <li>Confidence scores</li>
-<li>Error tracking columns.</li>
+<li>Error tracking columns (<code>.error</code>,
+<code>.error_message</code>)</li>
+<li>Chunk tracking (<code>.chunk</code>)</li>
 </ul>
 <blockquote>
 <p><strong>NOTE</strong>: Classification labels are model and task
-specific.</p>
+specific. Check the model card on Hugging Face for label mappings.</p>
 </blockquote>
+<blockquote>
+<p><strong>IMPORTANT</strong>: The function preserves your original
+column names. If your data frame has <code>review_id</code> and
+<code>review_text</code>, those names will appear in the output, not
+generic <code>id</code> and <code>text</code>.</p>
+</blockquote>
+</div>
+<div class="section level3">
+<h3 id="renaming-classification-labels">Renaming Classification Labels<a class="anchor" aria-label="anchor" href="#renaming-classification-labels"></a>
+</h3>
+<p>Many classification models use generic labels like
+<code>LABEL_0</code>, <code>LABEL_1</code>. You can rename these:</p>
+<div class="sourceCode" id="cb17"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="co"># Create a mapping function</span></span>
+<span><span class="va">labelid_2class</span> <span class="op">&lt;-</span> <span class="kw">function</span><span class="op">(</span><span class="op">)</span> <span class="op">{</span></span>
+<span>  <span class="kw"><a href="https://rdrr.io/r/base/function.html" class="external-link">return</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span></span>
+<span>    negative <span class="op">=</span> <span class="st">"LABEL_0"</span>,</span>
+<span>    neutral <span class="op">=</span> <span class="st">"LABEL_1"</span>,</span>
+<span>    positive <span class="op">=</span> <span class="st">"LABEL_2"</span></span>
+<span>  <span class="op">)</span><span class="op">)</span></span>
+<span><span class="op">}</span></span>
+<span></span>
+<span><span class="co"># Apply the mapping</span></span>
+<span><span class="va">classification_result</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/hf_classify_df.html">hf_classify_df</a></span><span class="op">(</span></span>
+<span>  df <span class="op">=</span> <span class="va">my_data</span>,</span>
+<span>  text_var <span class="op">=</span> <span class="va">text</span>,</span>
+<span>  id_var <span class="op">=</span> <span class="va">id</span>,</span>
+<span>  endpoint_url <span class="op">=</span> <span class="va">classify_url</span>,</span>
+<span>  key_name <span class="op">=</span> <span class="st">"HF_API_KEY"</span>,</span>
+<span>  max_length <span class="op">=</span> <span class="fl">512</span></span>
+<span><span class="op">)</span> <span class="op">|&gt;</span></span>
+<span>  <span class="fu">dplyr</span><span class="fu">::</span><span class="fu"><a href="https://dplyr.tidyverse.org/reference/rename.html" class="external-link">rename</a></span><span class="op">(</span><span class="op">!</span><span class="op">!</span><span class="op">!</span><span class="fu">labelid_2class</span><span class="op">(</span><span class="op">)</span><span class="op">)</span></span></code></pre></div>
+</div>
+</div>
+<div class="section level2">
+<h2 id="utility-functions">Utility Functions<a class="anchor" aria-label="anchor" href="#utility-functions"></a>
+</h2>
+<p>EndpointR provides utility functions to help you work with Hugging
+Face endpoints.</p>
+<div class="section level3">
+<h3 id="get-model-token-limits">Get Model Token Limits<a class="anchor" aria-label="anchor" href="#get-model-token-limits"></a>
+</h3>
+<p>Find out the maximum token length for a model:</p>
+<div class="sourceCode" id="cb18"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="co"># Get the model's max token length from Hugging Face</span></span>
+<span><span class="va">max_tokens</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/hf_get_model_max_length.html">hf_get_model_max_length</a></span><span class="op">(</span></span>
+<span>  model_name <span class="op">=</span> <span class="st">"cardiffnlp/twitter-roberta-base-sentiment"</span>,</span>
+<span>  api_key <span class="op">=</span> <span class="st">"HF_API_KEY"</span></span>
+<span><span class="op">)</span></span>
+<span></span>
+<span><span class="co"># Use this to set max_length for classification</span></span>
+<span><span class="fu"><a href="../reference/hf_classify_df.html">hf_classify_df</a></span><span class="op">(</span></span>
+<span>  df <span class="op">=</span> <span class="va">my_data</span>,</span>
+<span>  text_var <span class="op">=</span> <span class="va">text</span>,</span>
+<span>  id_var <span class="op">=</span> <span class="va">id</span>,</span>
+<span>  endpoint_url <span class="op">=</span> <span class="va">classify_url</span>,</span>
+<span>  key_name <span class="op">=</span> <span class="st">"HF_API_KEY"</span>,</span>
+<span>  max_length <span class="op">=</span> <span class="va">max_tokens</span>  <span class="co"># Use the model's actual limit</span></span>
+<span><span class="op">)</span></span></code></pre></div>
+<p>This is especially useful when working with different models that
+have varying token limits (e.g., 512, 1024, 2048).</p>
+</div>
+<div class="section level3">
+<h3 id="get-endpoint-information">Get Endpoint Information<a class="anchor" aria-label="anchor" href="#get-endpoint-information"></a>
+</h3>
+<p>Retrieve detailed information about your Dedicated Inference
+Endpoint:</p>
+<div class="sourceCode" id="cb19"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">endpoint_info</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/hf_get_endpoint_info.html">hf_get_endpoint_info</a></span><span class="op">(</span></span>
+<span>  endpoint_url <span class="op">=</span> <span class="st">"https://your-endpoint.endpoints.huggingface.cloud"</span>,</span>
+<span>  key_name <span class="op">=</span> <span class="st">"HF_API_KEY"</span></span>
+<span><span class="op">)</span></span>
+<span></span>
+<span><span class="co"># Check endpoint configuration</span></span>
+<span><span class="va">endpoint_info</span></span></code></pre></div>
+<p>This is useful for:</p>
+<ul>
+<li>Checking endpoint status</li>
+<li>Verifying model configuration</li>
+<li>Understanding available features</li>
+<li>Debugging connection issues</li>
+</ul>
 </div>
 </div>
 <div class="section level2">
@@ -254,12 +641,12 @@ specific.</p>
 </h2>
 <p>To use dedicated endpoints instead of the Inference API:</p>
 <ol style="list-style-type: decimal">
-<li>Deploy your model to a dedicated endpoint (see Hugging Face
-docs)</li>
+<li>Deploy your model to a dedicated endpoint (see <a href="https://huggingface.co/docs/inference-endpoints" class="external-link">Hugging Face
+docs</a>)</li>
 <li>Get your endpoint URL</li>
 <li>Replace the URL in any function:</li>
 </ol>
-<div class="sourceCode" id="cb10"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb20"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="co"># just change this line</span></span>
 <span><span class="va">dedicated_url</span> <span class="op">&lt;-</span> <span class="st">"https://your-endpoint-name.endpoints.huggingface.cloud"</span></span>
 <span></span>
@@ -271,38 +658,313 @@ docs)</li>
 <span><span class="op">)</span></span></code></pre></div>
 <blockquote>
 <p><strong>Note</strong>: Dedicated endpoints take 20-30 seconds to
-start if they’re idle. Set <code>max_retries = 5</code> to give them
-time to wake up.</p>
+start if they’re idle (cold start). Set <code>max_retries = 10</code> to
+give them time to wake up.</p>
 </blockquote>
+<div class="section level3">
+<h3 id="setting-auto_truncate-for-embedding-endpoints">Setting AUTO_TRUNCATE for Embedding Endpoints<a class="anchor" aria-label="anchor" href="#setting-auto_truncate-for-embedding-endpoints"></a>
+</h3>
+<p>For Dedicated Inference Endpoints running embedding models, you
+should enable automatic truncation:</p>
+<ol style="list-style-type: decimal">
+<li>In your endpoint settings on Hugging Face</li>
+<li>Add environment variable: <code>AUTO_TRUNCATE=true</code>
+</li>
+<li>This handles long texts automatically at the endpoint level</li>
+</ol>
+<p>Without this, very long texts may cause “Payload too large”
+errors.</p>
+</div>
 </div>
 <div class="section level2">
-<h2 id="tips">Tips<a class="anchor" aria-label="anchor" href="#tips"></a>
+<h2 id="tips-and-best-practices">Tips and Best Practices<a class="anchor" aria-label="anchor" href="#tips-and-best-practices"></a>
 </h2>
+<div class="section level3">
+<h3 id="performance-tuning">Performance Tuning<a class="anchor" aria-label="anchor" href="#performance-tuning"></a>
+</h3>
 <ul>
-<li>Start with small batch sizes (3-5) and increase gradually</li>
-<li>The Inference API has rate limits - dedicated endpoints have
-hardware constraints, increase hardware for higher limits</li>
-<li>For production use, choose dedicated endpoints</li>
-<li>Check the <a href="improving_performance.html">Improving
-Performance</a> vignette for speed tips</li>
+<li>
+<strong>Start conservative</strong>: Begin with
+<code>chunk_size = 2500</code> and
+<code>concurrent_requests = 1</code>
+</li>
+<li>
+<strong>Scale gradually</strong>: Monitor for errors as you increase
+concurrency</li>
+<li>
+<strong>Embeddings are faster</strong>: You can often use higher
+concurrency for embeddings than classification</li>
+<li>
+<strong>Watch your rate limits</strong>:
+<ul>
+<li>Inference API: Shared limits, reduce concurrency if you hit
+errors</li>
+<li>Dedicated Endpoints: Limited by hardware, not API rate limits</li>
 </ul>
+</li>
+</ul>
+</div>
+<div class="section level3">
+<h3 id="memory-management">Memory Management<a class="anchor" aria-label="anchor" href="#memory-management"></a>
+</h3>
+<ul>
+<li>Use <code>chunk_size</code> to control memory usage</li>
+<li>Smaller chunks = more frequent disk writes = less memory needed</li>
+<li>For very large datasets (&gt;100k rows), use
+<code>chunk_size = 1000-2500</code>
+</li>
+</ul>
+<div class="sourceCode" id="cb21"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="co"># For very large datasets</span></span>
+<span><span class="fu"><a href="../reference/hf_embed_df.html">hf_embed_df</a></span><span class="op">(</span></span>
+<span>  df <span class="op">=</span> <span class="va">large_data</span>,</span>
+<span>  text_var <span class="op">=</span> <span class="va">text</span>,</span>
+<span>  id_var <span class="op">=</span> <span class="va">id</span>,</span>
+<span>  endpoint_url <span class="op">=</span> <span class="va">embed_url</span>,</span>
+<span>  key_name <span class="op">=</span> <span class="st">"HF_API_KEY"</span>,</span>
+<span>  chunk_size <span class="op">=</span> <span class="fl">1000</span>,  <span class="co"># Smaller chunks for memory efficiency</span></span>
+<span>  concurrent_requests <span class="op">=</span> <span class="fl">1</span></span>
+<span><span class="op">)</span></span></code></pre></div>
+</div>
+<div class="section level3">
+<h3 id="truncation-strategy">Truncation Strategy<a class="anchor" aria-label="anchor" href="#truncation-strategy"></a>
+</h3>
+<p><strong>For Embeddings</strong>:</p>
+<ol style="list-style-type: decimal">
+<li>Set <code>AUTO_TRUNCATE=true</code> in your Dedicated Endpoint’s
+environment variables</li>
+<li>For Inference API, truncation is handled automatically by most
+models</li>
+<li>Consider preprocessing very long texts before embedding (e.g., take
+first N characters)</li>
+</ol>
+<p><strong>For Classification</strong>:</p>
+<ol style="list-style-type: decimal">
+<li>Use <code><a href="../reference/hf_get_model_max_length.html">hf_get_model_max_length()</a></code> to check the model’s
+token limit</li>
+<li>Set <code>max_length</code> appropriately (default 512 works for
+most models)</li>
+<li>For documents longer than <code>max_length</code>, consider:
+<ul>
+<li>Chunking documents and classifying each chunk</li>
+<li>Summarization before classification</li>
+<li>Using models with longer context windows</li>
+</ul>
+</li>
+</ol>
+<div class="sourceCode" id="cb22"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="co"># Get model's actual max length</span></span>
+<span><span class="va">model_limit</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/hf_get_model_max_length.html">hf_get_model_max_length</a></span><span class="op">(</span></span>
+<span>  model_name <span class="op">=</span> <span class="st">"distilbert/distilbert-base-uncased-finetuned-sst-2-english"</span>,</span>
+<span>  api_key <span class="op">=</span> <span class="st">"HF_API_KEY"</span></span>
+<span><span class="op">)</span></span>
+<span></span>
+<span><span class="co"># Use 90% of the limit to be safe</span></span>
+<span><span class="va">safe_limit</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/integer.html" class="external-link">as.integer</a></span><span class="op">(</span><span class="va">model_limit</span> <span class="op">*</span> <span class="fl">0.9</span><span class="op">)</span></span>
+<span></span>
+<span><span class="fu"><a href="../reference/hf_classify_df.html">hf_classify_df</a></span><span class="op">(</span></span>
+<span>  df <span class="op">=</span> <span class="va">my_data</span>,</span>
+<span>  text_var <span class="op">=</span> <span class="va">text</span>,</span>
+<span>  id_var <span class="op">=</span> <span class="va">id</span>,</span>
+<span>  endpoint_url <span class="op">=</span> <span class="va">classify_url</span>,</span>
+<span>  key_name <span class="op">=</span> <span class="st">"HF_API_KEY"</span>,</span>
+<span>  max_length <span class="op">=</span> <span class="va">safe_limit</span></span>
+<span><span class="op">)</span></span></code></pre></div>
+</div>
+<div class="section level3">
+<h3 id="error-recovery">Error Recovery<a class="anchor" aria-label="anchor" href="#error-recovery"></a>
+</h3>
+<p>Always check for errors and consider retrying failures:</p>
+<div class="sourceCode" id="cb23"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="co"># Check results for errors</span></span>
+<span><span class="va">results</span> <span class="op">|&gt;</span> <span class="fu"><a href="https://dplyr.tidyverse.org/reference/count.html" class="external-link">count</a></span><span class="op">(</span><span class="va">.error</span><span class="op">)</span></span>
+<span></span>
+<span><span class="co"># Identify failed texts (column names match your input data frame)</span></span>
+<span><span class="va">failed</span> <span class="op">&lt;-</span> <span class="va">results</span> <span class="op">|&gt;</span> <span class="fu"><a href="https://dplyr.tidyverse.org/reference/filter.html" class="external-link">filter</a></span><span class="op">(</span><span class="va">.error</span> <span class="op">==</span> <span class="cn">TRUE</span><span class="op">)</span></span>
+<span></span>
+<span><span class="co"># Note: Column names below will match your original data frame</span></span>
+<span><span class="co"># If you used review_id and review_text, use those names instead</span></span>
+<span><span class="va">failed</span> <span class="op">|&gt;</span> <span class="fu"><a href="https://dplyr.tidyverse.org/reference/select.html" class="external-link">select</a></span><span class="op">(</span><span class="va">id</span>, <span class="va">.error_msg</span><span class="op">)</span></span>
+<span></span>
+<span><span class="co"># Retry failed texts with adjusted parameters</span></span>
+<span><span class="co"># Access text column by its actual name from your data</span></span>
+<span><span class="va">retry_results</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/hf_embed_batch.html">hf_embed_batch</a></span><span class="op">(</span></span>
+<span>  texts <span class="op">=</span> <span class="va">failed</span><span class="op">$</span><span class="va">text</span>,  <span class="co"># Use your actual column name</span></span>
+<span>  endpoint_url <span class="op">=</span> <span class="va">embed_url</span>,</span>
+<span>  key_name <span class="op">=</span> <span class="st">"HF_API_KEY"</span>,</span>
+<span>  batch_size <span class="op">=</span> <span class="fl">1</span>,  <span class="co"># One at a time for failures</span></span>
+<span>  timeout <span class="op">=</span> <span class="fl">30</span>,    <span class="co"># Longer timeout</span></span>
+<span>  max_retries <span class="op">=</span> <span class="fl">10</span> <span class="co"># More retries</span></span>
+<span><span class="op">)</span></span></code></pre></div>
+</div>
+<div class="section level3">
+<h3 id="production-recommendations">Production Recommendations<a class="anchor" aria-label="anchor" href="#production-recommendations"></a>
+</h3>
+<ol style="list-style-type: decimal">
+<li>
+<strong>Always use output_dir</strong>: Never rely solely on
+in-memory results for large jobs</li>
+<li>
+<strong>Monitor metadata</strong>: Check <code>metadata.json</code>
+to verify your settings</li>
+<li>
+<strong>Add to .gitignore</strong>: Keep API responses out of
+version control</li>
+<li>
+<strong>Use Dedicated Endpoints</strong>: For production workloads,
+avoid the free Inference API</li>
+<li>
+<strong>Set appropriate timeouts</strong>: Classification needs
+longer timeouts than embeddings</li>
+<li>
+<strong>Test with small samples</strong>: Before processing 1M rows,
+test with 100 rows</li>
+<li>
+<strong>Monitor costs</strong>: Track your Dedicated Endpoint usage
+on Hugging Face</li>
+</ol>
+</div>
 </div>
 <div class="section level2">
 <h2 id="common-issues">Common Issues<a class="anchor" aria-label="anchor" href="#common-issues"></a>
 </h2>
-<p><strong>Rate limits</strong>: Reduce batch size or add delays between
-requests</p>
-<p><strong>Model not available</strong>: Not all models work with the
-Inference API. Check the model page or use dedicated endpoints.</p>
-<p><strong>Timeouts</strong>: Increase <code>max_retries</code> or
-reduce batch size</p>
+<div class="section level3">
+<h3 id="payload-too-large-errors">“Payload too large” Errors<a class="anchor" aria-label="anchor" href="#payload-too-large-errors"></a>
+</h3>
+<p><strong>For Embeddings</strong>:</p>
+<ul>
+<li>Not fixable in R code - must configure endpoint</li>
+<li>
+<strong>Dedicated Endpoints</strong>: Set
+<code>AUTO_TRUNCATE=true</code> in endpoint environment variables</li>
+<li>
+<strong>Inference API</strong>: Preprocess and truncate texts before
+sending</li>
+</ul>
+<div class="sourceCode" id="cb24"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="co"># Preprocessing approach for Inference API</span></span>
+<span><span class="va">my_data</span> <span class="op">&lt;-</span> <span class="va">my_data</span> <span class="op">|&gt;</span></span>
+<span>  <span class="fu"><a href="https://dplyr.tidyverse.org/reference/mutate.html" class="external-link">mutate</a></span><span class="op">(</span>text <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/substr.html" class="external-link">substr</a></span><span class="op">(</span><span class="va">text</span>, <span class="fl">1</span>, <span class="fl">5000</span><span class="op">)</span><span class="op">)</span>  <span class="co"># Limit to ~5000 characters</span></span></code></pre></div>
+<p><strong>For Classification</strong>:</p>
+<ul>
+<li>Reduce the <code>max_length</code> parameter</li>
+</ul>
+<div class="sourceCode" id="cb25"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="fu"><a href="../reference/hf_classify_df.html">hf_classify_df</a></span><span class="op">(</span></span>
+<span>  df <span class="op">=</span> <span class="va">my_data</span>,</span>
+<span>  text_var <span class="op">=</span> <span class="va">text</span>,</span>
+<span>  id_var <span class="op">=</span> <span class="va">id</span>,</span>
+<span>  endpoint_url <span class="op">=</span> <span class="va">classify_url</span>,</span>
+<span>  key_name <span class="op">=</span> <span class="st">"HF_API_KEY"</span>,</span>
+<span>  max_length <span class="op">=</span> <span class="fl">256</span>  <span class="co"># Reduce from default 512</span></span>
+<span><span class="op">)</span></span></code></pre></div>
+</div>
+<div class="section level3">
+<h3 id="timeouts">Timeouts<a class="anchor" aria-label="anchor" href="#timeouts"></a>
+</h3>
+<p>Classification takes longer than embeddings. Increase timeout if
+needed:</p>
+<div class="sourceCode" id="cb26"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="fu"><a href="../reference/hf_classify_df.html">hf_classify_df</a></span><span class="op">(</span></span>
+<span>  df <span class="op">=</span> <span class="va">my_data</span>,</span>
+<span>  text_var <span class="op">=</span> <span class="va">text</span>,</span>
+<span>  id_var <span class="op">=</span> <span class="va">id</span>,</span>
+<span>  endpoint_url <span class="op">=</span> <span class="va">classify_url</span>,</span>
+<span>  key_name <span class="op">=</span> <span class="st">"HF_API_KEY"</span>,</span>
+<span>  timeout <span class="op">=</span> <span class="fl">120</span>,  <span class="co"># Increase from default 60</span></span>
+<span>  max_retries <span class="op">=</span> <span class="fl">10</span></span>
+<span><span class="op">)</span></span></code></pre></div>
+</div>
+<div class="section level3">
+<h3 id="dedicated-endpoint-cold-starts">Dedicated Endpoint Cold Starts<a class="anchor" aria-label="anchor" href="#dedicated-endpoint-cold-starts"></a>
+</h3>
+<p>Dedicated endpoints take 20-30 seconds to wake up from idle:</p>
+<div class="sourceCode" id="cb27"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="co"># Set higher max_retries to allow for cold start</span></span>
+<span><span class="fu"><a href="../reference/hf_embed_df.html">hf_embed_df</a></span><span class="op">(</span></span>
+<span>  df <span class="op">=</span> <span class="va">my_data</span>,</span>
+<span>  text_var <span class="op">=</span> <span class="va">text</span>,</span>
+<span>  id_var <span class="op">=</span> <span class="va">id</span>,</span>
+<span>  endpoint_url <span class="op">=</span> <span class="va">dedicated_url</span>,</span>
+<span>  key_name <span class="op">=</span> <span class="st">"HF_API_KEY"</span>,</span>
+<span>  max_retries <span class="op">=</span> <span class="fl">10</span>,  <span class="co"># Give it time to wake up</span></span>
+<span>  timeout <span class="op">=</span> <span class="fl">30</span></span>
+<span><span class="op">)</span></span></code></pre></div>
+<p>The first chunk may fail or be slow, but subsequent chunks will be
+fast once the endpoint is warm.</p>
+</div>
+<div class="section level3">
+<h3 id="out-of-memory-errors">Out of Memory Errors<a class="anchor" aria-label="anchor" href="#out-of-memory-errors"></a>
+</h3>
+<p>Reduce <code>chunk_size</code>:</p>
+<div class="sourceCode" id="cb28"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="co"># Instead of default 5000</span></span>
+<span><span class="fu"><a href="../reference/hf_embed_df.html">hf_embed_df</a></span><span class="op">(</span></span>
+<span>  df <span class="op">=</span> <span class="va">large_data</span>,</span>
+<span>  text_var <span class="op">=</span> <span class="va">text</span>,</span>
+<span>  id_var <span class="op">=</span> <span class="va">id</span>,</span>
+<span>  endpoint_url <span class="op">=</span> <span class="va">embed_url</span>,</span>
+<span>  key_name <span class="op">=</span> <span class="st">"HF_API_KEY"</span>,</span>
+<span>  chunk_size <span class="op">=</span> <span class="fl">1000</span>,  <span class="co"># Smaller chunks</span></span>
+<span>  concurrent_requests <span class="op">=</span> <span class="fl">1</span></span>
+<span><span class="op">)</span></span></code></pre></div>
+</div>
+<div class="section level3">
+<h3 id="rate-limit-errors">Rate Limit Errors<a class="anchor" aria-label="anchor" href="#rate-limit-errors"></a>
+</h3>
+<p><strong>For Inference API</strong>:</p>
+<ul>
+<li>Reduce <code>concurrent_requests</code> to 1</li>
+<li>Increase delays between requests (handled automatically by
+retries)</li>
+</ul>
+<div class="sourceCode" id="cb29"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="fu"><a href="../reference/hf_embed_df.html">hf_embed_df</a></span><span class="op">(</span></span>
+<span>  df <span class="op">=</span> <span class="va">my_data</span>,</span>
+<span>  text_var <span class="op">=</span> <span class="va">text</span>,</span>
+<span>  id_var <span class="op">=</span> <span class="va">id</span>,</span>
+<span>  endpoint_url <span class="op">=</span> <span class="va">embed_url</span>,</span>
+<span>  key_name <span class="op">=</span> <span class="st">"HF_API_KEY"</span>,</span>
+<span>  concurrent_requests <span class="op">=</span> <span class="fl">1</span>,  <span class="co"># Sequential processing</span></span>
+<span>  max_retries <span class="op">=</span> <span class="fl">10</span>  <span class="co"># More retries with backoff</span></span>
+<span><span class="op">)</span></span></code></pre></div>
+<p><strong>For Dedicated Endpoints</strong>:</p>
+<ul>
+<li>Not typically rate-limited</li>
+<li>If you see errors, your hardware may be overwhelmed</li>
+<li>Reduce <code>concurrent_requests</code> or upgrade your endpoint
+hardware</li>
+</ul>
+</div>
+<div class="section level3">
+<h3 id="model-not-available">Model Not Available<a class="anchor" aria-label="anchor" href="#model-not-available"></a>
+</h3>
+<p>Not all models work with the Inference API. Check the model page on
+Hugging Face. If the model isn’t available via Inference API, you’ll
+need to:</p>
+<ol style="list-style-type: decimal">
+<li>Deploy a Dedicated Inference Endpoint</li>
+<li>Use a different model that is available via Inference API</li>
+<li>Run the model locally (outside of EndpointR)</li>
+</ol>
+</div>
 </div>
 <div class="section level2">
 <h2 id="improving-performance">Improving Performance<a class="anchor" aria-label="anchor" href="#improving-performance"></a>
 </h2>
-<p>EndpointR’s functions come with knobs and dials and you can turn to
-improve throughput and performance. Visit the <a href="articles/improving_performance.html">Improving Performance</a>
-vignette for more information.</p>
+<p>For detailed performance optimization strategies, visit the <a href="improving_performance.html">Improving Performance</a>
+vignette.</p>
+<p>Quick tips:</p>
+<ul>
+<li>Increase <code>concurrent_requests</code> gradually while monitoring
+errors</li>
+<li>Use larger <code>chunk_size</code> values for faster processing (if
+memory allows)</li>
+<li>For Dedicated Endpoints, upgrade hardware for better throughput</li>
+<li>Use batch functions (<code><a href="../reference/hf_embed_batch.html">hf_embed_batch()</a></code>,
+<code><a href="../reference/hf_classify_batch.html">hf_classify_batch()</a></code>) for small datasets to avoid file I/O
+overhead</li>
+</ul>
 </div>
 <div class="section level2">
 <h2 id="appendix">Appendix<a class="anchor" aria-label="anchor" href="#appendix"></a>
@@ -312,9 +974,9 @@ vignette for more information.</p>
 </h3>
 <table class="table">
 <colgroup>
-<col width="33%">
-<col width="33%">
-<col width="33%">
+<col width="21%">
+<col width="42%">
+<col width="36%">
 </colgroup>
 <thead><tr class="header">
 <th>Feature</th>
@@ -340,7 +1002,7 @@ vignette for more information.</p>
 <tr class="even">
 <td><strong>Wait Times</strong></td>
 <td>Variable, unknowable in advance</td>
-<td>Predictable, minimal queuing, ~30s for first request</td>
+<td>Predictable, ~30s for cold start</td>
 </tr>
 <tr class="odd">
 <td><strong>Production Ready</strong></td>
@@ -350,7 +1012,7 @@ vignette for more information.</p>
 <tr class="even">
 <td><strong>Use Case</strong></td>
 <td>Casual usage, testing, prototyping</td>
-<td>Production applications, consistent performance</td>
+<td>Production applications</td>
 </tr>
 <tr class="odd">
 <td><strong>Scalability</strong></td>
@@ -360,12 +1022,17 @@ vignette for more information.</p>
 <tr class="even">
 <td><strong>Availability</strong></td>
 <td>Subject to shared infrastructure limits</td>
-<td>Guaranteed availability during rental period</td>
+<td>Guaranteed availability during rental</td>
 </tr>
 <tr class="odd">
 <td><strong>Model Coverage</strong></td>
-<td>Commonly-used models, models selected by Hugging Face</td>
-<td>Virtually all models on the Hub are available</td>
+<td>Commonly-used models, models selected by HF</td>
+<td>Virtually all models on the Hub</td>
+</tr>
+<tr class="even">
+<td><strong>Truncation Control</strong></td>
+<td>Limited (model-dependent)</td>
+<td>Full control via environment variables</td>
 </tr>
 </tbody>
 </table>
@@ -382,7 +1049,7 @@ vignette for more information.</p>
 </div>
 
 <div class="pkgdown-footer-right">
-  <p>Site built with <a href="https://pkgdown.r-lib.org/" class="external-link">pkgdown</a> 2.1.3.</p>
+  <p>Site built with <a href="https://pkgdown.r-lib.org/" class="external-link">pkgdown</a> 2.2.0.</p>
 </div>
 
     </footer>
