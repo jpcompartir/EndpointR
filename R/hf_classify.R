@@ -425,7 +425,7 @@ hf_classify_chunks <- function(texts,
     "key_name must be a non-empty string" = is.character(key_name) && nchar(key_name) > 0
   )
 
-  # core logic ----
+  # Chunking set up and metadata ----
   output_dir <- .handle_output_directory(output_dir, base_dir_name = "hf_classify_chunk")
 
   if (!dir.exists(output_dir)) {
@@ -460,6 +460,9 @@ hf_classify_chunks <- function(texts,
 
   cli::cli_alert_info("Processing {length(texts)} text{?s} in {n_chunks} chunk{?s} of up to {chunk_size} rows per chunk")
   cli::cli_alert_info("Intermediate results and metadata will be saved as .parquet files and .json in {output_dir}")
+
+
+  # process chunks ----
 
   # track global successes for failures for end-of-pipeline reporting
   total_successes <- 0
@@ -560,6 +563,7 @@ hf_classify_chunks <- function(texts,
 
   parquet_files <- list.files(output_dir, pattern = "\\.parquet$", full.names = TRUE)
 
+  # report and return ----
   cli::cli_alert_info("Processing completed, there were {total_successes} successes\n and {total_failures} failures.")
   final_results <- arrow::open_dataset(parquet_files, format = "parquet") |>
     dplyr::collect()
