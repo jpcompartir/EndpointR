@@ -1,20 +1,27 @@
-# Endpointr 0.1.2
+# EndpointR 0.1.2
 
--   We extend the coverage of writing to files to the `hf_embed_df()`, `hf_classify_df()` functions and move to a chunk_size argument rather than batch_size.
+-   **File writing improvements**: `hf_embed_df()` and `hf_classify_df()` now write intermediate results as `.parquet` files to `output_dir` directories, similar to improvements in 0.1.1 for OpenAI functions
 
--   [ ] `hf_embed_df()`, `hf_classify_df()` improved to write to files similarly to the upgrades applied in 0.1.1
+-   **Parameter changes**: Moved from `batch_size` to `chunk_size` argument across `hf_embed_df()`, `hf_classify_df()`, and `oai_complete_df()` for consistency
 
-    -   [ ] .parquet files
+-   **New chunking functions**: Introduced `hf_embed_chunks()` and `hf_classify_chunks()` for more efficient batch processing with better error handling
 
--   [ ] `oai_complete_df`, `oai_complete_chunks`, `oai_embed_df` all write to .parquet files
+-   **Dependency update**: Package now depends on `arrow` for faster `.parquet` file writing and reading
 
-    -   [ ] Move to chunk_size argument
+-   **Metadata tracking**: Hugging Face functions that write to files (`hf_embed_df()`, `hf_classify_df()`, `hf_embed_chunks()`, `hf_classify_chunks()`) now write `metadata.json` to output directories containing:
+    -   Endpoint URL and API key name used
+    -   Processing parameters (chunk_size, concurrent_requests, timeout, max_retries)
+    -   Inference parameters (truncate, max_length)
+    -   Timestamp and row counts
+    -   Useful for debugging, reproducibility, and tracking which models/endpoints were used
 
--   The package takes a dependency on arrow over read_csv, this enables faster writing and reading of files once stored
+-   **max_length parameter**: Added `max_length` parameter to `hf_classify_df()` and `hf_classify_chunks()` for text truncation control. Note: `hf_embed_df()` handles truncation automatically via endpoint configuration (set `AUTO_TRUNCATE` in endpoint settings)
 
--   max_length added to `hf_classify` and `hf_embed` functions
+-   **New utility functions**:
+    -   `hf_get_model_max_length()` - Retrieve maximum token length for a Hugging Face model
+    -   `hf_get_endpoint_info()` - Retrieve detailed information about a Hugging Face Inference Endpoint
 
--   `hf_get_model_max_length()` function introduced to make it easier to set the max_length argument in `hf_*` functions.
+-   **Improved reporting**: Chunked/batch processing functions now report total successes and failures at completion
 
 # EndpointR 0.1.1
 
