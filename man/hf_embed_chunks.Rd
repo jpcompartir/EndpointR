@@ -8,7 +8,6 @@ hf_embed_chunks(
   texts,
   ids,
   endpoint_url,
-  max_length = 8192L,
   output_dir = "auto",
   chunk_size = 5000L,
   concurrent_requests = 5L,
