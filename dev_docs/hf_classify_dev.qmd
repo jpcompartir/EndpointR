@@ -582,3 +582,25 @@ should_fail <- hf_classify_chunks(
 ℹ Processing completed, there were 0 successes
 and 6 failures.
 ```
+
+Test the function over 10k data points
+
+```{r}
+ ten_k_results <- x |> 
+  filter(message != "", 
+         !is.na(message)) |>
+  slice(1:10000) |> 
+  hf_classify_df(
+    text_var = message,
+    id_var = universal_message_id,
+    endpoint_url = test_sent_url,
+    key_name = "HF_API_KEY",
+    max_length = 128,
+    output_dir = "test_dir/test_classify/ten_thousand_rows",
+    tidy_func = tidy_classification_response,
+    chunk_size = 2500,
+    concurrent_requests = 15,
+    max_retries = 10L,
+    timeout = 60
+  )
+```
