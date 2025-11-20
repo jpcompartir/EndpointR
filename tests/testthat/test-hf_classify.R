@@ -148,6 +148,102 @@ test_that("hf_classify_batch processes a batch of texts and returns a tidied cla
 })
 
 
+test_that("hf_classify_chunks processes chunks correctly", {
+  texts <- paste0("text", 1:6)
+  ids <- paste0("id", 1:length(texts))
+  temp_dir <- withr::local_tempdir()
+  expected_cols <- c("id", "text", ".error", ".error_msg", ".chunk", "positive", "negative", "neutral")
+
+  # Test with chunk_size = 2
+  chunk_2 <- expect_no_error(hf_classify_chunks(
+    texts = texts,
+    ids = ids,
+    endpoint_url = server$url("/test_single_sentiment"),
+    key_name = "HF_TEST_API_KEY",
+    chunk_size = 2,
+    concurrent_requests = 1,
+    output_dir = temp_dir
+  )) |> suppressMessages()
+
+  expect_setequal(unique(chunk_2$`.chunk`), c(1, 2, 3))
+  expect_setequal(names(chunk_2), expected_cols)
+  expect_equal(nrow(chunk_2), 6)
+
+  # Test with chunk_size = 1
+  chunk_1 <- expect_no_error(hf_classify_chunks(
+    texts = texts,
+    ids = ids,
+    endpoint_url = server$url("/test_single_sentiment"),
+    key_name = "HF_TEST_API_KEY",
+    chunk_size = 1,
+    concurrent_requests = 1,
+    output_dir = temp_dir
+  )) |> suppressMessages()
+
+  expect_setequal(unique(chunk_1$`.chunk`), 1:6)
+  expect_equal(nrow(chunk_1), 6)
+})
+
+test_that("hf_classify_df works correctly with chunk processing", {
+  test_df <- data.frame(
+    id = paste0("id", 1:2),
+    text = c("text1", "text2"),
+    stringsAsFactors = FALSE
+  )
+  output_dir <- withr::local_tempdir()
+
+  result <- expect_no_error(
+    hf_classify_df(
+      df = test_df,
+      text_var = text,
+      id_var = id,
+      endpoint_url = server$url("/test_single_sentiment"),
+      key_name = "HF_TEST_API_KEY",
+      chunk_size = 1,
+      output_dir = output_dir
+    )
+  ) |>
+    suppressMessages()
+
+  expect_s3_class(result, "data.frame")
+  expect_equal(nrow(result), 2)
+  expect_true(all(c("id", "positive", "negative", "neutral", ".error", ".error_msg", ".chunk") %in% names(result)))
+  expect_equal(result$id, c("id1", "id2"))
+  expect_equal(result$positive, c(0.9, 0.9), tolerance = 1e-7)
+  expect_equal(result$negative, c(0.05, 0.05), tolerance = 1e-7)
+  expect_equal(result$neutral, c(0.05, 0.05), tolerance = 1e-7)
+  expect_equal(result$.error, c(FALSE, FALSE))
+})
+
+test_that("hf_classify_df works with different chunk sizes", {
+  test_df <- data.frame(
+    id = paste0("id", 1:4),
+    text = paste0("text", 1:4),
+    stringsAsFactors = FALSE
+  )
+  temp_dir <- withr::local_tempdir()
+
+  result <- expect_no_error(
+    hf_classify_df(
+      df = test_df,
+      text_var = text,
+      id_var = id,
+      endpoint_url = server$url("/test_single_sentiment"),
+      key_name = "HF_TEST_API_KEY",
+      chunk_size = 2,
+      concurrent_requests = 1,
+      output_dir = temp_dir
+    )
+  ) |>
+    suppressMessages()
+
+  expect_s3_class(result, "data.frame")
+  expect_equal(nrow(result), 4)
+  expect_true(all(c("id", ".chunk", ".error", ".error_msg") %in% names(result)))
+  expect_equal(result$.error, c(FALSE, FALSE, FALSE, FALSE))
+  expect_setequal(unique(result$.chunk), c(1, 2))
+})
+
 test_that("hf_classify_df's input validation is working", {
 
   # safety net for changes
@@ -183,26 +279,14 @@ test_that("hf_classify_df's input validation is working", {
   )
 
   expect_error(
-    hf_classify_df(df = test_df, text_var = text_content, id_var = doc_id, endpoint_url = "url", key_name = "key", batch_size = "text"),
-    "batch_size must be a number greater than 0"
+    hf_classify_df(df = test_df, text_var = text_content, id_var = doc_id, endpoint_url = "url", key_name = "key", chunk_size = "text"),
+    "chunk_size must be a number greater than 0"
   )
 
   expect_error(
-    hf_classify_df(df = test_df, text_var = text_content, id_var = doc_id, endpoint_url = "url", key_name = "key", batch_size = NULL),
-    "batch_size must be a number greater than 0"
+    hf_classify_df(df = test_df, text_var = text_content, id_var = doc_id, endpoint_url = "url", key_name = "key", chunk_size = NULL),
+    "chunk_size must be a number greater than 0"
   )
 
 
 })
-
-# test_that("hf_classify_df processes a data frame of texts and returns a data frame", {
-#
-#
-#   test_df <- data.frame(
-#     id = c(1, 2),
-#     text = c("positive text", "negative text"),
-#     stringsAsFactors = FALSE
-#   )
-#
-#
-# })
