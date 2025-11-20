@@ -485,3 +485,140 @@ hf_classify_df(
   concurrent_requests = 4
 )
 ```
+
+# Writing to Files
+
+November, 2025
+
+```{r}
+hf_cl
+```
+
+# Truncation, padding, max_length
+
+We were getting some failures which seemed hard to pin down - was it Arabic, tokenisation issues, empty strings? No, it was token length. The test endpoint we're using has a max_model_length of 128. If we tried to feed in a string that tokenised to \> 128 tokens, then we got errors.
+
+```{r}
+library(tidyverse)
+library(EndpointR)
+library(arrow)
+
+x <- read_parquet("~/dev/projects/diageo/mltm/data/main/mltm_l3_trend_df.parquet")
+
+endpointr_test_url <- httr2::secret_decrypt("osXYmCFrfPR4NsIIOBOIwWzp8XdA77BVP5QKVwJb0jzHPUwgQ8NmZcHXrhvoYrR8a2QNXZjmwIHpW2X55Ivaa_y11RV5TgXOiD7aK3O8hbDoeQ", "ENDPOINTR_KEY")
+
+test_sent_url <- httr2::secret_decrypt("STCYZqL6e2yxfGaz5AWA80pnINnfX-47vsqEcxpm23IkxE1R8238Gtnp7oeRUQ6GxkF6jWUYYmiSjIh-Abo1cWOe23qUsZ7uSy5UE9BwvJ9oWg", "ENDPOINTR_KEY")
+```
+
+So we grab a bunch of strings that are guaranteed to fail if we don't do anything special:
+
+```{r}
+test_long_strings <- x |> 
+  filter(language == "Spanish (Español)",
+         message != "", 
+         !is.na(message)) |>
+  mutate(string_length = str_length(message)) |> 
+  filter(string_length > 1000) |>
+  slice(10:15)
+  # mutate(message = str_sub(message, 1, 100)) |>
+```
+
+And then we make them pass, checking that the max_length argument is working as intended.
+
+```{r}
+should_pass <- hf_classify_chunks(
+  test_long_strings$message,
+  test_long_strings$universal_message_id,
+  tidy_func = tidy_classification_response,
+  endpoint_url = test_sent_url,
+  output_dir = "test_dir/test_classify/test_passes",
+  chunk_size = 5,
+  concurrent_requests = 5,
+  timeout = 60,
+  max_retries = 10,
+  max_length = 128L,
+  id_col_name = "universal_message_id",
+  text_col_name = ".text_col"
+)
+```
+
+```         
+ℹ Processing 6 texts in 2 chunks of up to 5 rows per chunk
+ℹ Intermediate results and metadata will be saved as .parquet files and .json in test_dir/test_classify/test_passes
+ℹ Performing 5 requests in parallel (with 5 concurrent requests)...
+✔ Chunk 1: 5 successful, 0 failed             
+ℹ Performing 1 request sequentially...
+✔ Chunk 2: 1 successful, 0 failed
+ℹ Processing completed, there were 6 successes
+and 0 failures.
+```
+
+And we make them fail, to confirm the argument is working as intended!
+
+```{r}
+should_fail <- hf_classify_chunks(
+  test_long_strings$message,
+  test_long_strings$universal_message_id,
+  tidy_func = tidy_classification_response,
+  endpoint_url = test_sent_url,
+  output_dir = "test_dir/test_classify/test_failures",
+  chunk_size = 5,
+  concurrent_requests = 5,
+  timeout = 60,
+  max_retries = 10,
+  max_length = 512L
+)
+
+```
+
+```         
+ℹ Processing 6 texts in 2 chunks of up to 5 rows per chunk
+ℹ Intermediate results and metadata will be saved as .parquet files and .json in test_dir/test_classify/test_failures
+ℹ Performing 5 requests in parallel (with 5 concurrent requests)...
+✔ Chunk 1: 0 successful, 5 failed
+ℹ Performing 1 request sequentially...
+! Sequential request to <https://mhopobdy936ngfme.us-east-1.aws.endpoints.huggingface.cloud> failed: HTTP 400 Bad Request.
+✔ Chunk 2: 0 successful, 1 failed
+ℹ Processing completed, there were 0 successes
+and 6 failures.
+```
+
+Test the function over 10k data points
+
+```{r}
+ ten_k_results <- x |> 
+  filter(message != "", 
+         !is.na(message)) |>
+  slice(1:10000) |> 
+  hf_classify_df(
+    text_var = message,
+    id_var = universal_message_id,
+    endpoint_url = test_sent_url,
+    key_name = "HF_API_KEY",
+    max_length = 128,
+    output_dir = "test_dir/test_classify/ten_thousand_rows",
+    tidy_func = tidy_classification_response,
+    chunk_size = 2500,
+    concurrent_requests = 15,
+    max_retries = 10L,
+    timeout = 60
+  )
+```
+
+```{r}
+x |> 
+  slice(1:10) |> 
+  hf_classify_df(
+    message,
+    universal_message_id,
+    endpoint_url = test_sent_url,
+    key_name = "HF_API_KEY",
+    max_length = 128,
+    output_dir = "test_dir/test_classify/ten_thousand_rows",
+    tidy_func = tidy_classification_response,
+    chunk_size = 2500,
+    concurrent_requests = 15,
+    max_retries = 10L,
+    timeout = 60
+  )
+```

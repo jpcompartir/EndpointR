@@ -260,9 +260,20 @@ extract_field <- function(api_response, field_name) {
   return(x)
 }
 
+# modifying the .handle_output_filename to work with .parquet
 #' @keywords internal
-.append_tibble_class <- function(x) {
-  attr(x, "class") <- c("tbl_df", "tbl", "data.frame")
+.handle_output_directory <- function(x, base_dir_name = "batch_processing_") {
+  if (is.null(x)) {
+    return(tempfile(pattern = base_dir_name))
+  }
+
+  if(identical(x, "auto")) {
+    timestamp <- format(Sys.time(), "%d%m%Y_%H%M%S")
+    output_dir <- glue::glue("{base_dir_name}_{timestamp}")
+    return(output_dir)
+  }
+
+  # Accept directory path directly
   return(x)
 }
 
@@ -271,4 +282,60 @@ parse_oai_date <- function(date_string) {
   parsed_date <- as.POSIXct(date_string, format = "%a, %d %b %Y %H:%M:%S", tz = "GMT")
   date <- as.Date(parsed_date)
   return(date)
+}
+
+
+
+#' Check the max number of tokens allowed for your inputs
+#'
+#' This function requires the model to have 'tokenizer_config.json' file with a
+#' `model_max_length` key, otherwise it will error.
+#'
+#' @param model_name name of the model e.g. 'sentence-transformers/mpnet-base-v2'
+#' @param api_key Your Hugging Face auth token
+#'
+#' @returns Integer value of the model_max_length from tokenizer config
+#' @export
+#'
+hf_get_model_max_length <- function(model_name, api_key = "HF_API_KEY") {
+  config_url <- glue::glue("https://huggingface.co/{model_name}/resolve/main/tokenizer_config.json")
+
+  use_api_key <- get_api_key(api_key)
+
+  req <- httr2::request(config_url)
+
+  if (!is.null(use_api_key)) {
+    req <- req |>
+      httr2::req_headers(Authorization = paste("Bearer", use_api_key))
+  }
+
+  response <- req |> httr2::req_perform()
+
+  tokenizer_config <- response |>
+    httr2::resp_body_string() |>
+    jsonlite::fromJSON()
+
+  return(tokenizer_config$model_max_length)
+}
+
+
+#' Retrieve information about an endpoint
+#'
+#' @param endpoint_url Hugging Face Embedding Endpoint
+#' @param key_name Name of environment variable containing the API key (default: "HF_API_KEY")
+#'
+#' @returns JSON of endpoint information
+#' @export
+#'
+hf_get_endpoint_info <- function(endpoint_url, key_name = "HF_API_KEY") {
+
+  info_endpoint_url <- glue::glue("{endpoint_url}/info")
+  api_key = get_api_key(key_name)
+
+  info <-httr2::request(info_endpoint_url) |>
+    httr2::req_headers(Authorization = paste("Bearer", api_key)) |>
+    httr2::req_perform() |>
+    httr2::resp_body_json()
+
+  return(info)
 }

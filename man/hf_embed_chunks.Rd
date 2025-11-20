@@ -8,12 +8,13 @@ hf_embed_chunks(
   texts,
   ids,
   endpoint_url,
-  output_file = "auto",
+  output_dir = "auto",
   chunk_size = 5000L,
   concurrent_requests = 5L,
   max_retries = 5L,
   timeout = 10L,
-  key_name = "HF_API_KEY"
+  key_name = "HF_API_KEY",
+  id_col_name = "id"
 )
 }
 \arguments{
@@ -23,7 +24,7 @@ hf_embed_chunks(
 
 \item{endpoint_url}{Hugging Face Embedding Endpoint}
 
-\item{output_file}{Path to .CSV file for results. "auto" generates the filename, location and is persistent across sessions. If NULL, generates timestamped filename.}
+\item{output_dir}{Path to directory for the .parquet chunks}
 
 \item{chunk_size}{Number of texts to process in each chunk before writing to disk (default: 5000)}
 
@@ -34,11 +35,13 @@ hf_embed_chunks(
 \item{timeout}{Request timeout in seconds (default: 10)}
 
 \item{key_name}{Name of environment variable containing the API key (default: "HF_API_KEY")}
+
+\item{id_col_name}{Name for the ID column in output (default: "id"). When called from hf_embed_df(), this preserves the original column name.}
 }
 \value{
 A tibble with columns:
 \itemize{
-\item \code{id}: Original identifier from input
+\item ID column (name specified by \code{id_col_name}): Original identifier from input
 \item \code{.error}: Logical indicating if request failed
 \item \code{.error_msg}: Error message if failed, NA otherwise
 \item \code{.chunk}: Chunk number for tracking

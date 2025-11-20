@@ -87,7 +87,7 @@ test_that("hf_embed_batch allows custom tidy_func", {
 test_that("hf_embed_chunks replaces hf_embed_batch", {
   texts <- paste0("text", 1:6)
   ids <- paste0('id', 1:length(texts))
-  temp_file <- tempfile(fileext = ".csv")
+  temp_dir <- withr::local_tempdir()
   expected_cols <- c("id", ".error", ".error_msg", ".chunk", "V1", "V2", "V3")
 
 
@@ -98,7 +98,7 @@ test_that("hf_embed_chunks replaces hf_embed_batch", {
     key_name = "HF_TEST_API_KEY",
     chunk_size = 2,
     concurrent_requests =1,
-    output_file = temp_file
+    output_dir = temp_dir
   )) |> suppressMessages()
 
   expect_setequal(unique(chunk_2$`.chunk`), c(1, 2, 3))
@@ -111,7 +111,7 @@ test_that("hf_embed_chunks replaces hf_embed_batch", {
     key_name = "HF_TEST_API_KEY",
     chunk_size = 1,
     concurrent_requests =1,
-    output_file = temp_file
+    output_dir = temp_dir
   )) |> suppressMessages()
 
   expect_setequal(unique(chunk_1$`.chunk`), 1:6)
@@ -120,11 +120,11 @@ test_that("hf_embed_chunks replaces hf_embed_batch", {
 
 test_that("hf_embed_df works correctly with real endpoint", {
   test_df <- data.frame(
-    id = c(1, 2),
+    id = paste0("id", 1:2),
     text = c("text1", "text2"),
     stringsAsFactors = FALSE
   )
-  temp_file <- tempfile(fileext = ".csv")
+  output_dir <- withr::local_tempdir()
 
   result <- expect_no_error(
     hf_embed_df(
@@ -133,8 +133,8 @@ test_that("hf_embed_df works correctly with real endpoint", {
       id_var = id,
       endpoint_url = server$url("/test_embedding"),
       key_name = "HF_TEST_API_KEY",
-      chunk_size = 2,
-      output_file = temp_file
+      chunk_size = 1,
+      output_dir = output_dir
     )
   ) |>
     suppressMessages()
@@ -142,7 +142,7 @@ test_that("hf_embed_df works correctly with real endpoint", {
   expect_s3_class(result, "data.frame")
   expect_equal(nrow(result), 2)
   expect_true(all(c("id", "V1", "V2", "V3", ".error", ".error_msg", ".chunk") %in% names(result)))
-  expect_equal(result$id, c(1, 2))
+  expect_equal(result$id, c("id1", "id2"))
   expect_equal(result$V1, c(0.1, 0.1), tolerance = 1e-7)
   expect_equal(result$V2, c(0.2, 0.2), tolerance = 1e-7)
   expect_equal(result$V3, c(0.3, 0.3), tolerance = 1e-7)
@@ -151,11 +151,11 @@ test_that("hf_embed_df works correctly with real endpoint", {
 
 test_that("hf_embed_df works with different batch sizes", {
   test_df <- data.frame(
-    id = c(1, 2),
+    id = c(paste0("id", 1:2)),
     text = c("text1", "text2"),
     stringsAsFactors = FALSE
   )
-  temp_file <- tempfile(fileext = ".csv")
+  temp_dir <- withr::local_tempdir()
 
   result <- expect_no_error(
     hf_embed_df(
@@ -166,7 +166,7 @@ test_that("hf_embed_df works with different batch sizes", {
       key_name = "HF_TEST_API_KEY",
       chunk_size = 1,
       concurrent_requests = 1,
-      output_file = temp_file
+      output_dir = temp_dir
     )
   ) |>
     suppressMessages()

@@ -235,6 +235,7 @@ hf_embed_batch <- function(texts,
 }
 
 
+# hf_embed_chunks docs ----
 #' Embed text chunks through Hugging Face Inference Embedding Endpoints
 #'
 #' This function is capable of processing large volumes of text through Hugging Face's Inference Embedding Endpoints. Results are written in chunks to a file, to avoid out of memory issues.
@@ -246,30 +247,33 @@ hf_embed_batch <- function(texts,
 #' @param texts Character vector of texts to process
 #' @param ids Vector of unique identifiers corresponding to each text (same length as texts)
 #' @param endpoint_url Hugging Face Embedding Endpoint
-#' @param output_file Path to .CSV file for results. "auto" generates the filename, location and is persistent across sessions. If NULL, generates timestamped filename.
+#' @param output_dir Path to directory for the .parquet chunks
 #' @param chunk_size Number of texts to process in each chunk before writing to disk (default: 5000)
 #' @param concurrent_requests Number of concurrent requests (default: 5)
 #' @param max_retries Maximum retry attempts per failed request (default: 5)
 #' @param timeout Request timeout in seconds (default: 10)
 #' @param key_name Name of environment variable containing the API key (default: "HF_API_KEY")
+#' @param id_col_name Name for the ID column in output (default: "id"). When called from hf_embed_df(), this preserves the original column name.
 #'
 #' @return A tibble with columns:
-#'   - `id`: Original identifier from input
+#'   - ID column (name specified by `id_col_name`): Original identifier from input
 #'   - `.error`: Logical indicating if request failed
 #'   - `.error_msg`: Error message if failed, NA otherwise
 #'   - `.chunk`: Chunk number for tracking
 #'   - Embedding columns (V1, V2, etc.)
 #' @export
 #'
+# hf_embed_chunks docs ----
 hf_embed_chunks <- function(texts,
                             ids,
                             endpoint_url,
-                            output_file = "auto",
+                            output_dir = "auto",
                             chunk_size = 5000L,
                             concurrent_requests = 5L,
                             max_retries = 5L,
                             timeout = 10L,
-                            key_name = "HF_API_KEY") {
+                            key_name = "HF_API_KEY",
+                            id_col_name = "id") {
 
   # input validation ----
   stopifnot(
@@ -279,20 +283,47 @@ hf_embed_chunks <- function(texts,
     "chunk_size must be a positive integer greater than 1" = is.numeric(chunk_size) && chunk_size > 0
   )
 
-  output_file = .handle_output_filename(output_file, base_file_name = "hf_embeddings_batch")
+  # output_file = .handle_output_filename(output_file, base_file_name = "hf_embeddings_batch")
+
+  output_dir <- .handle_output_directory(output_dir, base_dir_name = "hf_embeddings_batch")
+
+  if (!dir.exists(output_dir)) {
+    dir.create(output_dir, recursive = TRUE)
+  }
 
   chunk_data <- batch_vector(seq_along(texts), chunk_size)
   n_chunks <- length(chunk_data$batch_indices)
 
+  inference_parameters = list(truncate = TRUE) # text embeddings inference - TEI only takes truncate, not truncation and max_length like other inference endpoints!
+
+  # write/store imoortant metadata in the output dir
+  metadata <- list(
+    endpoint_url = endpoint_url,
+    chunk_size = chunk_size,
+    n_texts = length(texts),
+    concurrent_requests = concurrent_requests,
+    timeout = timeout,
+    output_dir = output_dir,
+    key_name = key_name,
+    n_chunks = n_chunks,
+    timestamp = Sys.time(),
+    inference_parameters = inference_parameters
+  )
+
+  jsonlite::write_json(metadata,
+                       file.path(output_dir, "metadata.json"),
+                       auto_unbox = TRUE,
+                       pretty = TRUE)
+
   cli::cli_alert_info("Processing {length(texts)} text{?s} in {n_chunks} chunk{?s} of up to {chunk_size} each")
-  cli::cli_alert_info("Intermediate results will be saved to a .csv at {output_file}.")
+  cli::cli_alert_info("Intermediate results will be saved as parquet files in {output_dir}")
 
   total_success <- 0
   total_failures <- 0
 
   ## Chunk Processing ----
-  for (chunk_num in seq_along(chunk_data$batch_indices))
-  {
+  for (chunk_num in seq_along(chunk_data$batch_indices)) {
+
     chunk_indices <- chunk_data$batch_indices[[chunk_num]]
     chunk_texts <- texts[chunk_indices]
     chunk_ids <- ids[chunk_indices]
@@ -307,7 +338,7 @@ hf_embed_chunks <- function(texts,
         endpoint_url = endpoint_url,
         endpointr_id = y,
         key_name = key_name,
-        parameters = list(),
+        parameters = inference_parameters,
         max_retries = max_retries,
         timeout = timeout,
         validate = FALSE
@@ -339,13 +370,13 @@ hf_embed_chunks <- function(texts,
     # within chunk results ----
     chunk_results <- list()
 
-    if (length(successes) > 0) {
+    if(n_successes  > 0) {
       successes_ids <- purrr::map(successes, \(x) purrr::pluck(x, "request", "headers", "endpointr_id")) |>  unlist()
       successes_content <- purrr::map(successes, tidy_embedding_response) |>
         purrr::list_rbind()
 
       chunk_results$successes <- tibble::tibble(
-        id = successes_ids,
+        !!id_col_name := successes_ids,
         .error = FALSE,
         .error_msg = NA_character_,
         .chunk = chunk_num
@@ -353,12 +384,12 @@ hf_embed_chunks <- function(texts,
         dplyr::bind_cols(successes_content)
     }
 
-    if (length(failures) > 0) {
+    if (n_failures > 0) {
       failures_ids <- purrr::map(failures, \(x) purrr::pluck(x, "request", "headers", "endpointr_id")) |>  unlist()
       failures_msgs <- purrr::map_chr(failures, \(x) purrr::pluck(x, "message", .default = "Unknown error"))
 
       chunk_results$failures <- tibble::tibble(
-        id = failures_ids,
+        !!id_col_name := failures_ids,
         .error = TRUE,
         .error_msg = failures_msgs,
         .chunk = chunk_num
@@ -367,20 +398,19 @@ hf_embed_chunks <- function(texts,
 
     chunk_df <- dplyr::bind_rows(chunk_results)
 
-    if (nrow(chunk_df) > 0) {
-      if (chunk_num == 1) {
-        # if we're in the first chunk write to csv with headers (col names)
-        readr::write_csv(chunk_df, output_file, append = FALSE)
-      } else {
-        # all other chunks, append and don't use col names
-        readr::write_csv(chunk_df, output_file, append = TRUE, col_names = FALSE)
-      }
+     if (nrow(chunk_df) > 0) {
+      chunk_file <- glue::glue("{output_dir}/chunk_{stringr::str_pad(chunk_num, 3, pad = '0')}.parquet")
+      arrow::write_parquet(chunk_df, chunk_file)
     }
 
     cli::cli_alert_success("Chunk {chunk_num}: {n_successes} successful, {n_failures} failed")
   }
 
-  final_results <- readr::read_csv(output_file, show_col_types = FALSE)
+  parquet_files <- list.files(output_dir, pattern = "\\.parquet$", full.names = TRUE)
+
+  cli::cli_alert_info("Processing completed, there were {total_success} successes\n and {total_failures} failures.")
+  final_results <- arrow::open_dataset(parquet_files, format = "parquet") |>
+    dplyr::collect()
 
   return(final_results)
 }
@@ -395,13 +425,15 @@ hf_embed_chunks <- function(texts,
 #' response processing, with options for batching & parallel execution.
 #' Setting the number of retries
 #'
+#' Avoid risk of data loss by setting a low-ish chunk_size (e.g. 5,000, 10,000). Each chunk is written to a `.parquet` file in the `output_dir=` directory, which also contains a `metadata.json` file which tracks important information such as the endpoint URL used. Be sure to check any output directories into .gitignore!
+#'
 #' @param df A data frame containing texts to embed
 #' @param text_var Name of the column containing text to embed
 #' @param id_var Name of the column to use as ID
 #' @param endpoint_url The URL of the Hugging Face Inference API endpoint
 #' @param key_name Name of the environment variable containing the API key
-#' @param output_file Path to .CSV file for results. "auto" generates the filename, location and is persistent across sessions. If NULL, generates timestamped filename.
-#' @param chunk_size Number of texts to process in one batch (NULL for no batching)
+#' @param output_dir Path to directory for the .parquet chunks
+#' @param chunk_size The size of each chunk that will be processed and then written to a file.
 #' @param concurrent_requests Number of requests to send at once. Some APIs do not allow for multiple requests.
 #' @param max_retries Maximum number of retry attempts for failed requests.
 #' @param timeout Request timeout in seconds
@@ -418,34 +450,22 @@ hf_embed_chunks <- function(texts,
 #'     text = c("First example", "Second example", "Third example")
 #'   )
 #'
-#'   # Use parallel processing without batching
-#'   embeddings_df <- hf_embed_df(
-#'     df = df,
-#'     text_var = text,
-#'     endpoint_url = "https://my-endpoint.huggingface.cloud",
-#'     id_var = id,
-#'     parallel = TRUE,
-#'     batch_size = NULL
-#'   )
-#'
 #'   # Use batching without parallel processing
 #'   embeddings_df <- hf_embed_df(
 #'     df = df,
 #'     text_var = text,
 #'     endpoint_url = "https://my-endpoint.huggingface.cloud",
-#'     id_var = id,
-#'     parallel = FALSE,
-#'     batch_size = 10
+#'     id_var = id
 #'   )
 #'
-#'   # Use both batching and parallel processing
+#'   # Use both chunking and parallel processing
 #'   embeddings_df <- hf_embed_df(
 #'     df = df,
 #'     text_var = text,
 #'     endpoint_url = "https://my-endpoint.huggingface.cloud",
 #'     id_var = id,
-#'     parallel = TRUE,
-#'     batch_size = 10
+#'     chunk_size = 10000,
+#'     concurrent_requests = 50
 #'   )
 #' }
 # hf_embed_df docs ----
@@ -454,8 +474,8 @@ hf_embed_df <- function(df,
                         id_var,
                         endpoint_url,
                         key_name,
-                        output_file = "auto",
-                        chunk_size = 8L,
+                        output_dir = "auto",
+                        chunk_size = 5000L,
                         concurrent_requests = 1L,
                         max_retries = 5L,
                         timeout = 15L,
@@ -473,12 +493,16 @@ hf_embed_df <- function(df,
     "concurrent_requests must be an integer" = is.numeric(concurrent_requests) && concurrent_requests > 0
   )
 
-  output_file <- .handle_output_filename(output_file,
-                                         base_file_name = "hf_embeddings_batch")
 
-  # refactoring  to always use hf_embed_batch - if batch_size if one then it gets handled anyway, avoids branching and additional complexity.
+  output_dir <- .handle_output_directory(output_dir,
+                                         base_dir_name = "hf_embeddings_batch")
+
+
   texts <- dplyr::pull(df, !!text_sym)
   indices <- dplyr::pull(df, !!id_sym)
+
+  # preserve original column name
+  id_col_name <- rlang::as_name(id_sym)
 
   chunk_size <- if(is.null(chunk_size) || chunk_size <= 1) 1 else chunk_size
 
@@ -490,10 +514,13 @@ hf_embed_df <- function(df,
     chunk_size = chunk_size,
     concurrent_requests = concurrent_requests,
     max_retries = max_retries,
-    timeout = timeout
+    timeout = timeout,
+    output_dir = output_dir,
+    id_col_name = id_col_name
   )
 
   return(results)
 }
+
 
 

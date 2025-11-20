@@ -1,6 +1,6 @@
 ---
 title: "Using Hugging Face Inference Endpoints"
-output: 
+output:
   html_document:
     toc: true
     toc_float: true
@@ -37,12 +37,13 @@ library(EndpointR)
 library(dplyr)
 library(httr2)
 library(tibble)
+library(arrow)
 
 my_data <- tibble(
   id = 1:3,
   text = c(
     "Machine learning is fascinating",
-    "I love working with embeddings", 
+    "I love working with embeddings",
     "Natural language processing is powerful"
   ),
   category = c("ML", "embeddings", "NLP")
@@ -52,7 +53,7 @@ my_data <- tibble(
 Follow Hugging Face's [docs](https://huggingface.co/docs/hub/security-tokens) to generate a Hugging Face token, and then register it with EndpointR:
 
 ```{r, keys_and_urls}
-set_api_key("HF_TEST_API_KEY") 
+set_api_key("HF_TEST_API_KEY")
 ```
 
 # Choosing Your Service
@@ -67,6 +68,140 @@ For this vignette, we'll use the Inference API. To switch to dedicated endpoints
 # Getting Started
 
 Go to [Hugging Face's models hub](https://huggingface.co/models) and fetch the Inference API's URL for the model you want to embed your data with. Not all models are available via the Hugging Face Inference API, if you need to use a model that is not available you may need to deploy a [Dedicated Inference Endpoint](https://huggingface.co/inference-endpoints/dedicated).
+
+# Understanding the Function Hierarchy
+
+EndpointR provides four levels of functions for working with Hugging Face endpoints.
+
+> **KEY FEATURE**: The `*_df()` and `*_chunks()` functions preserve your original column names. If you pass a data frame with columns named `review_id` and `review_text`, those exact names will appear in the output and in the saved `.parquet` files. This makes it easy to join results back to your original data.
+
+## Single Text Functions
+
+-   `hf_embed_text()` - Embed a single text
+-   `hf_classify_text()` - Classify a single text
+
+Use these for one-off requests or testing.
+
+## Batch Functions
+
+-   `hf_embed_batch()` - Embed multiple texts in memory
+-   `hf_classify_batch()` - Classify multiple texts in memory
+
+Use these for small to medium datasets (<5000 texts) that fit in memory. Results are returned as a single data frame.
+
+## Chunk Functions (NEW in v0.1.2)
+
+-   `hf_embed_chunks()` - Process large volumes with incremental file writing
+-   `hf_classify_chunks()` - Process large volumes with incremental file writing
+
+Use these for large datasets (>5000 texts). Results are written incrementally as `.parquet` files to avoid memory issues and provide safety against crashes.
+
+## Data Frame Functions
+
+-   `hf_embed_df()` - Convenience wrapper that calls `hf_embed_chunks()`
+-   `hf_classify_df()` - Convenience wrapper that calls `hf_classify_chunks()`
+
+**Most users will use these.** They handle extraction from data frames and call the chunk functions internally.
+
+## Choosing the Right Function
+
+Use this decision tree:
+
+```{r}
+# Single text? Use _text functions
+if (n_texts == 1) {
+  result <- hf_embed_text(text, endpoint_url, key_name)
+  # or
+  result <- hf_classify_text(text, endpoint_url, key_name)
+}
+
+# Small batch (<5000 texts) and want results in memory only?
+if (n_texts < 5000 && !need_file_output) {
+  results <- hf_embed_batch(texts, endpoint_url, key_name, batch_size = 10)
+  # or
+  results <- hf_classify_batch(texts, endpoint_url, key_name, batch_size = 8)
+}
+
+# Large dataset or want file output for safety?
+# Use _df functions (they call _chunks internally)
+if (n_texts >= 5000 || need_safety) {
+  results <- hf_embed_df(df, text, id, endpoint_url, key_name,
+                         chunk_size = 5000, output_dir = "my_results")
+  # or
+  results <- hf_classify_df(df, text, id, endpoint_url, key_name,
+                            chunk_size = 2500, output_dir = "my_results",
+                            max_length = 512)
+}
+```
+
+> **Recommendation**: For most production use cases, use `_df` functions even for smaller datasets. The safety of incremental file writing is worth it.
+
+# Key Differences: Embeddings vs Classification
+
+Understanding the differences between embedding and classification functions is crucial for effective use.
+
+## Text Truncation Handling
+
+**Embeddings** (`hf_embed_*`):
+
+-   **NO** `max_length` parameter in the R functions
+-   Truncation is handled **at the endpoint level**
+-   For Dedicated Endpoints: Set `AUTO_TRUNCATE=true` in your endpoint's environment variables
+-   For Inference API: Truncation is typically handled automatically by the model
+-   Uses TEI (Text Embeddings Inference) which only accepts `truncate`, not `truncation` or `max_length`
+
+**Classification** (`hf_classify_*`):
+
+-   **HAS** `max_length` parameter (default: `512L`)
+-   Truncation is controlled **in your R code**
+-   Texts longer than `max_length` tokens are truncated before classification
+-   Uses standard inference parameters: `truncation=TRUE` and `max_length`
+
+```{r}
+# Embeddings - NO max_length parameter
+hf_embed_df(
+  df = my_data,
+  text_var = text,
+  id_var = id,
+  endpoint_url = embed_url,
+  key_name = "HF_API_KEY"
+  # max_length not available - set AUTO_TRUNCATE in endpoint settings
+)
+
+# Classification - max_length IS available
+hf_classify_df(
+  df = my_data,
+  text_var = text,
+  id_var = id,
+  endpoint_url = classify_url,
+  key_name = "HF_API_KEY",
+  max_length = 512  # Control truncation here
+)
+```
+
+## Inference Parameters Sent to API
+
+The functions send different parameters to the Hugging Face API:
+
+**Embeddings**:
+
+```json
+{
+  "truncate": true
+}
+```
+
+**Classification**:
+
+```json
+{
+  "return_all_scores": true,
+  "truncation": true,
+  "max_length": 512
+}
+```
+
+These differences are handled automatically - you don't need to worry about them unless you're debugging API issues. Check `metadata.json` (see below) to see what parameters were used.
 
 # Embeddings
 
@@ -115,35 +250,137 @@ The result includes:
 -   `.error_message`: what went wrong (if anything)
 -   `V1` to `V384`: the embedding values
 
-## Data Frame
+## Processing Data Frames with Chunk Writing
 
-Most commonly, you'll want to embed a column in a data frame:
+Most commonly, you'll want to embed a column in a data frame. The `hf_embed_df()` function processes data in chunks and writes intermediate results to disk.
+
+### Understanding output_dir
+
+Both `hf_embed_df()` and `hf_classify_df()` write intermediate results to disk as `.parquet` files. This provides:
+
+1.  **Safety**: If your job crashes, you don't lose all progress
+2.  **Memory efficiency**: Large datasets don't overwhelm your RAM
+3.  **Reproducibility**: Metadata tracks exactly what parameters you used
 
 ```{r}
+# Basic usage - auto-generates output directory
 embedding_result <- hf_embed_df(
   df = my_data,
   text_var = text,      # column with your text
   id_var = id,          # column with unique ids
   endpoint_url = embed_url,
-  key_name = "HF_API_KEY"
+  key_name = "HF_API_KEY",
+  output_dir = "auto",  # Creates "hf_embeddings_batch_TIMESTAMP"
+  chunk_size = 5000,    # Writes every 5000 rows
+  concurrent_requests = 2
+)
+
+# Custom output directory
+embedding_result <- hf_embed_df(
+  df = my_data,
+  text_var = text,
+  id_var = id,
+  endpoint_url = embed_url,
+  key_name = "HF_API_KEY",
+  output_dir = "my_embeddings_v1",  # Your custom directory name
+  chunk_size = 5000
 )
 ```
 
-Check for errors:
+### Output Directory Structure
+
+After running `hf_embed_df()` or `hf_classify_df()`, you'll have:
+
+```
+my_embeddings_v1/
+├── chunk_001.parquet
+├── chunk_002.parquet
+├── chunk_003.parquet
+└── metadata.json
+```
+
+**IMPORTANT**: Add your output directories to `.gitignore`! These files contain API responses and can be large.
+
+```r
+# .gitignore
+hf_embeddings_batch_*/
+hf_classification_chunks_*/
+my_embeddings_v1/
+```
+
+### Reading Results from Disk
+
+If your R session crashes or you want to reload results later:
+
+```{r}
+# List all parquet files (excludes metadata.json automatically)
+parquet_files <- list.files("my_embeddings_v1",
+                           pattern = "\\.parquet$",
+                           full.names = TRUE)
+
+# Read all chunks into a single data frame
+results <- arrow::open_dataset(parquet_files, format = "parquet") |>
+  dplyr::collect()
+
+# Check for any errors
+results |> count(.error)
+
+# Extract only successful embeddings
+successful <- results |> filter(.error == FALSE)
+```
+
+### Understanding metadata.json
+
+The metadata file records everything about your processing job:
+
+```{r}
+metadata <- jsonlite::read_json("my_embeddings_v1/metadata.json")
+
+# Check which endpoint was used
+metadata$endpoint_url
+
+# See processing parameters
+metadata$chunk_size
+metadata$concurrent_requests
+metadata$timeout
+
+# See inference parameters (differs between embed and classify!)
+metadata$inference_parameters
+# For embeddings: {truncate: true}
+# For classification: {return_all_scores: true, truncation: true, max_length: 512}
+
+# Check when the job ran
+metadata$timestamp
+```
+
+This metadata is invaluable for:
+
+-   Debugging why a job failed
+-   Reproducing results with identical settings
+-   Tracking which model/endpoint version was used
+-   Understanding performance characteristics
+
+### Check for Errors
+
+Always verify your results:
 
 ```{r}
 embedding_result |> count(.error)
-```
 
-Extract just the embeddings:
+# View any failures (column names match your original data frame)
+failures <- embedding_result |>
+  filter(.error == TRUE) |>
+  select(id, .error_message)
 
-```{r}
-embeddings_only <- embedding_result |> select(V1:V384)
+# Extract just the embeddings for successful rows
+embeddings_only <- embedding_result |>
+  filter(.error == FALSE) |>
+  select(starts_with("V"))
 ```
 
 # Classification
 
-Classification works the same way as embeddings, just with a different URL and output format. If neceessary, you can also provide a custom function for tidying the output.
+Classification works similarly to embeddings, but with a different URL, output format, and the additional `max_length` parameter for controlling text truncation.
 
 ## Single Text
 
@@ -157,7 +394,7 @@ sentiment <- hf_classify_text(
 )
 ```
 
-## Data Frame
+## Processing Data Frames
 
 ```{r}
 classification_result <- hf_classify_df(
@@ -165,24 +402,107 @@ classification_result <- hf_classify_df(
   text_var = text,
   id_var = id,
   endpoint_url = classify_url,
-  key_name = "HF_API_KEY"
+  key_name = "HF_API_KEY",
+  max_length = 512,  # Truncate texts longer than 512 tokens
+  output_dir = "my_classification_v1",
+  chunk_size = 2500,  # Smaller chunks for classification
+  concurrent_requests = 1,
+  timeout = 60  # Longer timeout for classification
 )
 ```
 
 The result includes:
 
--   Your original `id` column
+-   Your original ID and text columns (with their original names preserved)
 -   Classification labels (e.g., POSITIVE, NEGATIVE)
 -   Confidence scores
--   Error tracking columns.
+-   Error tracking columns (`.error`, `.error_message`)
+-   Chunk tracking (`.chunk`)
 
-> **NOTE**: Classification labels are model and task specific.
+> **NOTE**: Classification labels are model and task specific. Check the model card on Hugging Face for label mappings.
+
+> **IMPORTANT**: The function preserves your original column names. If your data frame has `review_id` and `review_text`, those names will appear in the output, not generic `id` and `text`.
+
+## Renaming Classification Labels
+
+Many classification models use generic labels like `LABEL_0`, `LABEL_1`. You can rename these:
+
+```{r}
+# Create a mapping function
+labelid_2class <- function() {
+  return(list(
+    negative = "LABEL_0",
+    neutral = "LABEL_1",
+    positive = "LABEL_2"
+  ))
+}
+
+# Apply the mapping
+classification_result <- hf_classify_df(
+  df = my_data,
+  text_var = text,
+  id_var = id,
+  endpoint_url = classify_url,
+  key_name = "HF_API_KEY",
+  max_length = 512
+) |>
+  dplyr::rename(!!!labelid_2class())
+```
+
+# Utility Functions
+
+EndpointR provides utility functions to help you work with Hugging Face endpoints.
+
+## Get Model Token Limits
+
+Find out the maximum token length for a model:
+
+```{r}
+# Get the model's max token length from Hugging Face
+max_tokens <- hf_get_model_max_length(
+  model_name = "cardiffnlp/twitter-roberta-base-sentiment",
+  api_key = "HF_API_KEY"
+)
+
+# Use this to set max_length for classification
+hf_classify_df(
+  df = my_data,
+  text_var = text,
+  id_var = id,
+  endpoint_url = classify_url,
+  key_name = "HF_API_KEY",
+  max_length = max_tokens  # Use the model's actual limit
+)
+```
+
+This is especially useful when working with different models that have varying token limits (e.g., 512, 1024, 2048).
+
+## Get Endpoint Information
+
+Retrieve detailed information about your Dedicated Inference Endpoint:
+
+```{r}
+endpoint_info <- hf_get_endpoint_info(
+  endpoint_url = "https://your-endpoint.endpoints.huggingface.cloud",
+  key_name = "HF_API_KEY"
+)
+
+# Check endpoint configuration
+endpoint_info
+```
+
+This is useful for:
+
+-   Checking endpoint status
+-   Verifying model configuration
+-   Understanding available features
+-   Debugging connection issues
 
 # Using Dedicated Endpoints
 
 To use dedicated endpoints instead of the Inference API:
 
-1.  Deploy your model to a dedicated endpoint (see Hugging Face docs)
+1.  Deploy your model to a dedicated endpoint (see [Hugging Face docs](https://huggingface.co/docs/inference-endpoints))
 2.  Get your endpoint URL
 3.  Replace the URL in any function:
 
@@ -198,39 +518,263 @@ result <- hf_embed_text(
 )
 ```
 
-> **Note**: Dedicated endpoints take 20-30 seconds to start if they're idle. Set `max_retries = 5` to give them time to wake up.
+> **Note**: Dedicated endpoints take 20-30 seconds to start if they're idle (cold start). Set `max_retries = 10` to give them time to wake up.
 
-# Tips
+## Setting AUTO_TRUNCATE for Embedding Endpoints
 
--   Start with small batch sizes (3-5) and increase gradually
--   The Inference API has rate limits - dedicated endpoints have hardware constraints, increase hardware for higher limits
--   For production use, choose dedicated endpoints
--   Check the [Improving Performance](improving_performance.html) vignette for speed tips
+For Dedicated Inference Endpoints running embedding models, you should enable automatic truncation:
+
+1.  In your endpoint settings on Hugging Face
+2.  Add environment variable: `AUTO_TRUNCATE=true`
+3.  This handles long texts automatically at the endpoint level
+
+Without this, very long texts may cause "Payload too large" errors.
+
+# Tips and Best Practices
+
+## Performance Tuning
+
+-   **Start conservative**: Begin with `chunk_size = 2500` and `concurrent_requests = 1`
+-   **Scale gradually**: Monitor for errors as you increase concurrency
+-   **Embeddings are faster**: You can often use higher concurrency for embeddings than classification
+-   **Watch your rate limits**:
+    -   Inference API: Shared limits, reduce concurrency if you hit errors
+    -   Dedicated Endpoints: Limited by hardware, not API rate limits
+
+## Memory Management
+
+-   Use `chunk_size` to control memory usage
+-   Smaller chunks = more frequent disk writes = less memory needed
+-   For very large datasets (>100k rows), use `chunk_size = 1000-2500`
+
+```{r}
+# For very large datasets
+hf_embed_df(
+  df = large_data,
+  text_var = text,
+  id_var = id,
+  endpoint_url = embed_url,
+  key_name = "HF_API_KEY",
+  chunk_size = 1000,  # Smaller chunks for memory efficiency
+  concurrent_requests = 1
+)
+```
+
+## Truncation Strategy
+
+**For Embeddings**:
+
+1.  Set `AUTO_TRUNCATE=true` in your Dedicated Endpoint's environment variables
+2.  For Inference API, truncation is handled automatically by most models
+3.  Consider preprocessing very long texts before embedding (e.g., take first N characters)
+
+**For Classification**:
+
+1.  Use `hf_get_model_max_length()` to check the model's token limit
+2.  Set `max_length` appropriately (default 512 works for most models)
+3.  For documents longer than `max_length`, consider:
+    -   Chunking documents and classifying each chunk
+    -   Summarization before classification
+    -   Using models with longer context windows
+
+```{r}
+# Get model's actual max length
+model_limit <- hf_get_model_max_length(
+  model_name = "distilbert/distilbert-base-uncased-finetuned-sst-2-english",
+  api_key = "HF_API_KEY"
+)
+
+# Use 90% of the limit to be safe
+safe_limit <- as.integer(model_limit * 0.9)
+
+hf_classify_df(
+  df = my_data,
+  text_var = text,
+  id_var = id,
+  endpoint_url = classify_url,
+  key_name = "HF_API_KEY",
+  max_length = safe_limit
+)
+```
+
+## Error Recovery
+
+Always check for errors and consider retrying failures:
+
+```{r}
+# Check results for errors
+results |> count(.error)
+
+# Identify failed texts (column names match your input data frame)
+failed <- results |> filter(.error == TRUE)
+
+# Note: Column names below will match your original data frame
+# If you used review_id and review_text, use those names instead
+failed |> select(id, .error_msg)
+
+# Retry failed texts with adjusted parameters
+# Access text column by its actual name from your data
+retry_results <- hf_embed_batch(
+  texts = failed$text,  # Use your actual column name
+  endpoint_url = embed_url,
+  key_name = "HF_API_KEY",
+  batch_size = 1,  # One at a time for failures
+  timeout = 30,    # Longer timeout
+  max_retries = 10 # More retries
+)
+```
+
+## Production Recommendations
+
+1.  **Always use output_dir**: Never rely solely on in-memory results for large jobs
+2.  **Monitor metadata**: Check `metadata.json` to verify your settings
+3.  **Add to .gitignore**: Keep API responses out of version control
+4.  **Use Dedicated Endpoints**: For production workloads, avoid the free Inference API
+5.  **Set appropriate timeouts**: Classification needs longer timeouts than embeddings
+6.  **Test with small samples**: Before processing 1M rows, test with 100 rows
+7.  **Monitor costs**: Track your Dedicated Endpoint usage on Hugging Face
 
 # Common Issues
 
-**Rate limits**: Reduce batch size or add delays between requests
+## "Payload too large" Errors
 
-**Model not available**: Not all models work with the Inference API. Check the model page or use dedicated endpoints.
+**For Embeddings**:
 
-**Timeouts**: Increase `max_retries` or reduce batch size
+-   Not fixable in R code - must configure endpoint
+-   **Dedicated Endpoints**: Set `AUTO_TRUNCATE=true` in endpoint environment variables
+-   **Inference API**: Preprocess and truncate texts before sending
+
+```{r}
+# Preprocessing approach for Inference API
+my_data <- my_data |>
+  mutate(text = substr(text, 1, 5000))  # Limit to ~5000 characters
+```
+
+**For Classification**:
+
+-   Reduce the `max_length` parameter
+
+```{r}
+hf_classify_df(
+  df = my_data,
+  text_var = text,
+  id_var = id,
+  endpoint_url = classify_url,
+  key_name = "HF_API_KEY",
+  max_length = 256  # Reduce from default 512
+)
+```
+
+## Timeouts
+
+Classification takes longer than embeddings. Increase timeout if needed:
+
+```{r}
+hf_classify_df(
+  df = my_data,
+  text_var = text,
+  id_var = id,
+  endpoint_url = classify_url,
+  key_name = "HF_API_KEY",
+  timeout = 120,  # Increase from default 60
+  max_retries = 10
+)
+```
+
+## Dedicated Endpoint Cold Starts
+
+Dedicated endpoints take 20-30 seconds to wake up from idle:
+
+```{r}
+# Set higher max_retries to allow for cold start
+hf_embed_df(
+  df = my_data,
+  text_var = text,
+  id_var = id,
+  endpoint_url = dedicated_url,
+  key_name = "HF_API_KEY",
+  max_retries = 10,  # Give it time to wake up
+  timeout = 30
+)
+```
+
+The first chunk may fail or be slow, but subsequent chunks will be fast once the endpoint is warm.
+
+## Out of Memory Errors
+
+Reduce `chunk_size`:
+
+```{r}
+# Instead of default 5000
+hf_embed_df(
+  df = large_data,
+  text_var = text,
+  id_var = id,
+  endpoint_url = embed_url,
+  key_name = "HF_API_KEY",
+  chunk_size = 1000,  # Smaller chunks
+  concurrent_requests = 1
+)
+```
+
+## Rate Limit Errors
+
+**For Inference API**:
+
+-   Reduce `concurrent_requests` to 1
+-   Increase delays between requests (handled automatically by retries)
+
+```{r}
+hf_embed_df(
+  df = my_data,
+  text_var = text,
+  id_var = id,
+  endpoint_url = embed_url,
+  key_name = "HF_API_KEY",
+  concurrent_requests = 1,  # Sequential processing
+  max_retries = 10  # More retries with backoff
+)
+```
+
+**For Dedicated Endpoints**:
+
+-   Not typically rate-limited
+-   If you see errors, your hardware may be overwhelmed
+-   Reduce `concurrent_requests` or upgrade your endpoint hardware
+
+## Model Not Available
+
+Not all models work with the Inference API. Check the model page on Hugging Face. If the model isn't available via Inference API, you'll need to:
+
+1.  Deploy a Dedicated Inference Endpoint
+2.  Use a different model that is available via Inference API
+3.  Run the model locally (outside of EndpointR)
 
 # Improving Performance
 
-EndpointR's functions come with knobs and dials and you can turn to improve throughput and performance. Visit the [Improving Performance](articles/improving_performance.html) vignette for more information.
+For detailed performance optimization strategies, visit the [Improving Performance](improving_performance.html) vignette.
+
+Quick tips:
+
+-   Increase `concurrent_requests` gradually while monitoring errors
+-   Use larger `chunk_size` values for faster processing (if memory allows)
+-   For Dedicated Endpoints, upgrade hardware for better throughput
+-   Use batch functions (`hf_embed_batch()`, `hf_classify_batch()`) for small datasets to avoid file I/O overhead
 
 # Appendix
 
 ## Comparison of Inference API vs Dedicated Inference Endpoints
 
-| Feature | Inference API | Dedicated Inference Endpoints |
-|----|----|----|
-| **Accessibility** | Public, shared service | Private, dedicated hardware |
-| **Cost** | Free (with paid tiers) | Paid service - rent specific hardware |
-| **Hardware** | Shared computing resources | Dedicated hardware allocation |
-| **Wait Times** | Variable, unknowable in advance | Predictable, minimal queuing, \~30s for first request |
-| **Production Ready** | Not recommended for production | Recommended for production use |
-| **Use Case** | Casual usage, testing, prototyping | Production applications, consistent performance |
-| **Scalability** | Limited by shared resources | Scales with dedicated allocation |
-| **Availability** | Subject to shared infrastructure limits | Guaranteed availability during rental period |
-| **Model Coverage** | Commonly-used models, models selected by Hugging Face | Virtually all models on the Hub are available |
+| Feature                | Inference API                                  | Dedicated Inference Endpoints            |
+|------------------------|------------------------------------------------|------------------------------------------|
+| **Accessibility**      | Public, shared service                         | Private, dedicated hardware              |
+| **Cost**               | Free (with paid tiers)                         | Paid service - rent specific hardware    |
+| **Hardware**           | Shared computing resources                     | Dedicated hardware allocation            |
+| **Wait Times**         | Variable, unknowable in advance                | Predictable, \~30s for cold start        |
+| **Production Ready**   | Not recommended for production                 | Recommended for production use           |
+| **Use Case**           | Casual usage, testing, prototyping             | Production applications                  |
+| **Scalability**        | Limited by shared resources                    | Scales with dedicated allocation         |
+| **Availability**       | Subject to shared infrastructure limits        | Guaranteed availability during rental    |
+| **Model Coverage**     | Commonly-used models, models selected by HF    | Virtually all models on the Hub          |
+| **Truncation Control** | Limited (model-dependent)                      | Full control via environment variables   |
+

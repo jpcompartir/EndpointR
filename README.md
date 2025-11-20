@@ -89,8 +89,11 @@ hf_embed_df(
   id_var = review_id,
   endpoint_url = endpoint_url,
   key_name = "HF_API_KEY",
+  output_dir = "embeddings_output",  # writes .parquet chunks to this directory
+  chunk_size = 5000,  # process 5000 rows per chunk
   concurrent_requests = 2,
-  batch_size = 3
+  max_retries = 5,
+  timeout = 15
 )
 ```
 
@@ -132,8 +135,12 @@ hf_classify_df(
   id_var = review_id,
   endpoint_url = sentiment_endpoint,
   key_name = "HF_API_KEY",
-  batch_size = 8,
-  concurrent_requests = 3
+  max_length = 512,  # truncate texts longer than 512 tokens
+  output_dir = "classification_output",  # writes .parquet chunks to this directory
+  chunk_size = 2500,  # process 2500 rows per chunk
+  concurrent_requests = 3,
+  max_retries = 5,
+  timeout = 60
 ) |>
   dplyr::rename(!!!labelid_2class())
 ```
@@ -190,7 +197,11 @@ oai_complete_df(
   id_var = review_id,
   system_prompt = "Classify the following review:",
   key_name = "OPENAI_API_KEY",
-  concurrent_requests = 5 # send 5 rows of data simultaneously
+  output_file = "completions_output.parquet",  # writes results to this file
+  chunk_size = 1000,  # process 1000 rows per chunk
+  concurrent_requests = 5,  # send 5 rows of data simultaneously
+  max_retries = 5,
+  timeout = 30
 )
 ```
 
@@ -204,9 +215,63 @@ oai_complete_df(
   system_prompt = "Classify the following review:",
   schema = sentiment_schema,
   key_name = "OPENAI_API_KEY",
-  concurrent_requests = 5 # send 5 rows of data simultaneously
+  output_file = "completions_output.parquet",
+  chunk_size = 1000,
+  concurrent_requests = 5
 )
 ```
+
+# Working with Output Files
+
+## Reading Results from Disk
+
+Hugging Face functions (`hf_embed_df()`, `hf_classify_df()`) write
+intermediate results as `.parquet` files in the specified `output_dir`.
+To read all results back:
+
+``` r
+# List all parquet files (excludes metadata.json automatically)
+parquet_files <- list.files("embeddings_output",
+                           pattern = "\\.parquet$",
+                           full.names = TRUE)
+
+# Read all chunks into a single data frame
+results <- arrow::open_dataset(parquet_files, format = "parquet") |>
+  dplyr::collect()
+```
+
+## Understanding metadata.json
+
+Each Hugging Face output directory contains a `metadata.json` file that
+records:
+
+- `endpoint_url`: The API endpoint used
+- `chunk_size`: Number of rows processed per chunk
+- `n_texts`: Total number of texts processed
+- `concurrent_requests`: Parallel request setting
+- `timeout`: Request timeout in seconds
+- `max_retries`: Maximum retry attempts
+- `inference_parameters`: Model-specific parameters (e.g., truncate,
+  max_length)
+- `timestamp`: When the job was run
+- `key_name`: Which API key was used
+
+This metadata is useful for:
+
+- Debugging failed runs
+- Reproducing results with the same settings
+- Tracking which endpoint/model was used
+- Understanding performance characteristics
+
+``` r
+metadata <- jsonlite::read_json("embeddings_output/metadata.json")
+
+# check which endpoint was used
+metadata$endpoint_url
+```
+
+**Note:** Add output directories to `.gitignore` to avoid committing API
+responses and metadata.
 
 Read the [LLM Providers Vignette](articles/llm_providers.html), and the
 [Structured Outputs

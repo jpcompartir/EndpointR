@@ -1,0 +1,122 @@
+---
+title: "hf_embed_dev"
+format: html
+---
+
+```{r}
+library(EndpointR)
+library(arrow)
+library(httr2) 
+library(purrr)
+library(dplyr)
+library(tidyr)
+library(stringr)
+```
+
+```{r}
+test_embed_url <- secret_decrypt(
+  "KWqk_H6v58UIaJm6WPAekfrAD8LVAZGUmfZNysv4Ze48NxHJCYyOPWdqMn8_z-xU_MFCccR8Qm0_qUzqcSMB6QlphuHPtkHmYievFG1L4J6k0g",
+  "ENDPOINTR_KEY"
+)
+
+test_data <- read_parquet("~/dev/projects/diageo/mltm/data/main/mltm_l3_trend_df.parquet")
+```
+
+```{r}
+test_data <- test_data |>
+  slice(1:10000) |> 
+  mutate(string_length = str_length(message)) 
+
+test_long_strings <- test_data |> 
+  filter(string_length > 2500)
+
+test_short_strings <- test_data |> 
+  filter(string_length < 500) |> 
+  slice(1:50)
+```
+
+```{r}
+should_fail <- test_long_strings |> 
+  hf_embed_df(
+    message,
+    universal_message_id,
+    test_embed_url,
+    "HF_API_KEY", 
+    # max_length = 8192L,
+    output_dir = "test_dir/test_embed/test_failures_long",
+    concurrent_requests = 5,
+    max_retries = 10L,
+    timeout = 60
+  )
+```
+
+```{r}
+should_pass <-  test_short_strings |> 
+  hf_embed_df(
+    message,
+    universal_message_id,
+    test_embed_url,
+    "HF_API_KEY", 
+    # max_length = 8192L,
+    output_dir = "test_dir/test_embed/test_passes_short",
+    concurrent_requests = 5,
+    max_retries = 10L,
+    timeout = 60
+  )
+```
+
+The endpoint reports 512 as model_max_length but actually the inference endpoint asks for 256
+
+```{r}
+should_pass_string_truncation <- test_long_strings |> 
+  mutate(message = str_trunc(message, 250, ellipsis = "")) |>
+  hf_embed_df(
+    message,
+    universal_message_id,
+    test_embed_url,
+    "HF_API_KEY", 
+    # max_length = 50,
+    output_dir = "test_dir/test_embed/test_pass_truncation",
+    concurrent_requests = 5,
+    max_retries = 10L,
+    timeout = 60
+  )
+```
+
+TEST Tokenisation is working
+
+```{r}
+should_pass_tokenisation <- test_long_strings |> 
+  hf_embed_df(
+    message,
+    universal_message_id,
+    test_embed_url,
+    "HF_API_KEY", 
+    output_dir = "test_dir/test_embed/test_pass_truncation",
+    concurrent_requests = 5,
+    max_retries = 10L,
+    timeout = 60
+  )
+```
+
+```{r}
+test_ten_k <- test_data |> 
+  hf_embed_df(
+    message,
+    universal_message_id,
+    test_embed_url,
+    "HF_API_KEY", 
+    output_dir = "test_dir/test_embed/test_ten_k",
+    concurrent_requests = 50,
+    max_retries = 10L,
+    timeout = 60
+  )
+```
+
+With AUTO_TRUNCATE: true, they do work (in the Endpoint configs)
+
+Getting model info - requires the API be up and running.
+
+```{r}
+hf_get_endpoint_info(test_embed_url)
+```
