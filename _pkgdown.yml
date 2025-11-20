@@ -70,6 +70,7 @@ reference:
   contents:
   - hf_classify_text
   - hf_classify_batch
+  - hf_classify_chunks
   - hf_classify_df
   - tidy_classification_response
 
@@ -80,6 +81,12 @@ reference:
   - hf_build_request_batch
   - hf_build_request_df
   - hf_perform_request
+
+- title: "Hugging Face Endpoint Utilities"
+  desc: "Small functions for checking things with Hugging FACE APIs"
+  contents:
+  - hf_get_endpoint_info
+  - hf_get_model_max_length
 
 - title: "OpenAI Completions"
   desc: "Functions for working with OpenAI's APIs including structured outputs"
@@ -137,7 +144,6 @@ reference:
   - df_sentiment_classification_example
   - single_embedding_hf
   - df_embeddings_hf
-
 
 authors:
   Jack Penzer:

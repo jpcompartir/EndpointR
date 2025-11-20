@@ -2,6 +2,11 @@
 
 # 0.1.2
 
+-   [x] tests passing following hf\_\* changes
+-   [x] max_length for hf functions - not applicable in hf_embed\_\* functions as they use HF's TEI which doesn't allow max_length
+-   [ ] documented
+-   [x] Update README
+
 similarly to the upgrades applied in 0.1.1:
 
 ```         
@@ -10,12 +15,15 @@ similarly to the upgrades applied in 0.1.1:
     - [x] parquet
     - [x] fix output dir
     - [x] chunk_size
-    - [ ] Update tests
--   [ ] `hf_classify_df()`
-    - [ ] write to files
-    - [ ] parquet
-    - [ ] fix output dir
-    - [ ] chunk_size
+    - [x] update tests
+    - [ ] update docs
+-   [x] `hf_classify_df()`
+    - [x] write to files
+    - [x] parquet
+    - [x] fix output dir
+    - [x] chunk_size
+    - [x] update tests
+    - [ ] update docs
 -   [ ] `oai_complete_df`
     - [x] write to files
     - [ ] parquet
