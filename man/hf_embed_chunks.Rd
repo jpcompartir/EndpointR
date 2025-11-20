@@ -13,7 +13,8 @@ hf_embed_chunks(
   concurrent_requests = 5L,
   max_retries = 5L,
   timeout = 10L,
-  key_name = "HF_API_KEY"
+  key_name = "HF_API_KEY",
+  id_col_name = "id"
 )
 }
 \arguments{
@@ -34,11 +35,13 @@ hf_embed_chunks(
 \item{timeout}{Request timeout in seconds (default: 10)}
 
 \item{key_name}{Name of environment variable containing the API key (default: "HF_API_KEY")}
+
+\item{id_col_name}{Name for the ID column in output (default: "id"). When called from hf_embed_df(), this preserves the original column name.}
 }
 \value{
 A tibble with columns:
 \itemize{
-\item \code{id}: Original identifier from input
+\item ID column (name specified by \code{id_col_name}): Original identifier from input
 \item \code{.error}: Logical indicating if request failed
 \item \code{.error_msg}: Error message if failed, NA otherwise
 \item \code{.chunk}: Chunk number for tracking

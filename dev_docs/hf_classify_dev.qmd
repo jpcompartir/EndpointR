@@ -536,10 +536,10 @@ should_pass <- hf_classify_chunks(
   concurrent_requests = 5,
   timeout = 60,
   max_retries = 10,
-  max_length = 128L
+  max_length = 128L,
+  id_col_name = "universal_message_id",
+  text_col_name = ".text_col"
 )
-
-
 ```
 
 ```         
@@ -593,6 +593,24 @@ Test the function over 10k data points
   hf_classify_df(
     text_var = message,
     id_var = universal_message_id,
+    endpoint_url = test_sent_url,
+    key_name = "HF_API_KEY",
+    max_length = 128,
+    output_dir = "test_dir/test_classify/ten_thousand_rows",
+    tidy_func = tidy_classification_response,
+    chunk_size = 2500,
+    concurrent_requests = 15,
+    max_retries = 10L,
+    timeout = 60
+  )
+```
+
+```{r}
+x |> 
+  slice(1:10) |> 
+  hf_classify_df(
+    message,
+    universal_message_id,
     endpoint_url = test_sent_url,
     key_name = "HF_API_KEY",
     max_length = 128,
