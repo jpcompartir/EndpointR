@@ -275,7 +275,7 @@ responses and metadata.
 
 Read the [LLM Providers Vignette](articles/llm_providers.html), and the
 [Structured Outputs
-Vignette](vignettes/structured_outputs_json_schema.Rmd) for more
+Vignette](vignettes/structured_outputs_json_schema.html) for more
 information on common workflows with the OpenAI Chat Completions API
 [^1]
 
