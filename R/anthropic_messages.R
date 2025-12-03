@@ -56,3 +56,20 @@ ant_build_messages_request <- function(
     )
   )
 }
+
+
+
+#' Convert json_schema S7 object to Anthropic output_format structure
+#' @keywords internal
+.ant_format_schema <- function(schema) {
+  if (!inherits(schema, "EndpointR::json_schema")) {
+    cli::cli_abort("schema must be a json_schema object")
+  }
+
+  # Anthropic uses output_format with type "json_schema"
+  # The schema goes directly in the "schema" field (not nested like OpenAI)
+  list(
+    type = "json_schema",
+    schema = schema@schema
+  )
+}

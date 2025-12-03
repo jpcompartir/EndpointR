@@ -1,0 +1,630 @@
+---
+title: "batch_api"
+format: html
+---
+
+```{python}
+import json
+from openai import OpenAI
+import pandas as pd
+from IPython.display import Image, display
+```
+
+```{r}
+reticulate::repl_python()
+
+OPENAI_API_KEY <- Sys.getenv("OPENAI_API_KEY")
+```
+
+```{python}
+py_OPENAI_API_KEY = r.OPENAI_API_KEY
+
+client = OpenAI()
+```
+
+Loading data
+
+```{python}
+dataset_path = "data/batch_trial.csv"
+
+df = pd.read_csv(dataset_path)
+df.head()
+```
+
+Processing step
+
+```{python}
+categorize_system_prompt = '''
+You are an internal tool that classifies online posts. 
+
+Classify as TRUE only if the post explicitly discusses exercise as a deliberate activity AND explicitly states the REASON behind their exercise behaviour:
+- A specific motivation/driver for exercising: WHY do they exercise? (e.g., losing weight, health problems, enjoying beautiful environments, dog needs walks, saving money on transport, mental health benefits, social connection)
+- A specific barrier preventing exercise: WHAT stops them? (e.g., lack of facilities, weather, injury, cost, time constraints, caregiving responsibilities, safety concerns)
+
+Exercise includes: organised activities (gym, running, yoga, sports) or incidental physical activity performed regularly (walking for transport, active caregiving, dog walking).
+
+Classify as FALSE if:
+- Exercise verbs describe ordinary movement, not deliberate exercise
+- Exercise is tangential or metaphorical
+- The post is about someone else's experience, not the author's own
+- Exercise is mentioned but NO specific reason is given
+- The post shows enthusiasm for exercise but doesn't explain the underlying driver (e.g., "I love working out!", "Can't wait for gym time")
+- The post discusses exercise planning, routines, or methods without explaining WHY they exercise or WHAT prevents them
+- Any connection to exercise requires inference or multiple logical steps
+
+The motivation or barrier must be directly stated in relation to exercise - do not infer connections.
+
+Answer TRUE or FALSE, then provide a brief rationale.
+
+Examples:
+
+"I work in Seattle this week right next to this cool ass hotel. I love older architecture. I could walk around a city looking at cool buildings admiring them all day✨" - TRUE - Motivation to walk around an aesthetically pleasing environment
+
+"Fine, but I still want to learn to walk before I try to run, okay?" - FALSE - Metaphorical use of exercise verbs, not about actual exercise
+
+"Dentist will prescribe them but not walk in centre. I could see the emergency dentist but tbh I can't drive on these levels of codeine." - FALSE - "Walk in centre" is a facility type, not about exercise
+
+"After my spinal fusion I had to beg and cry for anything. I was a few days in with little to no sleep, I told them if I don't get something to help so I could sleep, I'd be walking upstairs to psych." - FALSE - "Walking upstairs" describes ordinary movement in a hospital, not exercise; no motivation or barrier to exercise is discussed
+
+"I can't afford a gym membership and it's too dark after work to run outside safely" - TRUE - Explicit barriers to exercise (cost and safety concerns)
+
+"Just walking to pick the kids up from school is my daily workout now" - TRUE - Walking as deliberate exercise with implicit motivation (combining caregiving with activity)
+
+"I want your workout split and I want to follow it like the Bible" - FALSE - Person engaged in exercise, but no information as to why they exercise or what prevents them
+
+"I ran for 4 hours today and my legs are killing me but I'm going to keep walking" - FALSE - Describes doing exercise with dedication but doesn't explain WHY they exercise or what motivates them to continue
+'''
+
+exercise_schema = {
+  "type": "json_schema",
+  "json_schema": {
+    "name": "simple_schema",
+    "schema": {
+      "type": "object",
+      "properties": {
+        "exercise": {
+          "type": "boolean",
+          "description": "contains reference to motivation towards exercise or barriers faced stopping exercise"
+        },
+        "reason": {
+          "type": "string",
+          "description": "brief rationale behind classification"
+        }
+      },
+      "additionalProperties": False,
+      "required": [
+        "exercise",
+        "reason"
+      ]
+    },
+    "strict": True
+  }
+} 
+
+def get_categories(description):
+    response = client.chat.completions.create(
+    model="gpt-4.1-mini",
+    temperature=0.0,
+    # This is to enable JSON mode, making sure responses are valid json objects
+    response_format= exercise_schema,
+    messages=[
+        {
+            "role": "system",
+            "content": categorize_system_prompt
+        },
+        {
+            "role": "user",
+            "content": description
+        }
+    ],
+    )
+
+    return response.choices[0].message.content
+
+## test on a few examples
+for _, row in df[:5].iterrows():
+    description = row['text']
+    result = get_categories(description)
+    print(f"TEXT: {description}\n\nRESULT: {result}")
+    print("\n\n----------------------------\n\n")
+```
+
+Create batch task:
+
+```{python}
+# Creating an array of json tasks
+
+tasks = []
+
+for index, row in df.iterrows():
+    
+    description = row['text']
+    
+    task = {
+        "custom_id": str(row['radarly_id']),
+        "method": "POST",
+        "url": "/v1/chat/completions",
+        "body": {
+            # This is what you would have in your Chat Completions API call
+            "model": "gpt-4.1-mini",
+            "temperature": 0.0,
+            "response_format": exercise_schema,
+            "messages": [
+                {
+                    "role": "system",
+                    "content": categorize_system_prompt
+                },
+                {
+                    "role": "user",
+                    "content": description
+                }
+            ],
+        }
+    }
+    
+    tasks.append(task)
+
+tasks
+```
+
+Note: the request ID should be unique per batch. This is what you can use to match results to the initial input files, as requests will not be returned in the same order.
+
+```{python}
+# Creating the file
+
+file_name = "data/batch_tasks_exercise.jsonl"
+
+with open(file_name, 'w') as file:
+    for obj in tasks:
+        file.write(json.dumps(obj) + '\n')
+```
+
+Uploading file
+
+```{python}
+batch_file = client.files.create(
+  file=open(file_name, "rb"),
+  purpose="batch"
+)
+
+print(batch_file)
+
+```
+
+Create batch job
+
+```{python}
+batch_job = client.batches.create(
+  input_file_id=batch_file.id,
+  endpoint="/v1/chat/completions",
+  completion_window="24h"
+)
+```
+
+Checking batch status Note: this can take up to 24h, but it will usually be completed faster.
+
+You can continue checking until the status is 'completed'.
+
+```{python}
+batch_job = client.batches.retrieve(batch_job.id)
+print(batch_job)
+```
+
+Retrieving results
+
+```{python}
+result_file_id = batch_job.output_file_id
+result = client.files.content(result_file_id).content
+```
+
+```{python}
+result_file_name = "data/batch_job_results.jsonl"
+
+with open(result_file_name, 'wb') as file:
+    file.write(result)
+```
+
+```{python}
+# Loading data from saved file
+results = []
+with open(result_file_name, 'r') as file:
+    for line in file:
+        # Parsing the JSON string into a dict and appending to the list of results
+        json_object = json.loads(line.strip())
+        results.append(json_object)
+```
+
+```{python}
+# Reading only the first results
+for res in results[:5]:
+    task_id = res['custom_id']  
+    result = res['response']['body']['choices'][0]['message']['content']
+    row = df[df['radarly_id'] == task_id].iloc[0]    
+    description = row['text']
+    radarly_id = row['radarly_id']
+    print(f"RADARLY ID: {radarly_id}\nTEXT: {description}\n\nRESULT: {result}")
+    print("\n\n----------------------------\n\n")
+```
+
+Okay now I am going to try this on a sample of 10k different posts:
+
+```{python}
+dataset_path = "data/batch_trial_v3.csv"
+dataset_path = "data/batch_trial_v4.csv"
+dataset_path = "data/lr_labelled_batch.csv"
+dataset_path = "data/lr_labelled_batch_2.csv"
+
+df = pd.read_csv(dataset_path)
+df.head()
+len(df)
+```
+
+```{python}
+categorize_system_prompt = '''
+You are an internal tool that classifies online posts relating to exercise. 
+
+For each post, provide THREE classifications:
+
+1. Exercise: Does the post mention exercise in any form? (TRUE/FALSE)
+   - Include: organised activities (gym, running, yoga, sports, workout) or incidental physical activity performed regularly (walking for transport, active caregiving, dog walking)
+   - Exclude: ordinary movement, metaphorical uses, tangential mentions
+   
+2. Motivation: Does the post explicitly state WHY they exercise or want to exercise? (TRUE/FALSE)
+   - Must explicitly state a reason: "because...", "so that...", "for my...", "to..."
+   - Examples: losing weight, health problems, enjoying beautiful environments, dog needs walks, saving money, mental health benefits, social connection
+   - FALSE if: shows enthusiasm but no specific reason, or requires inference
+   
+3. Barrier: Does the post explicitly state WHAT prevents or hinders them from exercising? (TRUE/FALSE)
+   - Must explicitly state an obstacle or challenge
+   - Examples: lack of facilities, weather, injury, cost, time constraints, caregiving responsibilities, safety concerns
+   - FALSE if requires inference
+   
+
+IMPORTANT:
+- The post must be about the author's OWN experience (not someone else's)
+- Motivations and barriers must be DIRECTLY STATED, not inferred
+- "Implies motivation" or "suggests barrier" is NOT sufficient
+- Simply doing exercise != stating motivation
+
+Output format:
+Exercise: TRUE/FALSE
+Motivation: TRUE/FALSE
+Barrier: TRUE/FALSE
+
+Examples:
+
+"I work in Seattle this week right next to this cool ass hotel. I love older architecture. I could walk around a city looking at cool buildings admiring them all day✨"
+Exercise: TRUE
+Motivation: TRUE
+Barrier: FALSE
+
+"Fine, but I still want to learn to walk before I try to run, okay?"
+Exercise: FALSE
+Motivation: FALSE
+Barrier: FALSE
+
+"Dentist will prescribe them but not walk in centre. I could see the emergency dentist but tbh I can't drive on these levels of codeine."
+Exercise: FALSE
+Motivation: FALSE
+Barrier: FALSE
+
+"After my spinal fusion I had to beg and cry for anything. I was a few days in with little to no sleep, I told them if I don't get something to help so I could sleep, I'd be walking upstairs to psych."
+Exercise: FALSE
+Motivation: FALSE
+Barrier: FALSE
+
+"I can't afford a gym membership and it's too dark after work to run outside safely"
+Exercise: TRUE
+Motivation: FALSE
+Barrier: TRUE
+
+"Just walking to pick the kids up from school is my daily workout now"
+Exercise: TRUE
+Motivation: TRUE
+Barrier: FALSE
+
+"I want your workout split and I want to follow it like the Bible"
+Exercise: TRUE
+Motivation: FALSE
+Barrier: FALSE
+
+"I ran for 4 hours today and my legs are killing me but I'm going to keep walking"
+Exercise: TRUE
+Motivation: FALSE
+Barrier: FALSE
+'''
+
+exercise_schema = {
+  "type": "json_schema",
+  "json_schema": {
+    "name": "simple_schema",
+    "schema": {
+      "type": "object",
+      "properties": {
+        "exercise": {
+          "type": "boolean",
+          "description": "contains reference to exercise"
+        },
+        "motivation": {
+          "type": "boolean",
+          "description": "contains reference to motivation towards exercise "
+        },
+        "barrier": {
+          "type": "boolean",
+          "description": "contains reference to barriers faced stopping exercise"
+        }
+      },
+      "additionalProperties": False,
+      "required": [
+        "exercise",
+        "motivation",
+        "barrier"
+      ]
+    },
+    "strict": True
+  }
+} 
+```
+
+```{python}
+def get_categories(description):
+    response = client.chat.completions.create(
+    model="gpt-4.1-mini",
+    temperature=0.0,
+    # This is to enable JSON mode, making sure responses are valid json objects
+    response_format= exercise_schema,
+    messages=[
+        {
+            "role": "system",
+            "content": categorize_system_prompt
+        },
+        {
+            "role": "user",
+            "content": description
+        }
+    ],
+    )
+
+    return response.choices[0].message.content
+
+## test on a few examples
+for _, row in df[:10].iterrows():
+    description = row['text']
+    result = get_categories(description)
+    print(f"TEXT: {description}\n\nRESULT: {result}")
+    print("\n\n----------------------------\n\n")
+```
+
+Create batch task:
+
+```{python}
+# Creating an array of json tasks
+
+tasks = []
+
+for index, row in df.iterrows():
+    
+    description = row['text']
+    
+    task = {
+        "custom_id": str(row['radarly_id']),
+        "method": "POST",
+        "url": "/v1/chat/completions",
+        "body": {
+            # This is what you would have in your Chat Completions API call
+            "model": "gpt-4.1-mini",
+            "temperature": 0.0,
+            "response_format": exercise_schema,
+            "messages": [
+                {
+                    "role": "system",
+                    "content": categorize_system_prompt
+                },
+                {
+                    "role": "user",
+                    "content": description
+                }
+            ],
+        }
+    }
+    
+    tasks.append(task)
+
+# tasks
+```
+
+Note: the request ID should be unique per batch. This is what you can use to match results to the initial input files, as requests will not be returned in the same order.
+
+```{python}
+# Creating the file
+
+file_name = "data/batch_tasks_exercise_v2.jsonl" #10k
+file_name = "data/batch_tasks_exercise_v3.jsonl" #35k
+file_name_2 = "data/batch_tasks_exercise_v4.jsonl" #35k
+
+file_name_3 = "data/new_data_batch_tasks_exercise_v1.jsonl" #50k
+file_name_4 = "data/new_data_batch_tasks_exercise_v2.jsonl" #50k
+
+with open(file_name, 'w') as file:
+    for obj in tasks:
+        file.write(json.dumps(obj) + '\n')
+
+with open(file_name_2, 'w') as file:
+    for obj in tasks:
+        file.write(json.dumps(obj) + '\n')
+
+
+with open(file_name_3, 'w') as file:
+    for obj in tasks:
+        file.write(json.dumps(obj) + '\n')
+
+
+with open(file_name_4, 'w') as file:
+    for obj in tasks:
+        file.write(json.dumps(obj) + '\n')
+```
+
+Uploading file
+
+```{python}
+batch_file = client.files.create(
+  file=open(file_name, "rb"),
+  purpose="batch"
+)
+
+print(batch_file)
+
+batch_file_2 = client.files.create(
+  file=open(file_name_2, "rb"),
+  purpose="batch"
+)
+
+print(batch_file_2)
+
+batch_file_3 = client.files.create(
+  file=open(file_name_3, "rb"),
+  purpose="batch"
+)
+
+print(batch_file_3)
+
+batch_file_4 = client.files.create(
+  file=open(file_name_4, "rb"),
+  purpose="batch"
+)
+
+print(batch_file_4)
+
+```
+
+Create batch job
+
+```{python}
+batch_job = client.batches.create(
+  input_file_id=batch_file.id,
+  endpoint="/v1/chat/completions",
+  completion_window="24h"
+)
+
+batch_job_2 = client.batches.create(
+  input_file_id=batch_file_2.id,
+  endpoint="/v1/chat/completions",
+  completion_window="24h"
+)
+
+batch_job_3 = client.batches.create(
+  input_file_id=batch_file_3.id,
+  endpoint="/v1/chat/completions",
+  completion_window="24h"
+)
+
+batch_job_4 = client.batches.create(
+  input_file_id=batch_file_4.id,
+  endpoint="/v1/chat/completions",
+  completion_window="24h"
+)
+```
+
+Checking batch status Note: this can take up to 24h, but it will usually be completed faster.
+
+You can continue checking until the status is 'completed'.
+
+```{python}
+batch_job = client.batches.retrieve(batch_job.id)
+print(batch_job)
+batch_job.status
+batch_job.request_counts
+
+batch_job_2 = client.batches.retrieve(batch_job_2.id)
+print(batch_job_2)
+batch_job_2.status
+batch_job_2.request_counts
+
+batch_job_3 = client.batches.retrieve(batch_job_3.id)
+print(batch_job_3)
+batch_job_3.status
+batch_job_3.request_counts
+
+batch_job_4 = client.batches.retrieve(batch_job_4.id)
+print(batch_job_4)
+batch_job_4.status
+batch_job_4.request_counts
+```
+
+Retrieving results
+
+```{python}
+result_file_id = batch_job.output_file_id
+result = client.files.content(result_file_id).content
+
+result_file_id_2 = batch_job_2.output_file_id
+result_2 = client.files.content(result_file_id_2).content
+
+result_file_id_3 = batch_job_3.output_file_id
+result_3 = client.files.content(result_file_id_3).content
+
+result_file_id_4 = batch_job_4.output_file_id
+result_4 = client.files.content(result_file_id_4).content
+```
+
+```{python}
+result_file_name_2 = "data/batch_job_results_v3.jsonl"
+
+with open(result_file_name_2, 'wb') as file:
+    file.write(result)
+
+result_file_name_3 = "data/batch_job_results_v4.jsonl"
+
+with open(result_file_name_3, 'wb') as file:
+    file.write(result_2)
+
+
+result_file_name_4 = "data/batch_job_results_v6.jsonl"
+
+with open(result_file_name_4, 'wb') as file:
+    file.write(result_3)
+
+result_file_name_5 = "data/batch_job_results_v5.jsonl"
+
+with open(result_file_name_5, 'wb') as file:
+    file.write(result_4)
+```
+
+```{python}
+# Loading data from saved file
+results = []
+with open(result_file_name_2, 'r') as file:
+    for line in file:
+        # Parsing the JSON string into a dict and appending to the list of results
+        json_object = json.loads(line.strip())
+        results.append(json_object)
+
+results_2 = []
+with open(result_file_name_3, 'r') as file:
+    for line in file:
+        # Parsing the JSON string into a dict and appending to the list of results
+        json_object = json.loads(line.strip())
+        results_2.append(json_object)
+```
+
+```{python}
+# Reading only the first results
+for res in results[:5]:
+    task_id = res['custom_id']  
+    result = res['response']['body']['choices'][0]['message']['content']
+    row = df[df['radarly_id'] == task_id].iloc[0]    
+    description = row['text']
+    radarly_id = row['radarly_id']
+    print(f"RADARLY ID: {radarly_id}\nTEXT: {description}\n\nRESULT: {result}")
+    print("\n\n----------------------------\n\n")
+
+# Reading only the first results
+for res in results_2[:5]:
+    task_id = res['custom_id']  
+    result = res['response']['body']['choices'][0]['message']['content']
+    row = df[df['radarly_id'] == task_id].iloc[0]    
+    description = row['text']
+    radarly_id = row['radarly_id']
+    print(f"RADARLY ID: {radarly_id}\nTEXT: {description}\n\nRESULT: {result}")
+    print("\n\n----------------------------\n\n")
+```
