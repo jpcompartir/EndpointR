@@ -100,3 +100,49 @@ resp <- req_schema_haiku |>
 resp_body_json(resp)[["error"]][["message"]]
 resp |>  resp_status()
 ```
+
+## Nested Schemas
+
+```{r}
+library(httr2)
+library(purrr)
+library(jsonlite)
+library(tidyr)
+absa_entities_schema <- create_json_schema(
+  name = "entities",
+  strict = TRUE,
+  description = "List of entity-sentiment",
+  schema = schema_object(
+    entities = schema_array(
+      schema_object(
+        entity = schema_string(
+          description = "Name of the named entity"),
+        sentiment = schema_string(
+          enum = c("positive", "negative", "neutral"),
+          "sentiment associated with the entity")
+      )
+    )
+  )
+)
+
+req <- ant_build_messages_request(
+  "Apple have been wonderful, Microsoft... not so much. And by not so much I mean pathetic.",
+  schema = absa_entities_schema,
+  model = "claude-sonnet-4-5"
+)
+
+resp <- httr2::req_perform(req)
+
+resp |>  resp_body_json() |> 
+  purrr::pluck("content", 1, "text") |> 
+  fromJSON() |>  
+  pluck('entities')
+
+
+```
+
+```         
+     entity sentiment
+1     Apple  positive
+2 Microsoft  negative
+```
