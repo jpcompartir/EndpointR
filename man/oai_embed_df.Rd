@@ -11,10 +11,11 @@ oai_embed_df(
   model = "text-embedding-3-small",
   dimensions = 1536,
   key_name = "OPENAI_API_KEY",
-  batch_size = 10,
-  concurrent_requests = 1,
-  max_retries = 5,
-  timeout = 20,
+  output_dir = "auto",
+  chunk_size = 5000L,
+  concurrent_requests = 1L,
+  max_retries = 5L,
+  timeout = 20L,
   endpoint_url = "https://api.openai.com/v1/embeddings",
   progress = TRUE
 )
@@ -28,11 +29,13 @@ oai_embed_df(
 
 \item{model}{OpenAI embedding model to use (default: "text-embedding-3-small")}
 
-\item{dimensions}{Number of embedding dimensions (NULL uses model default)}
+\item{dimensions}{Number of embedding dimensions (default: 1536)}
 
 \item{key_name}{Name of environment variable containing the API key}
 
-\item{batch_size}{Number of texts to process in one batch (default: 10)}
+\item{output_dir}{Path to directory for the .parquet chunks. "auto" generates a timestamped directory name. If NULL, uses a temporary directory.}
+
+\item{chunk_size}{Number of texts to process in each chunk before writing to disk (default: 5000)}
 
 \item{concurrent_requests}{Number of concurrent requests (default: 1)}
 
@@ -45,27 +48,34 @@ oai_embed_df(
 \item{progress}{Whether to display a progress bar (default: TRUE)}
 }
 \value{
-Original data frame with additional columns for embeddings (V1, V2, etc.),
-plus .error and .error_message columns indicating any failures
+A tibble with columns:
+\itemize{
+\item ID column (preserves original column name): Original identifier from input
+\item \code{.error}: Logical indicating if request failed
+\item \code{.error_msg}: Error message if failed, NA otherwise
+\item \code{.chunk}: Chunk number for tracking
+\item Embedding columns (V1, V2, etc.)
+}
 }
 \description{
 High-level function to generate embeddings for texts in a data frame using
 OpenAI's embedding API. This function handles the entire process from request
-creation to response processing, with options for batching & concurrent requests.
+creation to response processing, with options for chunking & concurrent requests.
 }
 \details{
 This function extracts texts from a specified column, generates embeddings using
-\code{oai_embed_batch()}, and joins the results back to the original data frame using
-a specified ID column.
+\code{oai_embed_chunks()}, and returns the results matched to the original IDs.
 
-The function preserves the original data frame structure and adds new columns
-for embedding dimensions (V1, V2, ..., Vn). If the number of rows doesn't match
-after processing (due to errors), it returns the results with a warning.
+The chunking approach enables processing of large data frames without memory
+constraints. Results are written progressively as parquet files (either to a specified
+directory or auto-generated) and then read back as the return value.
 
 OpenAI's embedding API allows you to specify the number of dimensions for the
-output embeddings, which can be useful for reducing memory usage, storage cost,s or matching
+output embeddings, which can be useful for reducing memory usage, storage costs, or matching
 specific downstream requirements. The default is model-specific (1536 for
 text-embedding-3-small). \href{https://openai.com/index/new-embedding-models-and-api-updates/}{OpenAI Embedding Updates}
+
+Avoid risk of data loss by setting a low-ish chunk_size (e.g. 5,000, 10,000). Each chunk is written to a \code{.parquet} file in the \verb{output_dir=} directory, which also contains a \code{metadata.json} file. Be sure to add output directories to .gitignore!
 }
 \examples{
 \dontrun{
@@ -74,7 +84,7 @@ text-embedding-3-small). \href{https://openai.com/index/new-embedding-models-and
     text = c("First example", "Second example", "Third example")
   )
 
-  # Generate embeddings with default dimensions
+  # Generate embeddings with default settings
   embeddings_df <- oai_embed_df(
     df = df,
     text_var = text,
@@ -86,8 +96,8 @@ text-embedding-3-small). \href{https://openai.com/index/new-embedding-models-and
     df = df,
     text_var = text,
     id_var = id,
-    dimensions = 360,  # smaller embeddings
-    batch_size = 5
+    dimensions = 512,  # smaller embeddings
+    chunk_size = 10000
   )
 
   # Use with concurrent requests for faster processing
@@ -96,7 +106,7 @@ text-embedding-3-small). \href{https://openai.com/index/new-embedding-models-and
     text_var = text,
     id_var = id,
     model = "text-embedding-3-large",
-    concurrent_requests = 3
+    concurrent_requests = 5
   )
 }
 }
