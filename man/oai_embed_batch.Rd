@@ -49,7 +49,7 @@ A tibble containing:
 \itemize{
 \item Embedding vectors as columns (V1, V2, ..., Vn)
 \item .error: Logical column indicating if embedding failed
-\item .error_message: Character column with error details
+\item .error_msg: Character column with error details
 \item text: Original texts (if include_texts = TRUE)
 }
 }
@@ -73,7 +73,7 @@ as failed, not all documents across all batches. Failed embeddings will be
 filled with NA values and marked with error information.
 
 The function returns a tibble with embedding columns (V1, V2, ..., Vn),
-error tracking columns (.error, .error_message), and optionally the
+error tracking columns (.error, .error_msg), and optionally the
 original texts.
 }
 \examples{

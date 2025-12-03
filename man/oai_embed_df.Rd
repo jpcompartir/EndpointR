@@ -46,7 +46,7 @@ oai_embed_df(
 }
 \value{
 Original data frame with additional columns for embeddings (V1, V2, etc.),
-plus .error and .error_message columns indicating any failures
+plus .error and .error_msg columns indicating any failures
 }
 \description{
 High-level function to generate embeddings for texts in a data frame using

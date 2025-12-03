@@ -321,7 +321,7 @@ hf_classify_batch <- function(texts,
         result <- tidy_func(response$result)
         result$original_index <- batch_data$batch_indices[[1]]
         result$.error <- FALSE
-        result$.error_message <- NA_character_
+        result$.error_msg <- NA_character_
       }, error = function(e) {
         cli::cli_warn("Error in single batch request: {conditionMessage(e)}")
         return(.create_error_tibble(batch_data$batch_indices, conditionMessage(e)))

@@ -312,7 +312,7 @@ oai_embed_text <- function(text,
 #' filled with NA values and marked with error information.
 #'
 #' The function returns a tibble with embedding columns (V1, V2, ..., Vn),
-#' error tracking columns (.error, .error_message), and optionally the
+#' error tracking columns (.error, .error_msg), and optionally the
 #' original texts.
 #'
 #' @param texts Vector or list of character strings to generate embeddings for
@@ -331,7 +331,7 @@ oai_embed_text <- function(text,
 #' @return A tibble containing:
 #'   - Embedding vectors as columns (V1, V2, ..., Vn)
 #'   - .error: Logical column indicating if embedding failed
-#'   - .error_message: Character column with error details
+#'   - .error_msg: Character column with error details
 #'   - text: Original texts (if include_texts = TRUE)
 #' @export
 #'
@@ -466,7 +466,7 @@ oai_embed_batch <- function(texts,
   # 5. Adding Error Information to Data Frame ----
   # add errors and messages to return df. FALSE and "" if no error.
   result$.error <- errors
-  result$.error_message <- error_msgs
+  result$.error_msg <- error_msgs
 
   n_failed <- sum(result$.error)
   n_succeeded <- n_texts - n_failed
@@ -491,7 +491,7 @@ oai_embed_batch <- function(texts,
   }
 
   # 6. Relocating Cols and Returning ----
-  result <- dplyr::relocate(result, c(.error, .error_message), .before = dplyr::all_of(relocate_col))
+  result <- dplyr::relocate(result, c(.error, .error_msg), .before = dplyr::all_of(relocate_col))
 
   return(result)
 }
@@ -538,7 +538,7 @@ oai_embed_df <- function(df, text_var, id_var, model = "text-embedding-3-small",
 #' @param progress Whether to display a progress bar (default: TRUE)
 #'
 #' @return Original data frame with additional columns for embeddings (V1, V2, etc.),
-#'   plus .error and .error_message columns indicating any failures
+#'   plus .error and .error_msg columns indicating any failures
 #'
 #' @export
 #'

@@ -18,7 +18,7 @@ A tibble with processed results or error information, including:
 \itemize{
 \item original_index: Position in original request batch
 \item .error: Logical indicating if an error occurred
-\item .error_message: Character description of any error
+\item .error_msg: Character description of any error
 \item Additional columns from tidy_func output
 }
 }

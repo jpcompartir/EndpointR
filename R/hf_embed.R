@@ -230,7 +230,7 @@ hf_embed_batch <- function(texts,
 
   result$original_index <- NULL # drop index now we're returning
 
-  result <- dplyr::relocate(result, c(`.error`, `.error_message`), .before = dplyr::all_of(relocate_col))
+  result <- dplyr::relocate(result, c(`.error`, `.error_msg`), .before = dplyr::all_of(relocate_col))
   return(result)
 }
 

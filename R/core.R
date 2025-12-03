@@ -77,13 +77,17 @@ perform_request_or_return_error <- function(request) {
 #' Automatically chooses sequential processing when concurrent_requests = 1
 #' or when there's only one request.
 #'
-#' @details returns responses in the order that requests were sent, and returns errors in a predictable format.
+#' @details Returns responses in the order that requests were sent.
+#' Since requests use req_error(is_error = ~ FALSE), HTTP error responses (status >= 400)
+#' are returned as httr2_response objects rather than being thrown as errors.
+#' Callers should check response status with httr2::resp_status() or use
+#' httr2::resps_successes() / httr2::resps_failures() to categorise responses.
 #'
 #' @param requests List of httr2_request objects to perform
 #' @param concurrent_requests Integer specifying maximum number of simultaneous requests (default: 1)
 #' @param progress Logical indicating whether to show progress bar (default: TRUE)
 #'
-#' @return List of httr2_response objects or error objects for failed requests
+#' @return List of httr2_response objects (check status with resp_status()) or error objects for network failures
 #' @export
 #' @examples
 #' \dontrun{
@@ -147,7 +151,7 @@ perform_requests_with_strategy <- function(requests,
 #' @return A tibble with processed results or error information, including:
 #'   - original_index: Position in original request batch
 #'   - .error: Logical indicating if an error occurred
-#'   - .error_message: Character description of any error
+#'   - .error_msg: Character description of any error
 #'   - Additional columns from tidy_func output
 #'
 #' @export
