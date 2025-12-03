@@ -48,14 +48,50 @@ ant_build_messages_request <- function(
     }
   }
 
+  #
+  if(!is.null(schema)) {
+    use_structured_outputs <- TRUE
+    if (inherits(schema, "EndpointR::json_schema")) {
+      body$output_format <- .ant_format_schema(schema)
+    } else if (is.list(schema)) {
+      cli::cli_alert_warning("Your {.arg schema} is a list, not an EndpointR json_schema")
+      body$output_format <- schema
+    } else {
+      cli::cli_abort("{.arg chema} must be an EndpointR json_schema object or a list")
+    }
+  }
 
-  return(
-    list(
-      messages = messages,
-      body = body
-    )
-  )
+  # build the request with headers, auth, timeout, retries, backoff (incl. system prompt if applicable)
+  request <- httr2::request(endpoint_url) |>
+    httr2::req_user_agent("EndpointR") |>
+    httr2::req_method("POST") |>
+    httr2::req_headers(
+      "Content-Type" = "application/json",
+      "x-api-key" = api_key,
+      "anthropic-version" = .ANT_API_VERSION
+    ) |>
+    httr2::req_timeout(timeout) |>
+    httr2::req_retry(
+      max_tries = max_retries,
+      backoff = ~ 2 ^ .x,
+      retry_on_failure = TRUE
+    ) |>
+    httr2::req_body_json(body)
+
+  # if we did use structured outputs then we need to add the anthropic-beta header (this will be patched at some point I expect)
+
+  if (use_structured_outputs) {
+    request <- httr2::req_headers(request, "anthropic-beta" = .ANT_STRUCTURED_OUTPUTS_BETA)
+  }
+
+  if (!is.null(endpointr_id)) {
+    request <- httr2::req_headers(request, endpointr_id = endpointr_id)
+  }
+
+  return(request)
 }
+
+
 
 
 
