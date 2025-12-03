@@ -1,0 +1,102 @@
+---
+title: "ant_messages"
+format: html
+---
+
+# Structured Outputs
+
+HTTP 400 errors
+
+```{r}
+library(httr2)
+library(jsonlite)
+
+req <- ant_build_messages_request(input = "This is terrible, fin.")
+
+resp <- req_perform(req, verbosity = 1)
+resp |>  resp_body_string() |>  prettify()
+
+
+schema <- create_json_schema(
+  name = "capital_response",
+  schema = schema_object(
+    country = schema_string(),
+    capital = schema_string(),
+    required = c("country", "capital")
+  )
+)
+
+structured_req <- ant_build_messages_request(input = "Well I would walk five hundred miles, to visit the noble city of Prague.", schema = schema, model = "claude-sonnet-4-5")
+
+structured_req |>  req_dry_run() |>  toJSON() |>  jsonlite::flatten()
+
+structured_resp <- req_perform(structured_req)
+
+ant_schema <- .ant_format_schema(schema)
+ant_structured_req <- ant_build_messages_request(input = "Well I would walk five hundred miles, to visit the noble city of Prague.", schema = ant_schema)
+
+setdiff(ant_structured_req |>  req_dry_run(), structured_req |>  req_dry_run())
+
+ant_structured_resp <- req_perform(ant_structured_req)
+
+struc_dry <- req_dry_run(structured_req)
+ant_dry <- req_dry_run(ant_structured_req)
+
+setdiff(struc_dry, ant_dry)
+identical(struc_dry, ant_dry)
+
+```
+
+```         
+"output_format": {
+  "type": "json_schema",
+  "schema": {
+    "type": "object",
+    "properties": {
+      "name": {"type": "string"},
+      "email": {"type": "string"},
+      "plan_interest": {"type": "string"},
+      "demo_requested": {"type": "boolean"}
+    },
+    "required": ["name", "email", "plan_interest", "demo_requested"],
+    "additionalProperties": false
+  }
+}
+```
+
+```{r}
+list_schema <- list(
+    type = "json_schema",
+    schema = list(
+      type = "object",
+      properties = list(
+        country = list(type = "string"),
+        capital = list(type = "string")
+      ),
+      required = c("country", "capital"),
+      additionalProperties = FALSE
+    )
+)
+
+```
+
+```{r}
+list_schema_req <- ant_build_messages_request("Prague is my favourite city, I went there when I visited The Czech Republic", schema = list_schema, model = "claude-sonnet-4-5")
+list_schema_req |>  req_dry_run()
+list_schema_resp <- req_perform(list_schema_req, verbosity = 1)
+```
+
+If we want to surface the actual errors we'll need to re-write a bunch of the package. Thought about this earlier but wasn't sure. The structured outputs error with Haiku makes me think it's probs worth.
+
+```{r}
+req_schema_haiku <- ant_build_messages_request("Prague is my favourite city, I went there when I visited The Czech Republic", schema = list_schema)
+
+req_schema_haiku <- req_schema_haiku |> 
+  req_error(is_error = ~FALSE)
+
+resp <- req_schema_haiku |> 
+  req_perform(verbosity = 1) 
+
+resp_body_json(resp)[["error"]][["message"]]
+resp |>  resp_status()
+```

@@ -4,6 +4,65 @@
 .ANT_MESSAGES_ENDPOINT <- "https://api.anthropic.com/v1/messages"
 .ANT_DEFAULT_MODEL <- "claude-haiku-4-5"
 
+#' Build an Anthropic Messages API request
+#'
+#' @description
+#' Constructs an httr2 request object for Anthropic's Messages API.
+#' Handles message formatting, system prompts, and optional JSON schema
+#' for structured outputs.
+#'
+#' @details
+#' This function creates the HTTP request but does not execute it. For
+#' structured outputs, you must use a supported model (Claude Sonnet 4.5
+#' or Opus 4.1) and the request will automatically include the required
+#' beta header.
+#'
+#' The `schema` parameter accepts either:
+#' - A `json_schema` S7 object created with `create_json_schema()`
+#' - A raw list in Anthropic's `output_format` structure
+#'
+#' Unlike OpenAI, Anthropic uses `output_format` (not `response_format`)
+#' and the schema structure differs slightly.
+#'
+#' @param input Text input to send to the model
+#' @param endpointr_id An id that will persist through to response
+#' @param model Anthropic model to use (default: "claude-haiku-4.5")
+#' @param temperature Sampling temperature (0-2), higher values = more randomness
+#' @param max_tokens Maximum tokens in response
+#' @param schema Optional JSON schema for structured output (json_schema object or list)
+#' @param system_prompt Optional system prompt
+#' @param key_name Environment variable name for API key
+#' @param endpoint_url Anthropic API endpoint URL
+#' @param timeout Request timeout in seconds
+#' @param max_retries Maximum number of retry attempts for failed requests
+
+#'
+#' @return An httr2 request object
+#' @export
+#'
+#' @examples
+#' \dontrun{
+#'   # simple request
+#'   req <- ant_build_messages_request(
+#'     input = "What is the capital of France?",
+#'     max_tokens = 100
+#'   )
+#'
+#'   # with structured output
+#'   schema <- create_json_schema(
+#'     name = "capital_response",
+#'     schema = schema_object(
+#'       country = schema_string(),
+#'       capital = schema_string(),
+#'       required = c("country", "capital")
+#'     )
+#'   )
+#'   req <- ant_build_messages_request(
+#'     input = "What is the capital of France?",
+#'     schema = schema,
+#'     max_tokens = 100
+#'   )
+#' }
 ant_build_messages_request <- function(
   input,
   endpointr_id = NULL,
@@ -93,8 +152,6 @@ ant_build_messages_request <- function(
 
 
 
-
-
 #' Convert json_schema S7 object to Anthropic output_format structure
 #' @keywords internal
 .ant_format_schema <- function(schema) {
@@ -109,3 +166,4 @@ ant_build_messages_request <- function(
     schema = schema@schema
   )
 }
+
