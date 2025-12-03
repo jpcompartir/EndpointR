@@ -24,7 +24,8 @@ base_request <- function(endpoint_url, api_key){
     httr2::req_user_agent("EndpointR") |>
     httr2::req_method("POST") |>
     httr2::req_headers("Content-Type" = "application/json") |>
-    httr2::req_auth_bearer_token(token = api_key)
+    httr2::req_auth_bearer_token(token = api_key) |>
+    httr2::req_error(is_error = ~ FALSE) # don't let httr2 auto-throw errors; we handle them ourselves for better error messages
 
   return(req)
 }
@@ -34,22 +35,36 @@ base_request <- function(endpoint_url, api_key){
 #'
 #' @description
 #' Wrapper around httr2::req_perform that handles errors gracefully.
+#' Returns the response object directly - check status with httr2::resp_status().
 #'
 #' @param request An httr2 request object
 #'
-#' @return A list with components $result and $error
+#' @return A list with components $result (httr2_response or NULL) and $error (NULL or condition)
 #' @export
 safely_perform_request <- function(request) {
   purrr::safely(httr2::req_perform)(request)
 }
 
+#' Perform request and return response or error object
+#'
+#' @description
+#' Performs a request and returns the response. Since req_error(is_error = ~ FALSE)
+#' is set in base_request(), httr2 won't throw errors for HTTP status codes >= 400.
+#' Instead, callers should check the response status with httr2::resp_status().
+#'
+#' @param request An httr2 request object
+#'
+#' @return An httr2_response object (check status with resp_status()) or an error condition
+#' @keywords internal
 perform_request_or_return_error <- function(request) {
   tryCatch({
     response <- httr2::req_perform(request)
-
+    # with req_error(is_error = ~ FALSE), we get responses even for HTTP errors
+    # callers should check status themselves
     return(response)
   }, error = function(e) {
-    cli::cli_alert_warning("Sequential request to {.url {request$url}} failed: {conditionMessage(e)}")
+    # this catches network errors, timeouts, etc. (not HTTP status errors)
+    cli::cli_alert_warning("Request to {.url {request$url}} failed: {conditionMessage(e)}")
     return(e)
   })
 }
