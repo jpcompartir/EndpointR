@@ -161,21 +161,31 @@ perform_requests_with_strategy <- function(requests,
 #'   )
 #' }
 process_response <- function(resp, indices, tidy_func) {
-  #higher-order function for processing (takes function as inputs)
+  # higher-order function for processing (takes function as inputs)
   if (inherits(resp, "httr2_response")) {
+    # check if response is an error (status >= 400)
+    status <- httr2::resp_status(resp)
+    if (status >= 400) {
+      error_msg <- .extract_api_error(resp)
+      cli::cli_warn("Request failed with status {status}: {error_msg}")
+      return(.create_error_tibble(indices, error_msg))
+    }
+
     tryCatch({
       result <- tidy_func(resp)
       result$original_index <- indices
       result$.error <- FALSE
-      result$.error_message <- NA_character_
+      result$.error_msg <- NA_character_
       return(result)
     }, error = function(e) {
       cli::cli_warn("Error processing response: {conditionMessage(e)}")
       return(.create_error_tibble(indices, conditionMessage(e)))
     })
   } else {
-    cli::cli_warn("Request failed: {conditionMessage(resp)}")
-    return(.create_error_tibble(indices, "Request failed"))
+    # handle non-response objects (e.g., errors from network failures)
+    error_msg <- .extract_api_error(resp, "Request failed")
+    cli::cli_warn("Request failed: {error_msg}")
+    return(.create_error_tibble(indices, error_msg))
   }
 }
 
@@ -186,27 +196,68 @@ process_response <- function(resp, indices, tidy_func) {
 #' Ensures uniform error reporting across different failure modes.
 #'
 #' @param indices Vector of indices indicating original request positions
-#' @param error_message Character string or condition object describing the error
+#' @param error_msg Character string or condition object describing the error
 #'
 #' @return A tibble with columns:
 #'   - original_index: Position in original request batch
 #'   - .error: Always TRUE for error tibbles
-#'   - .error_message: Character description of the error
+#'   - .error_msg: Character description of the error
 #'
 #' @keywords internal
-.create_error_tibble <- function(indices, error_message) {
+.create_error_tibble <- function(indices, error_msg) {
   # for consistent outputs with safely function(s)
-  if (!is.character(error_message)) {
-    if (inherits(error_message, "condition")) {
-      error_message <- conditionMessage(error_message)
+  if (!is.character(error_msg)) {
+    if (inherits(error_msg, "condition")) {
+      error_msg <- conditionMessage(error_msg)
     } else {
-      error_message <- as.character(error_message)
+      error_msg <- as.character(error_msg)
     }
   }
 
   return(tibble::tibble(
     original_index = indices,
     .error = TRUE,
-    .error_message = error_message
+    .error_msg = error_msg
   ))
+}
+
+
+#' Extract error message from an API response
+#'
+#' @description
+#' Extracts a meaningful error message from an httr2 response object.
+#' Handles different API response formats (OpenAI, Anthropic, HuggingFace).
+#'
+#' @param response An httr2_response object, error object, or other response type
+#' @param fallback_message Message to return if extraction fails
+#'
+#' @return Character string containing the error message, or NA_character_ if response is successful
+#' @keywords internal
+.extract_api_error <- function(response, fallback_message = "Unknown error") {
+  # handle non-response objects (e.g., errors from network failures)
+  if (!inherits(response, "httr2_response")) {
+    if (inherits(response, "error") || inherits(response, "condition")) {
+      return(conditionMessage(response))
+    }
+    return(as.character(fallback_message))
+  }
+
+  status <- httr2::resp_status(response)
+  if (status < 400) return(NA_character_)
+
+  # try to extract error from response body - different APIs use different formats
+
+  tryCatch({
+    body <- httr2::resp_body_json(response)
+    # huggingface format: {"error": "..."} - check first as it's a string not a list
+    if (!is.null(body$error) && is.character(body$error)) return(body$error)
+    # openai format: {"error": {"message": "...", "type": "..."}}
+    if (!is.null(body$error) && is.list(body$error) && !is.null(body$error$message)) return(body$error$message)
+    # anthropic format: {"message": "..."}
+    if (!is.null(body$message)) return(body$message)
+    # fallback to status code
+    paste("HTTP", status)
+  }, error = function(e) {
+    paste("HTTP", status)
+  })
 }
