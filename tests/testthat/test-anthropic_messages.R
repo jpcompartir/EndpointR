@@ -1,4 +1,4 @@
-test_that("Building Anthropic Messages Requests works with arguments and features", {
+test_that("ant_build_messages_request validates inputs and generates valid requests", {
 
   expect_error(
     ant_build_messages_request(input = c("Vector", "input")),
@@ -17,11 +17,30 @@ test_that("Building Anthropic Messages Requests works with arguments and feature
   expect_equal(req$headers$`anthropic-version`, "2023-06-01")
   expect_equal(req$body$data$messages[[1]][["content"]], "Test Input Alone")
 
+  expect_equal(req$url, "https://api.anthropic.com/v1/messages")
+  expect_equal(req$method, "POST")
+  expect_equal(req$policies$retry_max_tries, 5)
+  expect_equal(req$options$timeout_ms, 30000)
 
+  expect_error(
+    ant_build_messages_request("hello",temperature = 2),
+    "temperature must be numeric between 0 and 1"
+  )
 })
 
+test_that("ant_build_messages accepts a system_prompt and the request is formatted appropriately", {
 
-test_that("Anthropic Messages Requests with schemas look right", {
+  message <- "The 4th king of neverland was not Captain Hook"
+  req <- ant_build_messages_request(message)
+
+  expect_null(req$body$data$system)
+
+  req_w_sys <- ant_build_messages_request(message, system_prompt = "Talk about all things Peter Pan only")
+
+  expect_true(!is.null(req_w_sys$body$data$system))
+})
+
+test_that("ant_build_messages_request accepts schemas and formats properly with .ant_format_schema", {
   sentiment_schema <- create_json_schema(
     name = "sent_schema",
     schema = schema_object(
@@ -45,6 +64,17 @@ test_that("Anthropic Messages Requests with schemas look right", {
 
 
 })
+
+test_that("ant_build_messages_request accepts endpointr_id and adds to headers", {
+  req <- ant_build_messages_request(
+    "Hello this a test",
+    endpointr_id = "id_101"
+  )
+
+  expect_equal(req$headers$endpointr_id, "id_101")
+})
+
+
 
 
 

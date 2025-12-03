@@ -47,7 +47,7 @@ An httr2 request object
 \description{
 Constructs an httr2 request object for Anthropic's Messages API.
 Handles message formatting, system prompts, and optional JSON schema
-for structured outputs.
+for structured outputs. When using strucutred outputs you must select the correct model.
 }
 \details{
 This function creates the HTTP request but does not execute it. For
@@ -84,7 +84,11 @@ and the schema structure differs slightly.
   req <- ant_build_messages_request(
     input = "What is the capital of France?",
     schema = schema,
-    max_tokens = 100
+    max_tokens = 100,
+    model = "sonnet-4-5"
   )
 }
+}
+\seealso{
+\url{https://platform.claude.com/docs/en/build-with-claude/structured-outputs}
 }

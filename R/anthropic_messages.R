@@ -9,7 +9,8 @@
 #' @description
 #' Constructs an httr2 request object for Anthropic's Messages API.
 #' Handles message formatting, system prompts, and optional JSON schema
-#' for structured outputs.
+#' for structured outputs. When using strucutred outputs you must select the correct model.
+#'
 #'
 #' @details
 #' This function creates the HTTP request but does not execute it. For
@@ -40,6 +41,7 @@
 #' @return An httr2 request object
 #' @export
 #'
+#' @seealso \url{https://platform.claude.com/docs/en/build-with-claude/structured-outputs}
 #' @examples
 #' \dontrun{
 #'   # simple request
@@ -60,7 +62,8 @@
 #'   req <- ant_build_messages_request(
 #'     input = "What is the capital of France?",
 #'     schema = schema,
-#'     max_tokens = 100
+#'     max_tokens = 100,
+#'     model = "sonnet-4-5"
 #'   )
 #' }
 ant_build_messages_request <- function(
@@ -105,6 +108,8 @@ ant_build_messages_request <- function(
     if (!rlang::is_scalar_character(system_prompt)){
       cli::cli_abort("{.arg system_prompt} must be a {.cls character} of length 1, e.g. 'This is a valid system prompt'")
     }
+
+    body$system <- system_prompt
   }
 
   #
