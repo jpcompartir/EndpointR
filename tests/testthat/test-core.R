@@ -131,7 +131,7 @@ test_that("process_response handles batches of inputs when passed the correct ti
   single_batch <- expect_no_error(process_response(resp = mock_batch_response,
                    indices = 1:3,
                    tidy_func = tidy_batch_classification_response))
-  expect_setequal(names(single_batch), c("positive", "negative", "neutral", "original_index", ".error", ".error_message"))
+  expect_setequal(names(single_batch), c("positive", "negative", "neutral", "original_index", ".error", ".error_msg"))
   expect_equal(nrow(single_batch), 3)
 
   # multi-batches

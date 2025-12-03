@@ -60,7 +60,7 @@ test_that("hf_embed_batch works correctly with tidy_func parameter added", {
 
   expect_s3_class(result, "tbl_df")
   expect_equal(nrow(result), 2)
-  expect_true(all(c("V1", "V2", "V3", ".error", ".error_message") %in% names(result)))
+  expect_true(all(c("V1", "V2", "V3", ".error", ".error_msg") %in% names(result)))
 })
 
 test_that("hf_embed_batch allows custom tidy_func", {
@@ -104,7 +104,7 @@ test_that("hf_embed_df works correctly with real endpoint", {
 
   expect_s3_class(result, "data.frame")
   expect_equal(nrow(result), 2)
-  expect_true(all(c("id", "text", "V1", "V2", "V3", ".error", ".error_message") %in% names(result)))
+  expect_true(all(c("id", "text", "V1", "V2", "V3", ".error", ".error_msg") %in% names(result)))
   expect_equal(result$id, c(1, 2))
   expect_equal(result$text, c("text1", "text2"))
   expect_equal(result$V1, c(0.1, 0.2))
@@ -134,6 +134,6 @@ test_that("hf_embed_df works with different batch sizes", {
 
   expect_s3_class(result, "data.frame")
   expect_equal(nrow(result), 2)
-  expect_true(all(c("id", "text", ".error", ".error_message") %in% names(result)))
+  expect_true(all(c("id", "text", ".error", ".error_msg") %in% names(result)))
   expect_equal(result$.error, c(FALSE, FALSE))
 })

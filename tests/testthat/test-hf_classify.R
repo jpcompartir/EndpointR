@@ -143,7 +143,7 @@ test_that("hf_classify_batch processes a batch of texts and returns a tidied cla
 
 
   expect_equal(nrow(res), 4)
-  expect_setequal(names(res), c("positive", "negative", "neutral", ".error", ".error_message"))
+  expect_setequal(names(res), c("positive", "negative", "neutral", ".error", ".error_msg"))
 
 })
 
