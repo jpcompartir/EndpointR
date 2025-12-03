@@ -202,13 +202,13 @@ test_that("oai_complete_df takes single row, multi-row data frames as inputs", {
                       endpoint_url = endpoint_url,
                       concurrent_requests = 1,
                       max_retries = 1,
-                      output_file = NULL)
+                      output_dir = NULL)
 
       )
     )
 
   expect_setequal(names(successful_response),
-                  c("id", "content", ".error_msg", ".error", ".batch"))
+                  c("id", "content", ".error", ".error_msg", ".chunk"))
   expect_setequal(unique(successful_response$content), "positive")
 
   withr::with_envvar(
@@ -220,7 +220,7 @@ test_that("oai_complete_df takes single row, multi-row data frames as inputs", {
                       endpoint_url = endpoint_url,
                       concurrent_requests = 1,
                       max_retries = 1,
-                      output_file = NULL),
+                      output_dir = NULL),
 
       regexp = "Performing 5 requests sequentially"
     )
@@ -236,7 +236,7 @@ test_that("oai_complete_df takes single row, multi-row data frames as inputs", {
                                      endpoint_url = endpoint_url,
                                      concurrent_requests = 5,
                                      max_retries = 1,
-                                     output_file = NULL),
+                                     output_dir = NULL),
 
                    regexp = "with 5 concurrent requests"
     )
@@ -287,7 +287,7 @@ test_that("oai_complete_df takes a schema as input", {
                       concurrent_requests = 1,
                       max_retries = 1,
                       schema = sentiment_schema,
-                      output_file = NULL
+                      output_dir = NULL
                       )
 
     )
@@ -357,7 +357,7 @@ test_that("oai_complete_df handles mixed validation success/failure", {
           concurrent_requests = 1,
           max_retries = 1,
           schema = sentiment_schema,
-          output_file = NULL
+          output_dir = NULL
         )}
       )
 
