@@ -312,7 +312,7 @@ oai_complete_text <- function(text,
 #' Process text chunks through OpenAI's Chat Completions API with batch file output
 #'
 #' This function processes large volumes of text through OpenAI's Chat Completions API
-#' in configurable chunks, writing results progressively to a CSV file. It handles
+#' in configurable chunks, writing results progressively to parquet files. It handles
 #' concurrent requests, automatic retries, and structured outputs while
 #' managing memory efficiently for large-scale processing.
 #'
@@ -322,23 +322,25 @@ oai_complete_text <- function(text,
 #' memory usage.
 #'
 #' The function preserves data integrity by matching results to source texts through
-#' the `ids` parameter. Each chunk is processed independently with results appended
-#' to the output file, allowing for resumable processing if interrupted.
+#' the `ids` parameter. Each chunk is processed independently with results written as
+#' parquet files to the output directory, allowing for resumable processing if interrupted.
 #'
 #' When using structured outputs with a `schema`, responses are validated against
-#' the JSON schema but stored as raw JSON strings in the output file. This allows
+#' the JSON schema but stored as raw JSON strings in the output files. This allows
 #' for flexible post-processing without memory constraints during the API calls.
 #'
 #' The chunking strategy balances API efficiency with memory management. Larger
 #' `chunk_size` values reduce overhead but increase memory usage. Adjust based on
 #' your system resources and text sizes.
 #'
+#' Avoid risk of data loss by setting a low-ish chunk_size (e.g. 5,000, 10,000). Each chunk is written to a `.parquet` file in the `output_dir=` directory, which also contains a `metadata.json` file which tracks important information such as the model and endpoint URL used. Be sure to add output directories to .gitignore!
+#'
 #' @param texts Character vector of texts to process
 #' @param ids Vector of unique identifiers corresponding to each text (same length as texts)
 #' @param chunk_size Number of texts to process in each batch (default: 5000)
 #' @param model OpenAI model to use (default: "gpt-4.1-nano")
 #' @param system_prompt Optional system prompt applied to all requests
-#' @param output_file Path to .CSV file for results. "auto" generates the filename, location and is persistent across sessions. If NULL, generates timestamped filename.
+#' @param output_dir Path to directory for the .parquet chunks. "auto" generates a timestamped directory name. If NULL, uses a temporary directory.
 #' @param schema Optional JSON schema for structured output (json_schema object or list)
 #' @param concurrent_requests Integer; number of concurrent requests (default: 5)
 #' @param temperature Sampling temperature (0-2), lower = more deterministic (default: 0)
@@ -347,29 +349,46 @@ oai_complete_text <- function(text,
 #' @param timeout Request timeout in seconds (default: 30)
 #' @param key_name Name of environment variable containing the API key (default: OPENAI_API_KEY)
 #' @param endpoint_url OpenAI API endpoint URL
+#' @param id_col_name Name for the ID column in output (default: "id"). When called from oai_complete_df(), this preserves the original column name.
 #'
 #' @return A tibble containing all results with columns:
-#'   - `id`: Original identifier from input
+#'   - ID column (name specified by `id_col_name`): Original identifier from input
 #'   - `content`: API response content (text or JSON string if schema used)
 #'   - `.error`: Logical indicating if request failed
 #'   - `.error_msg`: Error message if failed, NA otherwise
-#'   - `.batch`: Batch number for tracking
+#'   - `.chunk`: Chunk number for tracking
 #'
 #' @export
 #' @examples
 #' \dontrun{
-#' # basic usage with automatic file naming:
+#' # basic usage with automatic directory naming:
+#' result <- oai_complete_chunks(
+#'   texts = my_texts,
+#'   ids = my_ids,
+#'   model = "gpt-4.1-nano"
+#' )
 #'
-#' # large-scale processing with custom output file:
-
-#' #structured extraction with schema:
+#' # large-scale processing with custom output directory:
+#' result <- oai_complete_chunks(
+#'   texts = my_texts,
+#'   ids = my_ids,
+#'   output_dir = "my_results",
+#'   chunk_size = 10000
+#' )
 #'
+#' # structured extraction with schema:
+#' result <- oai_complete_chunks(
+#'   texts = my_texts,
+#'   ids = my_ids,
+#'   schema = my_schema,
+#'   temperature = 0
+#' )
 #'
 #' # post-process structured results:
-#' xx <- xx |>
+#' processed <- result |>
 #'   dplyr::filter(!.error) |>
-#'   dplyr::mutate(parsed = map(content, ~jsonlite::fromJSON(.x))) |>
-#'   unnest_wider(parsed)
+#'   dplyr::mutate(parsed = purrr::map(content, ~jsonlite::fromJSON(.x))) |>
+#'   tidyr::unnest_wider(parsed)
 #' }
 # oai_complete_chunks docs ----
 oai_complete_chunks <- function(texts,
@@ -377,7 +396,7 @@ oai_complete_chunks <- function(texts,
                                chunk_size = 5000L,
                                model = "gpt-4.1-nano",
                                system_prompt = NULL,
-                               output_file = "auto",
+                               output_dir = "auto",
                                schema = NULL,
                                concurrent_requests = 5L,
                                temperature = 0L,
@@ -385,7 +404,8 @@ oai_complete_chunks <- function(texts,
                                max_retries = 5L,
                                timeout = 30L,
                                key_name = "OPENAI_API_KEY",
-                               endpoint_url = "https://api.openai.com/v1/chat/completions"
+                               endpoint_url = "https://api.openai.com/v1/chat/completions",
+                               id_col_name = "id"
 ) {
   # input validation ----
   stopifnot(
@@ -395,7 +415,11 @@ oai_complete_chunks <- function(texts,
     "chunk_size must be a positive integer greater than 1" = is.numeric(chunk_size) && chunk_size > 0
   )
 
-  output_file <- .handle_output_filename(output_file)
+  output_dir <- .handle_output_directory(output_dir, base_dir_name = "oai_completions_batch")
+
+  if (!dir.exists(output_dir)) {
+    dir.create(output_dir, recursive = TRUE)
+  }
 
   # make sure we json_dump the schema here if necessary, so that we don't json_dump for every individual document
   if(!is.null(schema) && inherits(schema, "EndpointR::json_schema")) {
@@ -405,27 +429,52 @@ oai_complete_chunks <- function(texts,
   }
 
   batch_data <- batch_vector(seq_along(texts), chunk_size)
-  n_batches <- length(batch_data$batch_indices)
+  n_chunks <- length(batch_data$batch_indices)
 
-  cli::cli_alert_info("Processing {length(texts)} text{?s} in {n_batches} chunk{?s} of up to {chunk_size} each")
+  # write metadata to track important information for debugging and reproducibility
+  metadata <- list(
+    model = model,
+    endpoint_url = endpoint_url,
+    chunk_size = chunk_size,
+    n_texts = length(texts),
+    concurrent_requests = concurrent_requests,
+    timeout = timeout,
+    max_retries = max_retries,
+    temperature = temperature,
+    max_tokens = max_tokens,
+    output_dir = output_dir,
+    key_name = key_name,
+    n_chunks = n_chunks,
+    has_schema = !is.null(schema),
+    has_system_prompt = !is.null(system_prompt),
+    timestamp = Sys.time()
+  )
+
+  jsonlite::write_json(metadata,
+                       file.path(output_dir, "metadata.json"),
+                       auto_unbox = TRUE,
+                       pretty = TRUE)
+
+  cli::cli_alert_info("Processing {length(texts)} text{?s} in {n_chunks} chunk{?s} of up to {chunk_size} each")
+  cli::cli_alert_info("Intermediate results will be saved as parquet files in {output_dir}")
 
   total_successes <- 0
   total_failures <- 0
 
 
 
-  ## batch processing ----
-  for (batch_num in seq_along(batch_data$batch_indices))
+  ## chunk processing ----
+  for (chunk_num in seq_along(batch_data$batch_indices))
     {
-    batch_indices <- batch_data$batch_indices[[batch_num]]
-    batch_texts <- texts[batch_indices]
-    batch_ids <- ids[batch_indices]
+    chunk_indices <- batch_data$batch_indices[[chunk_num]]
+    chunk_texts <- texts[chunk_indices]
+    chunk_ids <- ids[chunk_indices]
 
-    cli::cli_progress_message("Processing batch {batch_num}/{n_batches} ({length(batch_indices)} text{?s})")
+    cli::cli_progress_message("Processing chunk {chunk_num}/{n_chunks} ({length(chunk_indices)} text{?s})")
 
-    ## build batch requests ----
+    ## build chunk requests ----
     requests <- oai_build_completions_request_list(
-      inputs = batch_texts,
+      inputs = chunk_texts,
       model = model,
       temperature = temperature,
       max_tokens = max_tokens,
@@ -435,20 +484,19 @@ oai_complete_chunks <- function(texts,
       endpoint_url = endpoint_url,
       max_retries = max_retries,
       timeout = timeout,
-      endpointr_ids = batch_ids
+      endpointr_ids = chunk_ids
     )
 
-    # make sure we have some valid requests, or skip to the next iter
+    # make sure we have some valid requests, or skip to the next iteration
     is_valid_request <- purrr::map_lgl(requests, ~inherits(.x, "httr2_request"))
     valid_requests <- requests[is_valid_request]
 
     if (length(valid_requests) == 0) {
-      cli::cli_alert_warning("No valid request{?s} in batch {batch_num}, skipping")
+      cli::cli_alert_warning("No valid request{?s} in chunk {chunk_num}, skipping")
       next
     }
 
-    # perform batch requests ----
-    # get chunk_size individual responses and then handle them
+    # perform chunk requests ----
     responses <- perform_requests_with_strategy(
       valid_requests,
       concurrent_requests = concurrent_requests,
@@ -463,20 +511,20 @@ oai_complete_chunks <- function(texts,
     total_successes <- total_successes + n_successes
     total_failures <- total_failures + n_failures
 
-    ## process batch responses ----
-    # within batch results
-    batch_results <- list()
+    ## process chunk responses ----
+    # within chunk results
+    chunk_results <- list()
 
     if (length(successes) > 0) {
       successes_ids <- purrr::map(successes, ~purrr::pluck(.x, "request", "headers", "endpointr_id")) |> unlist()
       successes_content <- purrr::map_chr(successes, .extract_successful_completion_content)
 
-      batch_results$successes <- tibble::tibble(
-        id = successes_ids,
+      chunk_results$successes <- tibble::tibble(
+        !!id_col_name := successes_ids,
         content = successes_content,
         .error = FALSE,
         .error_msg = NA_character_,
-        .batch = batch_num
+        .chunk = chunk_num
       )
     }
 
@@ -484,39 +532,33 @@ oai_complete_chunks <- function(texts,
       failures_ids <- purrr::map(failures, ~purrr::pluck(.x, "request", "headers", "endpointr_id")) |> unlist()
       failures_msgs <- purrr::map_chr(failures, ~purrr::pluck(.x, "message", .default = "Unknown error"))
 
-      batch_results$failures <- tibble::tibble(
-        id = failures_ids,
+      chunk_results$failures <- tibble::tibble(
+        !!id_col_name := failures_ids,
         content = NA_character_,
         .error = TRUE,
         .error_msg = failures_msgs,
-        .batch = batch_num
+        .chunk = chunk_num
       )
     }
 
-    batch_df <- dplyr::bind_rows(batch_results)
+    chunk_df <- dplyr::bind_rows(chunk_results)
 
-    # if(!is.null(output_file)){ # skip writing if output_file = NULL - can't be NULL after .handle_output_filename - as if NULL we write to tmp file
-    if (nrow(batch_df) > 0) {
-      if (batch_num == 1) {
-        # if we're in the first batch write to csv with headers (col names)
-        readr::write_csv(batch_df, output_file, append = FALSE)
-      } else {
-        # all other batches, append and don't use col names
-        readr::write_csv(batch_df, output_file, append = TRUE, col_names = FALSE)
-      }
+    if (nrow(chunk_df) > 0) {
+      chunk_file <- glue::glue("{output_dir}/chunk_{stringr::str_pad(chunk_num, 3, pad = '0')}.parquet")
+      arrow::write_parquet(chunk_df, chunk_file)
     }
-    # }
 
-    cli::cli_alert_success("Batch {batch_num}: {n_successes} successful, {n_failures} failed")
+    cli::cli_alert_success("Chunk {chunk_num}: {n_successes} successful, {n_failures} failed")
 
-    rm(requests, responses, successes, failures, batch_results, batch_df)
+    rm(requests, responses, successes, failures, chunk_results, chunk_df)
     gc(verbose = FALSE)
   }
 
-  cli::cli_alert_success("Completed processing: {total_successes} successful, {total_failures} failed")
+  parquet_files <- list.files(output_dir, pattern = "\\.parquet$", full.names = TRUE)
 
-  # retrieve all results from the output file (results for all batches) - this may still be too inefficient, and should perhaps write to duckdb(?)
-  final_results <- readr::read_csv(output_file, show_col_types = FALSE)
+  cli::cli_alert_info("Processing completed, there were {total_successes} successes\n and {total_failures} failures.")
+  final_results <- arrow::open_dataset(parquet_files, format = "parquet") |>
+    dplyr::collect()
 
   return(final_results)
 }
@@ -535,8 +577,8 @@ oai_complete_chunks <- function(texts,
 #' results matched to the original data through the `id_var` parameter.
 #'
 #' The chunking approach enables processing of large data frames without memory
-#' constraints. Results are written progressively to a CSV file (either specified
-#' or auto-generated) and then read back as the return value.
+#' constraints. Results are written progressively as parquet files (either to a specified
+#' directory or auto-generated) and then read back as the return value.
 #'
 #' When using structured outputs with a `schema`, responses are validated against
 #' the JSON schema and stored as JSON strings. Post-processing may be needed to
@@ -544,6 +586,8 @@ oai_complete_chunks <- function(texts,
 #'
 #' Failed requests are marked with `.error = TRUE` and include error messages,
 #' allowing for easy filtering and retry logic on failures.
+#'
+#' Avoid risk of data loss by setting a low-ish chunk_size (e.g. 5,000, 10,000). Each chunk is written to a `.parquet` file in the `output_dir=` directory, which also contains a `metadata.json` file. Be sure to add output directories to .gitignore!
 #'
 #' @param df Data frame containing text to process
 #' @param text_var Column name (unquoted) containing text inputs
@@ -554,19 +598,29 @@ oai_complete_chunks <- function(texts,
 #'   - `content`: API response content (text or JSON string if schema used)
 #'   - `.error`: Logical indicating if request failed
 #'   - `.error_msg`: Error message if failed, NA otherwise
-#'   - `.batch`: Batch number for tracking
+#'   - `.chunk`: Chunk number for tracking
 #'
 #' @export
 #' @examples
 #' \dontrun{
+#'   df <- data.frame(
+#'     id = 1:100,
+#'     text = paste("Analyse this text:", 1:100)
+#'   )
 #'
+#'   results <- oai_complete_df(
+#'     df = df,
+#'     text_var = text,
+#'     id_var = id,
+#'     model = "gpt-4.1-nano"
+#'   )
 #' }
 #oai_complete_df docs----
 oai_complete_df <- function(df,
                             text_var,
                             id_var,
                             model = "gpt-4.1-nano",
-                            output_file = "auto",
+                            output_dir = "auto",
                             system_prompt = NULL,
                             schema = NULL,
                             chunk_size = 1000,
@@ -591,11 +645,13 @@ oai_complete_df <- function(df,
     "`chunk_size` must be a positive integer" = is.numeric(chunk_size) && chunk_size > 0
   )
 
-
-  output_file <- .handle_output_filename(output_file, base_file_name = "oai_batch")
+  output_dir <- .handle_output_directory(output_dir, base_dir_name = "oai_completions_batch")
 
   text_vec <- dplyr::pull(df, !!text_sym)
   id_vec <- dplyr::pull(df, !!id_sym)
+
+  # preserve original column name
+  id_col_name <- rlang::as_name(id_sym)
 
   results <- oai_complete_chunks(
     texts = text_vec,
@@ -611,10 +667,9 @@ oai_complete_df <- function(df,
     max_tokens = max_tokens,
     key_name = key_name,
     endpoint_url = endpoint_url,
-    output_file = output_file
+    output_dir = output_dir,
+    id_col_name = id_col_name
   )
-
-  results <- dplyr::rename(results, !!id_sym := id)
 
   return(results)
 }
