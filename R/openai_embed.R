@@ -789,8 +789,8 @@ oai_embed_chunks <- function(texts,
 #'     df = df,
 #'     text_var = text,
 #'     id_var = id,
-#'     dimensions = 360,  # smaller embeddings
-#'     batch_size = 5
+#'     dimensions = 512,  # smaller embeddings
+#'     chunk_size = 10000
 #'   )
 #'
 #'   # Use with concurrent requests for faster processing
@@ -799,7 +799,7 @@ oai_embed_chunks <- function(texts,
 #'     text_var = text,
 #'     id_var = id,
 #'     model = "text-embedding-3-large",
-#'     concurrent_requests = 3
+#'     concurrent_requests = 5
 #'   )
 #' }
 oai_embed_df <- function(df,
@@ -808,10 +808,11 @@ oai_embed_df <- function(df,
                          model = "text-embedding-3-small",
                          dimensions = 1536,
                          key_name = "OPENAI_API_KEY",
-                         batch_size = 10,
-                         concurrent_requests = 1,
-                         max_retries = 5,
-                         timeout = 20,
+                         output_dir = "auto",
+                         chunk_size = 5000L,
+                         concurrent_requests = 1L,
+                         max_retries = 5L,
+                         timeout = 20L,
                          endpoint_url = "https://api.openai.com/v1/embeddings",
                          progress = TRUE) {
 
@@ -820,60 +821,37 @@ oai_embed_df <- function(df,
 
   stopifnot(
     "df must be a data frame" = is.data.frame(df),
+    "df must not be empty" = nrow(df) > 0,
+    "text_var must exist in df" = rlang::as_name(text_sym) %in% names(df),
+    "id_var must exist in df" = rlang::as_name(id_sym) %in% names(df),
     "endpoint_url must be provided" = !is.null(endpoint_url) && nchar(endpoint_url) > 0,
-    "concurrent_requests must be a number greater than 0" = is.numeric(concurrent_requests) && concurrent_requests > 0,
-    "batch_size must be a number greater than 0" = is.numeric(batch_size) && batch_size > 0
+    "concurrent_requests must be an integer" = is.numeric(concurrent_requests) && concurrent_requests > 0
   )
 
-  if (!rlang::as_string(text_sym) %in% names(df)) {
-    cli::cli_abort("Column {.code {rlang::as_string(text_sym)}} not found in data frame")
-  }
+  output_dir <- .handle_output_directory(output_dir, base_dir_name = "oai_embeddings_batch")
 
-  if (!rlang::as_string(id_sym) %in% names(df)) {
-    cli::cli_abort("Column {.code {rlang::as_string(id_sym)}} not found in data frame")
-  }
-
-  original_num_rows <- nrow(df)
-
-  # pull texts & ids into vectors for batch function
   texts <- dplyr::pull(df, !!text_sym)
   indices <- dplyr::pull(df, !!id_sym)
 
-  batch_size <- if(is.null(batch_size) || batch_size <= 1) 1 else batch_size
+  # preserve original column name
+  id_col_name <- rlang::as_name(id_sym)
 
-  embeddings_tbl <- oai_embed_batch(
+  chunk_size <- if(is.null(chunk_size) || chunk_size <= 1) 1 else chunk_size
+
+  results <- oai_embed_chunks(
     texts = texts,
+    ids = indices,
     model = model,
     dimensions = dimensions,
-    batch_size = batch_size,
+    output_dir = output_dir,
+    chunk_size = chunk_size,
     concurrent_requests = concurrent_requests,
     max_retries = max_retries,
     timeout = timeout,
     endpoint_url = endpoint_url,
     key_name = key_name,
-    include_texts = FALSE,
-    relocate_col = 1
+    id_col_name = id_col_name
   )
 
-  df_with_row_id <- df |> dplyr::mutate(.row_id = dplyr::row_number())
-
-  embeddings_tbl <- embeddings_tbl |>
-    dplyr::mutate(.row_id = dplyr::row_number())
-
-  result_df <- df_with_row_id |>
-    dplyr::left_join(embeddings_tbl, by = ".row_id") |>
-    dplyr::select(-.row_id)
-
-  # sanity check and alert user if there's a mismatch
-  final_num_rows <- nrow(result_df)
-
-  if(final_num_rows != original_num_rows){
-    cli::cli_warn("Rows in original data frame and returned data frame do not match:")
-    cli::cli_bullets(text = c(
-      "Rows in original data frame: {original_num_rows}",
-      "Rows in returned data frame: {final_num_rows}"
-    ))
-  }
-
-  return(result_df)
+  return(results)
 }
