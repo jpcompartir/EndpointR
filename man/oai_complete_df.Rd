@@ -87,6 +87,45 @@ allowing for easy filtering and retry logic on failures.
 }
 \examples{
 \dontrun{
+# Basic usage with a data frame
+df <- tibble::tibble(
+  doc_id = 1:3,
+  text = c(
+    "I absolutely loved this product!",
+    "Terrible experience, would not recommend.",
+    "It was okay, nothing special."
+  )
+)
 
+results <- oai_complete_df(
+  df = df,
+  text_var = text,
+  id_var = doc_id,
+  system_prompt = "Summarise the sentiment in one word."
+)
+
+# Structured extraction with schema
+sentiment_schema <- create_json_schema(
+  name = "sentiment_analysis",
+  schema = schema_object(
+    sentiment = schema_string("positive, negative, or neutral"),
+    confidence = schema_number("confidence score between 0 and 1"),
+    required = list("sentiment", "confidence")
+  )
+)
+
+results <- oai_complete_df(
+  df = df,
+  text_var = text,
+  id_var = doc_id,
+  schema = sentiment_schema,
+  temperature = 0
+)
+
+# Post-process structured results
+results |>
+  dplyr::filter(!.error) |>
+  dplyr::mutate(parsed = purrr::map(content, safely_from_json)) |>
+  tidyr::unnest_wider(parsed)
 }
 }

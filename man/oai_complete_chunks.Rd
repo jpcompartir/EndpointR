@@ -86,16 +86,46 @@ your system resources and text sizes.
 }
 \examples{
 \dontrun{
-# basic usage with automatic file naming:
+# Basic usage with automatic file naming
+texts <- c("Great product!", "Awful service.", "Decent value.")
+ids <- c("review_1", "review_2", "review_3")
 
-# large-scale processing with custom output file:
-#structured extraction with schema:
+results <- oai_complete_chunks(
+  texts = texts,
+  ids = ids,
+  system_prompt = "Classify sentiment as positive, negative, or neutral."
+)
 
+# Large-scale processing with custom output file
+results <- oai_complete_chunks(
+  texts = large_text_vector,
+  ids = seq_along(large_text_vector),
+  chunk_size = 2000,
+  concurrent_requests = 10,
+  output_file = "data/sentiment_results.csv"
+)
 
-# post-process structured results:
-xx <- xx |>
+# Structured extraction with schema
+sentiment_schema <- create_json_schema(
+  name = "sentiment_analysis",
+  schema = schema_object(
+    sentiment = schema_string("positive, negative, or neutral"),
+    confidence = schema_number("confidence score between 0 and 1"),
+    required = list("sentiment", "confidence")
+  )
+)
+
+results <- oai_complete_chunks(
+  texts = texts,
+  ids = ids,
+  schema = sentiment_schema,
+  temperature = 0
+)
+
+# Post-process structured results
+results |>
   dplyr::filter(!.error) |>
-  dplyr::mutate(parsed = map(content, ~jsonlite::fromJSON(.x))) |>
-  unnest_wider(parsed)
+  dplyr::mutate(parsed = purrr::map(content, safely_from_json)) |>
+  tidyr::unnest_wider(parsed)
 }
 }
