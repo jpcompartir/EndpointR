@@ -358,7 +358,7 @@ Schema design principles:
 
 -   Use descriptive field names and descriptions
 -   Set appropriate constraints (min/max values, required fields)
--   Prefer enums over free text for categories
+-   Prefer enums over free text for categories but give the model outs, or it will hallcuinate e.g. an 'other' option for when the document doesn't have what you're looking for
 -   Nest objects logically for complex data
 -   Validate some mock responses in advance
 
