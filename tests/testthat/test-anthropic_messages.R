@@ -75,6 +75,14 @@ test_that("ant_build_messages_request accepts endpointr_id and adds to headers",
 })
 
 
+test_that("ant_complete_text validates its inputs", {
 
+  expect_error(ant_complete_text(c(""),
+               "must not be an empty"))
+
+  expect_error(ant_complete_text(c("hello", "bonjour"),
+                    "must be a single string"))
+
+})
 
 

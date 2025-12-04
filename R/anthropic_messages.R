@@ -156,6 +156,103 @@ ant_build_messages_request <- function(
   return(request)
 }
 
+ant_complete_text <- function(text,
+                              model = .ANT_DEFAULT_MODEL,
+                              system_prompt = NULL,
+                              schema = NULL,
+                              temperature = 0,
+                              max_tokens = 500L,
+                              key_name = "ANTHROPIC_API_KEY",
+                              endpoint_url = .ANT_MESSAGES_ENDPOINT,
+                              max_retries = 5L,
+                              tiemout = 30L,
+                              tidy = TRUE) {
+
+  # surface errors quickly here, before building any request
+  if (!rlang::is_scalar_character(text)) {
+    cli::cli_abort(
+      "{.arg text} must be a single string (a character vector of length 1)."
+    )
+  }
+
+  if (nchar(text) == 0) {
+    cli::cli_abort(
+      "{.arg text} must not be an empty string."
+    )
+  }
+
+
+  req <- ant_build_messages_request(
+    input = text,
+    model = model,
+    schema = schema,
+    temperature = temperature,
+    max_tokens = max_tokens,
+    endpoint_url = endpoint_url,
+    max_retries = max_retries,
+    timeout = 30L
+  )
+
+  tryCatch({
+    response <- httr2::req_perform(req)
+  }, error = function(e) {
+    cli::cli_abort(c(
+      "Failed to generate completion",
+      "i" = "Text: {cli::cli_vec(text, list('vec-trunc' = 50, 'vec-sep' = ''))}",
+      "x" = "Error: {conditionMessage(e)}"
+    ))
+  })
+
+  if (httr2::resp_status(response) != 200) {
+    error_msg <- .extract_api_error(response)
+    cli::cli_abort(c(
+      "API request failed",
+      "x" = error_msg
+    ))
+  }
+
+  content <- .extract_ant_message_content(response)
+
+  if (!is.null(schema) && tidy && !is.na(content)) {
+    content <- tryCatch({
+      parsed <- jsonlite::fromJSON(content, simplifyVector = FALSE)
+      if (!is.null(schema)) {
+        parsed <- validate_response(schema, content)
+      }
+      parsed
+    }, error = function(e) {
+      cli::cli_warn(c(
+        "Failed to parse structured output",
+        "i" = "Returning raw response",
+        "x" = conditionMessage(e)
+      ))
+      content
+    })
+  }
+
+  return(content)
+}
+
+
+#' Extract text content from Anthropic Messages API response
+#' @keywords internal
+.extract_ant_message_content <- function(resp) {
+  body <- httr2::resp_body_json(resp)
+
+  # find the first text block
+  content_blocks <- body$content
+
+  if (length(content_blocks) == 0) {
+    return(NA_character_)
+  }
+
+  for (block in content_blocks) {
+    if (block$type == "text") {
+      return(block$text)
+    }
+  }
+  return(NA_character_)
+}
 
 
 #' Convert json_schema S7 object to Anthropic output_format structure
