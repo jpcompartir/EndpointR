@@ -551,6 +551,7 @@ hf_classify_chunks <- function(texts,
         !!text_col_name := successes_texts,
         .error = FALSE,
         .error_msg = NA_character_,
+        .status = NA_integer_,
         .chunk = chunk_num
       ) |>
         dplyr::bind_cols(successes_content)
@@ -562,13 +563,17 @@ hf_classify_chunks <- function(texts,
       failures_ids <- purrr::map(chunk_failures, \(x) purrr::pluck(x, "request", "headers", "endpointr_id")) |>  unlist()
       failures_texts <- purrr::map_chr(chunk_failures, \(x) purrr::pluck(x, "request", "body", "data", "inputs")) |> unlist()
       failures_msgs <- purrr::map_chr(chunk_failures, \(x) purrr::pluck(x, "message", .default = "Unknown error"))
-
+      failures_status <- purrr::map_int(chunk_failures, \(x) {
+        resp <- purrr::pluck(x, "resp")
+        if (!is.null(resp)) httr2::resp_status(resp) else NA_integer_
+      })
 
       chunk_results$failures <- tibble::tibble(
         !!id_col_name := failures_ids,
         !!text_col_name := failures_texts,
         .error = TRUE,
         .error_msg = failures_msgs,
+        .status = failures_status,
         .chunk = chunk_num
       )
     }

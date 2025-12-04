@@ -172,7 +172,7 @@ process_response <- function(resp, indices, tidy_func) {
     if (status >= 400) {
       error_msg <- .extract_api_error(resp)
       cli::cli_warn("Request failed with status {status}: {error_msg}")
-      return(.create_error_tibble(indices, error_msg))
+      return(.create_error_tibble(indices, error_msg, status = status))
     }
 
     tryCatch({
@@ -180,6 +180,7 @@ process_response <- function(resp, indices, tidy_func) {
       result$original_index <- indices
       result$.error <- FALSE
       result$.error_msg <- NA_character_
+      result$.status <- NA_integer_
       return(result)
     }, error = function(e) {
       cli::cli_warn("Error processing response: {conditionMessage(e)}")
@@ -201,14 +202,17 @@ process_response <- function(resp, indices, tidy_func) {
 #'
 #' @param indices Vector of indices indicating original request positions
 #' @param error_msg Character string or condition object describing the error
+#' @param status HTTP status code (integer) or NA_integer_ for non-HTTP errors.
+#'   Defaults to NA_integer_.
 #'
 #' @return A tibble with columns:
 #'   - original_index: Position in original request batch
-#'   - .error: Always TRUE for error tibbles
+#'   - .error: TRUE for errors
 #'   - .error_msg: Character description of the error
+#'   - .status: HTTP status code (integer) or NA for non-HTTP errors
 #'
 #' @keywords internal
-.create_error_tibble <- function(indices, error_msg) {
+.create_error_tibble <- function(indices, error_msg, status = NA_integer_) {
   # for consistent outputs with safely function(s)
   if (!is.character(error_msg)) {
     if (inherits(error_msg, "condition")) {
@@ -221,7 +225,8 @@ process_response <- function(resp, indices, tidy_func) {
   return(tibble::tibble(
     original_index = indices,
     .error = TRUE,
-    .error_msg = error_msg
+    .error_msg = error_msg,
+    .status = status
   ))
 }
 
