@@ -562,7 +562,10 @@ hf_classify_chunks <- function(texts,
 
       failures_ids <- purrr::map(chunk_failures, \(x) purrr::pluck(x, "request", "headers", "endpointr_id")) |>  unlist()
       failures_texts <- purrr::map_chr(chunk_failures, \(x) purrr::pluck(x, "request", "body", "data", "inputs")) |> unlist()
-      failures_msgs <- purrr::map_chr(chunk_failures, \(x) purrr::pluck(x, "message", .default = "Unknown error"))
+      failures_msgs <- purrr::map_chr(chunk_failures, \(x) {
+        resp <- purrr::pluck(x, "resp")
+        if (!is.null(resp)) .extract_api_error(resp) else .extract_api_error(x, "Unknown error")
+      })
       failures_status <- purrr::map_int(chunk_failures, \(x) {
         resp <- purrr::pluck(x, "resp")
         if (!is.null(resp)) httr2::resp_status(resp) else NA_integer_

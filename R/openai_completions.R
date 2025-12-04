@@ -275,10 +275,7 @@ oai_complete_text <- function(text,
 
   # basic request sending with non-comprehensive error handling
   if (httr2::resp_status(response) != 200) {
-    error_msg <- tryCatch(
-      httr2::resp_body_json(response)$error$message,
-      error = function(e) paste("HTTP", httr2::resp_status(response))
-    )
+    error_msg <- .extract_api_error(response)
     cli::cli_abort(c(
       "API request failed",
       "x" = error_msg
@@ -531,7 +528,10 @@ oai_complete_chunks <- function(texts,
 
     if (length(failures) > 0) {
       failures_ids <- purrr::map(failures, ~purrr::pluck(.x, "request", "headers", "endpointr_id")) |> unlist()
-      failures_msgs <- purrr::map_chr(failures, ~purrr::pluck(.x, "message", .default = "Unknown error"))
+      failures_msgs <- purrr::map_chr(failures, ~{
+        resp <- purrr::pluck(.x, "resp")
+        if (!is.null(resp)) .extract_api_error(resp) else .extract_api_error(.x, "Unknown error")
+      })
       failures_status <- purrr::map_int(failures, ~{
         resp <- purrr::pluck(.x, "resp")
         if (!is.null(resp)) httr2::resp_status(resp) else NA_integer_
@@ -742,10 +742,7 @@ oai_complete_df <- function(df,
       .error_msg = NA_character_
     ))
   } else {
-    .error_msg <- tryCatch(
-      httr2::resp_body_json(response)$error$message,
-      error = function(e) paste("HTTP", status)
-    )
+    .error_msg <- .extract_api_error(response)
 
     return(list(
       status = status,

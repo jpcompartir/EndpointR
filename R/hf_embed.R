@@ -387,7 +387,10 @@ hf_embed_chunks <- function(texts,
 
     if (n_failures > 0) {
       failures_ids <- purrr::map(failures, \(x) purrr::pluck(x, "request", "headers", "endpointr_id")) |>  unlist()
-      failures_msgs <- purrr::map_chr(failures, \(x) purrr::pluck(x, "message", .default = "Unknown error"))
+      failures_msgs <- purrr::map_chr(failures, \(x) {
+        resp <- purrr::pluck(x, "resp")
+        if (!is.null(resp)) .extract_api_error(resp) else .extract_api_error(x, "Unknown error")
+      })
       failures_status <- purrr::map_int(failures, \(x) {
         resp <- purrr::pluck(x, "resp")
         if (!is.null(resp)) httr2::resp_status(resp) else NA_integer_
