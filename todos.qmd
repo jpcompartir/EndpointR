@@ -13,7 +13,8 @@
     -   [ ] Completions
     -   [ ] Structured Outputs
 -   [ ] LLM Providers Vignette Updated
--   [ ] Structured Outpits Vignette Updated
+-   [ ] Structured Outputs Vignette Updated
+-   [ ] Better error propagation throughout package (refactor, large)
 
 Error reporting is somewhat annoying by default with httr2::req_perform() if we don't:
 
