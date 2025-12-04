@@ -359,8 +359,18 @@ hf_embed_chunks <- function(texts,
       progress = TRUE
     )
 
-    successes <- httr2::resps_successes(responses)
-    failures <- httr2::resps_failures(responses)
+    # separate actual responses from error objects (network failures, etc.)
+    is_response <- purrr::map_lgl(responses, inherits, "httr2_response")
+    response_objects <- responses[is_response]
+    error_objects <- responses[!is_response]
+
+    # split responses by HTTP status code (not just by type)
+    is_success <- purrr::map_lgl(response_objects, ~httr2::resp_status(.x) < 400)
+    successes <- response_objects[is_success]
+    http_failures <- response_objects[!is_success]
+
+    # combine HTTP failures with network/other errors
+    failures <- c(http_failures, error_objects)
 
     n_successes <- length(successes)
     n_failures <- length(failures)
@@ -388,12 +398,21 @@ hf_embed_chunks <- function(texts,
     if (n_failures > 0) {
       failures_ids <- purrr::map(failures, \(x) purrr::pluck(x, "request", "headers", "endpointr_id")) |>  unlist()
       failures_msgs <- purrr::map_chr(failures, \(x) {
-        resp <- purrr::pluck(x, "resp")
-        if (!is.null(resp)) .extract_api_error(resp) else .extract_api_error(x, "Unknown error")
+        if (inherits(x, "httr2_response")) {
+          .extract_api_error(x)
+        } else {
+          # error object - try to get resp from it
+          resp <- purrr::pluck(x, "resp")
+          if (!is.null(resp)) .extract_api_error(resp) else .extract_api_error(x, "Unknown error")
+        }
       })
       failures_status <- purrr::map_int(failures, \(x) {
-        resp <- purrr::pluck(x, "resp")
-        if (!is.null(resp)) httr2::resp_status(resp) else NA_integer_
+        if (inherits(x, "httr2_response")) {
+          httr2::resp_status(x)
+        } else {
+          resp <- purrr::pluck(x, "resp")
+          if (!is.null(resp)) httr2::resp_status(resp) else NA_integer_
+        }
       })
 
       chunk_results$failures <- tibble::tibble(
