@@ -65,6 +65,38 @@ test_that("ant_build_messages_request accepts schemas and formats properly with 
 
 })
 
+test_that(".extract_ant_message_content covers basic edgecases and actually gets the text", {
+  mock_body <- list(
+    content = list(
+      list(type = "text", text = "Hello, world!")
+    ),
+    stop_reason = "end_turn"
+  )
+
+  mock_response <- httr2::response_json(
+    status_code = 200L,
+    body = mock_body
+  )
+
+  content <- .extract_ant_message_content(mock_response)
+  expect_equal(content, "Hello, world!")
+
+  mock_empty_body <- list(
+    content = list(),
+    stop_reason = "end_turn"
+  )
+
+  mock_empty_response <- httr2::response_json(
+    status_code = 200L,
+    body = mock_empty_body
+  )
+
+  empty_content <- .extract_ant_message_content(mock_empty_response)
+  expect_true(is.na(empty_content))
+
+})
+
+
 test_that("ant_build_messages_request accepts endpointr_id and adds to headers", {
   req <- ant_build_messages_request(
     "Hello this a test",
@@ -82,7 +114,6 @@ test_that("ant_complete_text validates its inputs", {
 
   expect_error(ant_complete_text(c("hello", "bonjour"),
                     "must be a single string"))
-
 })
 
 

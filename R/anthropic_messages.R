@@ -36,7 +36,6 @@
 #' @param endpoint_url Anthropic API endpoint URL
 #' @param timeout Request timeout in seconds
 #' @param max_retries Maximum number of retry attempts for failed requests
-
 #'
 #' @return An httr2 request object
 #' @export
@@ -156,6 +155,52 @@ ant_build_messages_request <- function(
   return(request)
 }
 
+# ant_complete_text docs ----
+#' Generate a completion for a single text using Anthropic's Messages API
+#'
+#' @description
+#' High-level function to generate a completion for a single text string.
+#' Handles request creation, execution, and response processing with
+#' optional structured output support.
+#'
+#' @param text Character string to send to the model
+#' @param model Anthropic model to use (default: "claude-sonnet-4-5-20250929")
+#' @param system_prompt Optional system prompt
+#' @param schema Optional JSON schema for structured output
+#' @param temperature Sampling temperature (0-1)
+#' @param max_tokens Maximum tokens in response
+#' @param key_name Environment variable name for API key
+#' @param endpoint_url Anthropic API endpoint URL
+#' @param max_retries Maximum retry attempts
+#' @param timeout Request timeout in seconds
+#' @param tidy Whether to parse structured output (default: TRUE)
+#'
+#' @return Character string with the model's response, or parsed JSON if schema provided
+#' @export
+#'
+#' @examples
+#' \dontrun{
+#'   # simple completion
+#'   response <- ant_complete_text(
+#'     text = "Explain quantum computing in simple terms",
+#'     max_tokens = 500
+#'   )
+#'
+#'   # with structured output
+#'   sentiment_schema <- create_json_schema(
+#'     name = "sentiment",
+#'     schema = schema_object(
+#'       sentiment = schema_enum(c("positive", "negative", "neutral")),
+#'       confidence = schema_number(minimum = 0, maximum = 1),
+#'       required = c("sentiment", "confidence")
+#'     )
+#'   )
+#'   result <- ant_complete_text(
+#'     text = "I love this product!",
+#'     schema = sentiment_schema
+#'   )
+#' }
+# ant_complete_text docs ----
 ant_complete_text <- function(text,
                               model = .ANT_DEFAULT_MODEL,
                               system_prompt = NULL,
@@ -180,7 +225,6 @@ ant_complete_text <- function(text,
       "{.arg text} must not be an empty string."
     )
   }
-
 
   req <- ant_build_messages_request(
     input = text,
