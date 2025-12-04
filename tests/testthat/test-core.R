@@ -131,7 +131,7 @@ test_that("process_response handles batches of inputs when passed the correct ti
   single_batch <- expect_no_error(process_response(resp = mock_batch_response,
                    indices = 1:3,
                    tidy_func = tidy_batch_classification_response))
-  expect_setequal(names(single_batch), c("positive", "negative", "neutral", "original_index", ".error", ".error_msg"))
+  expect_setequal(names(single_batch), c("positive", "negative", "neutral", "original_index", ".error", ".error_msg", ".status"))
   expect_equal(nrow(single_batch), 3)
 
   # multi-batches
@@ -160,7 +160,7 @@ test_that("process_response handles batches of inputs when passed the correct ti
     )
 
     expect_equal(nrow(processed_batch_results), 9)
-    expect_equal(ncol(processed_batch_results), 6)
+    expect_equal(ncol(processed_batch_results), 7)
 
 })
 
@@ -405,5 +405,5 @@ test_that(".create_error_tibble produces correct structure with .error_msg colum
   expect_true(all(error_tib$.error))
   expect_true(all(error_tib$.error_msg == "Something went wrong"))
   expect_equal(error_tib$original_index, c(1, 2, 3))
-  expect_setequal(names(error_tib), c("original_index", ".error", ".error_msg"))
+  expect_setequal(names(error_tib), c("original_index", ".error", ".error_msg", ".status"))
 })

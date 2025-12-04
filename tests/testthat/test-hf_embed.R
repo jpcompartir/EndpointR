@@ -88,7 +88,7 @@ test_that("hf_embed_chunks replaces hf_embed_batch", {
   texts <- paste0("text", 1:6)
   ids <- paste0('id', 1:length(texts))
   temp_dir <- withr::local_tempdir()
-  expected_cols <- c("id", ".error", ".error_msg", ".chunk", "V1", "V2", "V3")
+  expected_cols <- c("id", ".error", ".error_msg", ".status", ".chunk", "V1", "V2", "V3")
 
 
   chunk_2 <- expect_no_error(hf_embed_chunks(

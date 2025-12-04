@@ -208,7 +208,7 @@ test_that("oai_complete_df takes single row, multi-row data frames as inputs", {
     )
 
   expect_setequal(names(successful_response),
-                  c("id", "content", ".error", ".error_msg", ".chunk"))
+                  c("id", "content", ".error", ".error_msg", ".status", ".chunk"))
   expect_setequal(unique(successful_response$content), "positive")
 
   withr::with_envvar(
