@@ -4,19 +4,19 @@
 \alias{.create_error_tibble}
 \title{Create standardised error tibble for failed requests}
 \usage{
-.create_error_tibble(indices, error_message)
+.create_error_tibble(indices, error_msg)
 }
 \arguments{
 \item{indices}{Vector of indices indicating original request positions}
 
-\item{error_message}{Character string or condition object describing the error}
+\item{error_msg}{Character string or condition object describing the error}
 }
 \value{
 A tibble with columns:
 \itemize{
 \item original_index: Position in original request batch
 \item .error: Always TRUE for error tibbles
-\item .error_message: Character description of the error
+\item .error_msg: Character description of the error
 }
 }
 \description{

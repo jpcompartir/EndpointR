@@ -10,7 +10,7 @@ oai_complete_chunks(
   chunk_size = 5000L,
   model = "gpt-4.1-nano",
   system_prompt = NULL,
-  output_file = "auto",
+  output_dir = "auto",
   schema = NULL,
   concurrent_requests = 5L,
   temperature = 0L,
@@ -18,7 +18,8 @@ oai_complete_chunks(
   max_retries = 5L,
   timeout = 30L,
   key_name = "OPENAI_API_KEY",
-  endpoint_url = "https://api.openai.com/v1/chat/completions"
+  endpoint_url = "https://api.openai.com/v1/chat/completions",
+  id_col_name = "id"
 )
 }
 \arguments{
@@ -32,7 +33,7 @@ oai_complete_chunks(
 
 \item{system_prompt}{Optional system prompt applied to all requests}
 
-\item{output_file}{Path to .CSV file for results. "auto" generates the filename, location and is persistent across sessions. If NULL, generates timestamped filename.}
+\item{output_dir}{Path to directory for the .parquet chunks. "auto" generates a timestamped directory name. If NULL, uses a temporary directory.}
 
 \item{schema}{Optional JSON schema for structured output (json_schema object or list)}
 
@@ -49,20 +50,22 @@ oai_complete_chunks(
 \item{key_name}{Name of environment variable containing the API key (default: OPENAI_API_KEY)}
 
 \item{endpoint_url}{OpenAI API endpoint URL}
+
+\item{id_col_name}{Name for the ID column in output (default: "id"). When called from oai_complete_df(), this preserves the original column name.}
 }
 \value{
 A tibble containing all results with columns:
 \itemize{
-\item \code{id}: Original identifier from input
+\item ID column (name specified by \code{id_col_name}): Original identifier from input
 \item \code{content}: API response content (text or JSON string if schema used)
 \item \code{.error}: Logical indicating if request failed
 \item \code{.error_msg}: Error message if failed, NA otherwise
-\item \code{.batch}: Batch number for tracking
+\item \code{.chunk}: Chunk number for tracking
 }
 }
 \description{
 This function processes large volumes of text through OpenAI's Chat Completions API
-in configurable chunks, writing results progressively to a CSV file. It handles
+in configurable chunks, writing results progressively to parquet files. It handles
 concurrent requests, automatic retries, and structured outputs while
 managing memory efficiently for large-scale processing.
 }
@@ -73,59 +76,48 @@ with concurrent API requests, and writes results immediately to disk to minimise
 memory usage.
 
 The function preserves data integrity by matching results to source texts through
-the \code{ids} parameter. Each chunk is processed independently with results appended
-to the output file, allowing for resumable processing if interrupted.
+the \code{ids} parameter. Each chunk is processed independently with results written as
+parquet files to the output directory, allowing for resumable processing if interrupted.
 
 When using structured outputs with a \code{schema}, responses are validated against
-the JSON schema but stored as raw JSON strings in the output file. This allows
+the JSON schema but stored as raw JSON strings in the output files. This allows
 for flexible post-processing without memory constraints during the API calls.
 
 The chunking strategy balances API efficiency with memory management. Larger
 \code{chunk_size} values reduce overhead but increase memory usage. Adjust based on
 your system resources and text sizes.
+
+Avoid risk of data loss by setting a low-ish chunk_size (e.g. 5,000, 10,000). Each chunk is written to a \code{.parquet} file in the \verb{output_dir=} directory, which also contains a \code{metadata.json} file which tracks important information such as the model and endpoint URL used. Be sure to add output directories to .gitignore!
 }
 \examples{
 \dontrun{
-# Basic usage with automatic file naming
-texts <- c("Great product!", "Awful service.", "Decent value.")
-ids <- c("review_1", "review_2", "review_3")
-
-results <- oai_complete_chunks(
-  texts = texts,
-  ids = ids,
-  system_prompt = "Classify sentiment as positive, negative, or neutral."
+# basic usage with automatic directory naming:
+result <- oai_complete_chunks(
+  texts = my_texts,
+  ids = my_ids,
+  model = "gpt-4.1-nano"
 )
 
-# Large-scale processing with custom output file
-results <- oai_complete_chunks(
-  texts = large_text_vector,
-  ids = seq_along(large_text_vector),
-  chunk_size = 2000,
-  concurrent_requests = 10,
-  output_file = "data/sentiment_results.csv"
+# large-scale processing with custom output directory:
+result <- oai_complete_chunks(
+  texts = my_texts,
+  ids = my_ids,
+  output_dir = "my_results",
+  chunk_size = 10000
 )
 
-# Structured extraction with schema
-sentiment_schema <- create_json_schema(
-  name = "sentiment_analysis",
-  schema = schema_object(
-    sentiment = schema_string("positive, negative, or neutral"),
-    confidence = schema_number("confidence score between 0 and 1"),
-    required = list("sentiment", "confidence")
-  )
-)
-
-results <- oai_complete_chunks(
-  texts = texts,
-  ids = ids,
-  schema = sentiment_schema,
+# structured extraction with schema:
+result <- oai_complete_chunks(
+  texts = my_texts,
+  ids = my_ids,
+  schema = my_schema,
   temperature = 0
 )
 
-# Post-process structured results
-results |>
+# post-process structured results:
+processed <- result |>
   dplyr::filter(!.error) |>
-  dplyr::mutate(parsed = purrr::map(content, safely_from_json)) |>
+  dplyr::mutate(parsed = purrr::map(content, ~jsonlite::fromJSON(.x))) |>
   tidyr::unnest_wider(parsed)
 }
 }

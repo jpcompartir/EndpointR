@@ -109,6 +109,7 @@ reference:
   - oai_build_embedding_request
   - oai_embed_text
   - oai_embed_batch
+  - oai_embed_chunks
   - oai_embed_df
   - tidy_oai_embedding
 - title: "JSON Schema for Structured Outputs"

@@ -230,7 +230,7 @@ hf_embed_batch <- function(texts,
 
   result$original_index <- NULL # drop index now we're returning
 
-  result <- dplyr::relocate(result, c(`.error`, `.error_message`), .before = dplyr::all_of(relocate_col))
+  result <- dplyr::relocate(result, c(`.error`, `.error_msg`), .before = dplyr::all_of(relocate_col))
   return(result)
 }
 
@@ -379,6 +379,7 @@ hf_embed_chunks <- function(texts,
         !!id_col_name := successes_ids,
         .error = FALSE,
         .error_msg = NA_character_,
+        .status = NA_integer_,
         .chunk = chunk_num
       ) |>
         dplyr::bind_cols(successes_content)
@@ -387,11 +388,16 @@ hf_embed_chunks <- function(texts,
     if (n_failures > 0) {
       failures_ids <- purrr::map(failures, \(x) purrr::pluck(x, "request", "headers", "endpointr_id")) |>  unlist()
       failures_msgs <- purrr::map_chr(failures, \(x) purrr::pluck(x, "message", .default = "Unknown error"))
+      failures_status <- purrr::map_int(failures, \(x) {
+        resp <- purrr::pluck(x, "resp")
+        if (!is.null(resp)) httr2::resp_status(resp) else NA_integer_
+      })
 
       chunk_results$failures <- tibble::tibble(
         !!id_col_name := failures_ids,
         .error = TRUE,
         .error_msg = failures_msgs,
+        .status = failures_status,
         .chunk = chunk_num
       )
     }
