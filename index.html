@@ -22,7 +22,7 @@
 
     <a class="navbar-brand me-2" href="index.html">EndpointR</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="Released version">0.1.2</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="Released version">0.2</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -56,7 +56,9 @@
   <button class="nav-link dropdown-toggle" type="button" id="dropdown-news" data-bs-toggle="dropdown" aria-expanded="false" aria-haspopup="true">News</button>
   <ul class="dropdown-menu" aria-labelledby="dropdown-news">
 <li><h6 class="dropdown-header" data-toc-skip>Releases</h6></li>
-    <li><a class="dropdown-item" href="news/index.html">Version 0.1.0</a></li>
+    <li><a class="dropdown-item" href="news/index.html#endpointr-012">Version 0.1.2</a></li>
+    <li><a class="dropdown-item" href="news/index.html#endpointr-011">Version 0.1.1</a></li>
+    <li><a class="dropdown-item" href="news/index.html#endpointr-010">Version 0.1.0</a></li>
     <li><hr class="dropdown-divider"></li>
     <li><a class="dropdown-item" href="news/index.html">Changelog</a></li>
   </ul>
@@ -225,7 +227,7 @@
 <span>  id_var <span class="op">=</span> <span class="va">review_id</span>,</span>
 <span>  system_prompt <span class="op">=</span> <span class="st">"Classify the following review:"</span>,</span>
 <span>  key_name <span class="op">=</span> <span class="st">"OPENAI_API_KEY"</span>,</span>
-<span>  output_file <span class="op">=</span> <span class="st">"completions_output.parquet"</span>,  <span class="co"># writes results to this file</span></span>
+<span>  output_dir <span class="op">=</span> <span class="st">"completions_output"</span>,  <span class="co"># writes .parquet chunks to this directory</span></span>
 <span>  chunk_size <span class="op">=</span> <span class="fl">1000</span>,  <span class="co"># process 1000 rows per chunk</span></span>
 <span>  concurrent_requests <span class="op">=</span> <span class="fl">5</span>,  <span class="co"># send 5 rows of data simultaneously</span></span>
 <span>  max_retries <span class="op">=</span> <span class="fl">5</span>,</span>
@@ -240,7 +242,7 @@
 <span>  system_prompt <span class="op">=</span> <span class="st">"Classify the following review:"</span>,</span>
 <span>  schema <span class="op">=</span> <span class="va">sentiment_schema</span>,</span>
 <span>  key_name <span class="op">=</span> <span class="st">"OPENAI_API_KEY"</span>,</span>
-<span>  output_file <span class="op">=</span> <span class="st">"completions_output.parquet"</span>,</span>
+<span>  output_dir <span class="op">=</span> <span class="st">"completions_output"</span>,</span>
 <span>  chunk_size <span class="op">=</span> <span class="fl">1000</span>,</span>
 <span>  concurrent_requests <span class="op">=</span> <span class="fl">5</span></span>
 <span><span class="op">)</span></span></code></pre></div>
@@ -300,7 +302,7 @@
 <span><span class="co"># check which endpoint was used</span></span>
 <span><span class="va">metadata</span><span class="op">$</span><span class="va">endpoint_url</span></span></code></pre></div>
 <p><strong>Note:</strong> Add output directories to <code>.gitignore</code> to avoid committing API responses and metadata.</p>
-<p>Read the <a href="articles/llm_providers.html">LLM Providers Vignette</a>, and the <a href="vignettes/structured_outputs_json_schema.Rmd">Structured Outputs Vignette</a> for more information on common workflows with the OpenAI Chat Completions API <a class="footnote-ref" tabindex="0" data-bs-toggle="popover" data-bs-content="&lt;p&gt;Content pending implementation for Anthroic Messages API, Gemini API, and OpenAI Responses API&lt;/p&gt;"><sup>1</sup></a></p>
+<p>Read the <a href="articles/llm_providers.html">LLM Providers Vignette</a>, and the <a href="vignettes/structured_outputs_json_schema.html">Structured Outputs Vignette</a> for more information on common workflows with the OpenAI Chat Completions API <a class="footnote-ref" tabindex="0" data-bs-toggle="popover" data-bs-content="&lt;p&gt;Content pending implementation for Anthroic Messages API, Gemini API, and OpenAI Responses API&lt;/p&gt;"><sup>1</sup></a></p>
 </div>
 </div>
 <div class="section level1">

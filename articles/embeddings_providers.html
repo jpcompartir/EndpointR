@@ -20,7 +20,7 @@
 
     <a class="navbar-brand me-2" href="../index.html">EndpointR</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="Released version">0.1.2</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="Released version">0.2</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -54,7 +54,9 @@
   <button class="nav-link dropdown-toggle" type="button" id="dropdown-news" data-bs-toggle="dropdown" aria-expanded="false" aria-haspopup="true">News</button>
   <ul class="dropdown-menu" aria-labelledby="dropdown-news">
 <li><h6 class="dropdown-header" data-toc-skip>Releases</h6></li>
-    <li><a class="dropdown-item" href="../news/index.html">Version 0.1.0</a></li>
+    <li><a class="dropdown-item" href="../news/index.html#endpointr-012">Version 0.1.2</a></li>
+    <li><a class="dropdown-item" href="../news/index.html#endpointr-011">Version 0.1.1</a></li>
+    <li><a class="dropdown-item" href="../news/index.html#endpointr-010">Version 0.1.0</a></li>
     <li><hr class="dropdown-divider"></li>
     <li><a class="dropdown-item" href="../news/index.html">Changelog</a></li>
   </ul>
@@ -229,7 +231,7 @@ vector into as many batches as necessary.</p>
 <span><span class="co"># Check results</span></span>
 <span><span class="fu"><a href="https://pillar.r-lib.org/reference/glimpse.html" class="external-link">glimpse</a></span><span class="op">(</span><span class="va">batch_embeddings</span><span class="op">[</span><span class="fl">1</span>,<span class="fl">1</span><span class="op">:</span><span class="fl">10</span> <span class="op">]</span><span class="op">)</span> <span class="co"># truncated for ease</span></span></code></pre></div>
 <p>The result includes: - <code>text</code>: your original text -
-<code>.error</code> and <code>.error_message</code>: error tracking -
+<code>.error</code> and <code>.error_msg</code>: error tracking -
 <code>V1</code> to <code>V768</code>: the embedding dimensions</p>
 </div>
 <div class="section level3">
@@ -248,7 +250,7 @@ vector into as many batches as necessary.</p>
 <span><span class="op">)</span></span>
 <span></span>
 <span><span class="co"># Original data + embeddings</span></span>
-<span><span class="fu"><a href="https://rdrr.io/r/base/names.html" class="external-link">names</a></span><span class="op">(</span><span class="va">embedded_df</span><span class="op">)</span><span class="op">[</span><span class="fl">1</span><span class="op">:</span><span class="fl">10</span><span class="op">]</span>  <span class="co"># shows: id, text, category, .error, .error_message, V1, V2...</span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/base/names.html" class="external-link">names</a></span><span class="op">(</span><span class="va">embedded_df</span><span class="op">)</span><span class="op">[</span><span class="fl">1</span><span class="op">:</span><span class="fl">10</span><span class="op">]</span>  <span class="co"># shows: id, text, category, .error, .error_msg, V1, V2...</span></span>
 <span></span>
 <span><span class="va">embedded_df</span></span></code></pre></div>
 </div>
@@ -410,7 +412,7 @@ to handle the resulting data frames.</p>
 <span><span class="kw">if</span> <span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/any.html" class="external-link">any</a></span><span class="op">(</span><span class="va">results</span><span class="op">$</span><span class="va">.error</span><span class="op">)</span><span class="op">)</span> <span class="op">{</span></span>
 <span>  <span class="va">failed</span> <span class="op">&lt;-</span> <span class="va">results</span> <span class="op">|&gt;</span> </span>
 <span>    <span class="fu"><a href="https://dplyr.tidyverse.org/reference/filter.html" class="external-link">filter</a></span><span class="op">(</span><span class="va">.error</span><span class="op">)</span> <span class="op">|&gt;</span></span>
-<span>    <span class="fu"><a href="https://dplyr.tidyverse.org/reference/select.html" class="external-link">select</a></span><span class="op">(</span><span class="va">text</span>, <span class="va">.error_message</span><span class="op">)</span></span>
+<span>    <span class="fu"><a href="https://dplyr.tidyverse.org/reference/select.html" class="external-link">select</a></span><span class="op">(</span><span class="va">text</span>, <span class="va">.error_msg</span><span class="op">)</span></span>
 <span>  </span>
 <span>  <span class="fu"><a href="https://rdrr.io/r/base/print.html" class="external-link">print</a></span><span class="op">(</span><span class="va">failed</span><span class="op">)</span></span>
 <span>  </span>

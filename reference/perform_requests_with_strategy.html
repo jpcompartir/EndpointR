@@ -11,7 +11,7 @@ or when there's only one request."></head><body>
 
     <a class="navbar-brand me-2" href="../index.html">EndpointR</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="Released version">0.1.2</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="Released version">0.2</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -41,7 +41,9 @@ or when there's only one request."></head><body>
 <li class="nav-item dropdown">
   <button class="nav-link dropdown-toggle" type="button" id="dropdown-news" data-bs-toggle="dropdown" aria-expanded="false" aria-haspopup="true">News</button>
   <ul class="dropdown-menu" aria-labelledby="dropdown-news"><li><h6 class="dropdown-header" data-toc-skip>Releases</h6></li>
-    <li><a class="dropdown-item" href="../news/index.html">Version 0.1.0</a></li>
+    <li><a class="dropdown-item" href="../news/index.html#endpointr-012">Version 0.1.2</a></li>
+    <li><a class="dropdown-item" href="../news/index.html#endpointr-011">Version 0.1.1</a></li>
+    <li><a class="dropdown-item" href="../news/index.html#endpointr-010">Version 0.1.0</a></li>
     <li><hr class="dropdown-divider"></li>
     <li><a class="dropdown-item" href="../news/index.html">Changelog</a></li>
   </ul></li>
@@ -94,11 +96,15 @@ or when there's only one request.</p>
 </dl></div>
     <div class="section level2">
     <h2 id="value">Value<a class="anchor" aria-label="anchor" href="#value"></a></h2>
-    <p>List of httr2_response objects or error objects for failed requests</p>
+    <p>List of httr2_response objects (check status with resp_status()) or error objects for network failures</p>
     </div>
     <div class="section level2">
     <h2 id="details">Details<a class="anchor" aria-label="anchor" href="#details"></a></h2>
-    <p>returns responses in the order that requests were sent, and returns errors in a predictable format.</p>
+    <p>Returns responses in the order that requests were sent.
+Since requests use req_error(is_error = ~ FALSE), HTTP error responses (status &gt;= 400)
+are returned as httr2_response objects rather than being thrown as errors.
+Callers should check response status with httr2::resp_status() or use
+httr2::resps_successes() / httr2::resps_failures() to categorise responses.</p>
     </div>
 
     <div class="section level2">

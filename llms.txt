@@ -190,7 +190,7 @@ oai_complete_df(
   id_var = review_id,
   system_prompt = "Classify the following review:",
   key_name = "OPENAI_API_KEY",
-  output_file = "completions_output.parquet",  # writes results to this file
+  output_dir = "completions_output",  # writes .parquet chunks to this directory
   chunk_size = 1000,  # process 1000 rows per chunk
   concurrent_requests = 5,  # send 5 rows of data simultaneously
   max_retries = 5,
@@ -208,7 +208,7 @@ oai_complete_df(
   system_prompt = "Classify the following review:",
   schema = sentiment_schema,
   key_name = "OPENAI_API_KEY",
-  output_file = "completions_output.parquet",
+  output_dir = "completions_output",
   chunk_size = 1000,
   concurrent_requests = 5
 )
@@ -271,7 +271,7 @@ responses and metadata.
 Read the [LLM Providers
 Vignette](https://jpcompartir.github.io/EndpointR/articles/llm_providers.md),
 and the [Structured Outputs
-Vignette](https://jpcompartir.github.io/EndpointR/vignettes/structured_outputs_json_schema.Rmd)
+Vignette](https://jpcompartir.github.io/EndpointR/vignettes/structured_outputs_json_schema.md)
 for more information on common workflows with the OpenAI Chat
 Completions API [¹](#fn1)
 
@@ -357,6 +357,13 @@ Small functions for checking things with Hugging FACE APIs
 - [`hf_get_model_max_length()`](https://jpcompartir.github.io/EndpointR/reference/hf_get_model_max_length.md)
   : Check the max number of tokens allowed for your inputs
 
+## Anthropic Messages
+
+functions for working with Anthropic’s Messages API
+
+- [`ant_build_messages_request()`](https://jpcompartir.github.io/EndpointR/reference/ant_build_messages_request.md)
+  : Build an Anthropic Messages API request
+
 ## OpenAI Completions
 
 Functions for working with OpenAI’s APIs including structured outputs
@@ -385,6 +392,8 @@ Functions for extracting embeddings with OpenAI’s text embedding models
   : Generate embeddings for a single text using OpenAI
 - [`oai_embed_batch()`](https://jpcompartir.github.io/EndpointR/reference/oai_embed_batch.md)
   : Generate embeddings for multiple texts using OpenAI
+- [`oai_embed_chunks()`](https://jpcompartir.github.io/EndpointR/reference/oai_embed_chunks.md)
+  : Embed text chunks through OpenAI's Embeddings API
 - [`oai_embed_df()`](https://jpcompartir.github.io/EndpointR/reference/oai_embed_df.md)
   : Generate embeddings for texts in a data frame using OpenAI
 - [`tidy_oai_embedding()`](https://jpcompartir.github.io/EndpointR/reference/tidy_oai_embedding.md)

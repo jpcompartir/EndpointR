@@ -110,8 +110,7 @@ glimpse(batch_embeddings[1,1:10 ]) # truncated for ease
 ```
 
 The result includes: - `text`: your original text - `.error` and
-`.error_message`: error tracking - `V1` to `V768`: the embedding
-dimensions
+`.error_msg`: error tracking - `V1` to `V768`: the embedding dimensions
 
 ### Data Frame Integration
 
@@ -129,7 +128,7 @@ embedded_df <- hf_embed_df(
 )
 
 # Original data + embeddings
-names(embedded_df)[1:10]  # shows: id, text, category, .error, .error_message, V1, V2...
+names(embedded_df)[1:10]  # shows: id, text, category, .error, .error_msg, V1, V2...
 
 embedded_df
 ```
@@ -294,7 +293,7 @@ results <- oai_embed_batch(texts = texts_to_embed)
 if (any(results$.error)) {
   failed <- results |> 
     filter(.error) |>
-    select(text, .error_message)
+    select(text, .error_msg)
   
   print(failed)
   

@@ -7,7 +7,7 @@
 
     <a class="navbar-brand me-2" href="../index.html">EndpointR</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="Released version">0.1.2</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="Released version">0.2</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -37,7 +37,9 @@
 <li class="active nav-item dropdown">
   <button class="nav-link dropdown-toggle" type="button" id="dropdown-news" data-bs-toggle="dropdown" aria-expanded="false" aria-haspopup="true">News</button>
   <ul class="dropdown-menu" aria-labelledby="dropdown-news"><li><h6 class="dropdown-header" data-toc-skip>Releases</h6></li>
-    <li><a class="dropdown-item" href="../news/index.html">Version 0.1.0</a></li>
+    <li><a class="dropdown-item" href="../news/index.html#endpointr-012">Version 0.1.2</a></li>
+    <li><a class="dropdown-item" href="../news/index.html#endpointr-011">Version 0.1.1</a></li>
+    <li><a class="dropdown-item" href="../news/index.html#endpointr-010">Version 0.1.0</a></li>
     <li><hr class="dropdown-divider"></li>
     <li><a class="dropdown-item" href="../news/index.html">Changelog</a></li>
   </ul></li>
@@ -56,6 +58,13 @@
       <small>Source: <a href="https://github.com/jpcompartir/EndpointR/tree/main/NEWS.md" class="external-link"><code>NEWS.md</code></a></small>
     </div>
 
+    <div class="section level2">
+<h2 class="pkg-version" data-toc-text="0.2" id="endpointr-02">EndpointR 0.2<a class="anchor" aria-label="anchor" href="#endpointr-02"></a></h2>
+<ul><li>error message and status propagation improvement. Now writes .error, .error_msg (standardised across package), and .status. Main change is preventing httr2 eating the errors before we can deal with them</li>
+<li>adds parquet writing to oai_complete_df and oai_embed_df</li>
+<li>adds chunks func to oai_embed, and re-writes all batch -&gt; chunk logic</li>
+<li>implements the Anthropic messages API with structured outputs (via BETA)</li>
+</ul></div>
     <div class="section level2">
 <h2 class="pkg-version" data-toc-text="0.1.2" id="endpointr-012">EndpointR 0.1.2<a class="anchor" aria-label="anchor" href="#endpointr-012"></a></h2>
 <ul><li><p><strong>File writing improvements</strong>: <code><a href="../reference/hf_embed_df.html">hf_embed_df()</a></code> and <code><a href="../reference/hf_classify_df.html">hf_classify_df()</a></code> now write intermediate results as <code>.parquet</code> files to <code>output_dir</code> directories, similar to improvements in 0.1.1 for OpenAI functions</p></li>

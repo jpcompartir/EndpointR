@@ -190,7 +190,7 @@ oai_complete_df(
   id_var = review_id,
   system_prompt = "Classify the following review:",
   key_name = "OPENAI_API_KEY",
-  output_file = "completions_output.parquet",  # writes results to this file
+  output_dir = "completions_output",  # writes .parquet chunks to this directory
   chunk_size = 1000,  # process 1000 rows per chunk
   concurrent_requests = 5,  # send 5 rows of data simultaneously
   max_retries = 5,
@@ -208,7 +208,7 @@ oai_complete_df(
   system_prompt = "Classify the following review:",
   schema = sentiment_schema,
   key_name = "OPENAI_API_KEY",
-  output_file = "completions_output.parquet",
+  output_dir = "completions_output",
   chunk_size = 1000,
   concurrent_requests = 5
 )
@@ -271,7 +271,7 @@ responses and metadata.
 Read the [LLM Providers
 Vignette](https://jpcompartir.github.io/EndpointR/articles/llm_providers.md),
 and the [Structured Outputs
-Vignette](https://jpcompartir.github.io/EndpointR/vignettes/structured_outputs_json_schema.Rmd)
+Vignette](https://jpcompartir.github.io/EndpointR/vignettes/structured_outputs_json_schema.md)
 for more information on common workflows with the OpenAI Chat
 Completions API [¹](#fn1)
 

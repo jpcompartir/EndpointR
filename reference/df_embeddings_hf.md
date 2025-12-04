@@ -34,7 +34,7 @@ A data frame with 3 rows and 773 variables:
 
   Logical; whether the embedding process failed
 
-- .error_message:
+- .error_msg:
 
   Character; error message if embedding failed (NA if successful)
 

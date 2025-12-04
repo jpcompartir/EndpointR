@@ -1,5 +1,15 @@
 # Changelog
 
+## EndpointR 0.2
+
+- error message and status propagation improvement. Now writes .error,
+  .error_msg (standardised across package), and .status. Main change is
+  preventing httr2 eating the errors before we can deal with them
+- adds parquet writing to oai_complete_df and oai_embed_df
+- adds chunks func to oai_embed, and re-writes all batch -\> chunk logic
+- implements the Anthropic messages API with structured outputs (via
+  BETA)
+
 ## EndpointR 0.1.2
 
 - **File writing improvements**:

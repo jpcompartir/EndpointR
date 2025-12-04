@@ -63,6 +63,13 @@ Small functions for checking things with Hugging FACE APIs
 - [`hf_get_model_max_length()`](https://jpcompartir.github.io/EndpointR/reference/hf_get_model_max_length.md)
   : Check the max number of tokens allowed for your inputs
 
+## Anthropic Messages
+
+functions for working with Anthropic’s Messages API
+
+- [`ant_build_messages_request()`](https://jpcompartir.github.io/EndpointR/reference/ant_build_messages_request.md)
+  : Build an Anthropic Messages API request
+
 ## OpenAI Completions
 
 Functions for working with OpenAI’s APIs including structured outputs
@@ -91,6 +98,8 @@ Functions for extracting embeddings with OpenAI’s text embedding models
   : Generate embeddings for a single text using OpenAI
 - [`oai_embed_batch()`](https://jpcompartir.github.io/EndpointR/reference/oai_embed_batch.md)
   : Generate embeddings for multiple texts using OpenAI
+- [`oai_embed_chunks()`](https://jpcompartir.github.io/EndpointR/reference/oai_embed_chunks.md)
+  : Embed text chunks through OpenAI's Embeddings API
 - [`oai_embed_df()`](https://jpcompartir.github.io/EndpointR/reference/oai_embed_df.md)
   : Generate embeddings for texts in a data frame using OpenAI
 - [`tidy_oai_embedding()`](https://jpcompartir.github.io/EndpointR/reference/tidy_oai_embedding.md)

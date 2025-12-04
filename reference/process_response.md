@@ -33,7 +33,7 @@ A tibble with processed results or error information, including:
 
 - .error: Logical indicating if an error occurred
 
-- .error_message: Character description of any error
+- .error_msg: Character description of any error
 
 - Additional columns from tidy_func output
 

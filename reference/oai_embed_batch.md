@@ -84,7 +84,7 @@ A tibble containing:
 
 - .error: Logical column indicating if embedding failed
 
-- .error_message: Character column with error details
+- .error_msg: Character column with error details
 
 - text: Original texts (if include_texts = TRUE)
 
@@ -108,8 +108,8 @@ embeddings will be filled with NA values and marked with error
 information.
 
 The function returns a tibble with embedding columns (V1, V2, ..., Vn),
-error tracking columns (.error, .error_message), and optionally the
-original texts.
+error tracking columns (.error, .error_msg), and optionally the original
+texts.
 
 ## Examples
 

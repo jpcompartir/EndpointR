@@ -1,6 +1,8 @@
 # Execute a single embedding request and process the response
 
-Performs a prepared request and returns the response
+Performs a prepared request and returns the response. Since requests use
+req_error(is_error = ~ FALSE), HTTP error responses (status \>= 400) are
+returned rather than thrown as errors.
 
 ## Usage
 
@@ -18,11 +20,11 @@ hf_perform_request(request, ...)
 
   ellipsis is sent to
   [`httr2::req_perform`](https://httr2.r-lib.org/reference/req_perform.html),
-  e.g. for `path` and `verbosity`arguments.
+  e.g. for `path` and `verbosity` arguments.
 
 ## Value
 
-A httr2 response object
+An httr2 response object. Check status with httr2::resp_status().
 
 ## Examples
 

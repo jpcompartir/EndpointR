@@ -2,7 +2,7 @@
 
 This function processes large volumes of text through OpenAI's Chat
 Completions API in configurable chunks, writing results progressively to
-a CSV file. It handles concurrent requests, automatic retries, and
+parquet files. It handles concurrent requests, automatic retries, and
 structured outputs while managing memory efficiently for large-scale
 processing.
 
@@ -15,7 +15,7 @@ oai_complete_chunks(
   chunk_size = 5000L,
   model = "gpt-4.1-nano",
   system_prompt = NULL,
-  output_file = "auto",
+  output_dir = "auto",
   schema = NULL,
   concurrent_requests = 5L,
   temperature = 0L,
@@ -23,7 +23,8 @@ oai_complete_chunks(
   max_retries = 5L,
   timeout = 30L,
   key_name = "OPENAI_API_KEY",
-  endpoint_url = "https://api.openai.com/v1/chat/completions"
+  endpoint_url = "https://api.openai.com/v1/chat/completions",
+  id_col_name = "id"
 )
 ```
 
@@ -50,11 +51,10 @@ oai_complete_chunks(
 
   Optional system prompt applied to all requests
 
-- output_file:
+- output_dir:
 
-  Path to .CSV file for results. "auto" generates the filename, location
-  and is persistent across sessions. If NULL, generates timestamped
-  filename.
+  Path to directory for the .parquet chunks. "auto" generates a
+  timestamped directory name. If NULL, uses a temporary directory.
 
 - schema:
 
@@ -90,11 +90,17 @@ oai_complete_chunks(
 
   OpenAI API endpoint URL
 
+- id_col_name:
+
+  Name for the ID column in output (default: "id"). When called from
+  oai_complete_df(), this preserves the original column name.
+
 ## Value
 
 A tibble containing all results with columns:
 
-- `id`: Original identifier from input
+- ID column (name specified by `id_col_name`): Original identifier from
+  input
 
 - `content`: API response content (text or JSON string if schema used)
 
@@ -102,7 +108,7 @@ A tibble containing all results with columns:
 
 - `.error_msg`: Error message if failed, NA otherwise
 
-- `.batch`: Batch number for tracking
+- `.chunk`: Chunk number for tracking
 
 ## Details
 
@@ -113,32 +119,55 @@ immediately to disk to minimise memory usage.
 
 The function preserves data integrity by matching results to source
 texts through the `ids` parameter. Each chunk is processed independently
-with results appended to the output file, allowing for resumable
-processing if interrupted.
+with results written as parquet files to the output directory, allowing
+for resumable processing if interrupted.
 
 When using structured outputs with a `schema`, responses are validated
 against the JSON schema but stored as raw JSON strings in the output
-file. This allows for flexible post-processing without memory
+files. This allows for flexible post-processing without memory
 constraints during the API calls.
 
 The chunking strategy balances API efficiency with memory management.
 Larger `chunk_size` values reduce overhead but increase memory usage.
 Adjust based on your system resources and text sizes.
 
+Avoid risk of data loss by setting a low-ish chunk_size (e.g. 5,000,
+10,000). Each chunk is written to a `.parquet` file in the `output_dir=`
+directory, which also contains a `metadata.json` file which tracks
+important information such as the model and endpoint URL used. Be sure
+to add output directories to .gitignore!
+
 ## Examples
 
 ``` r
 if (FALSE) { # \dontrun{
-# basic usage with automatic file naming:
+# basic usage with automatic directory naming:
+result <- oai_complete_chunks(
+  texts = my_texts,
+  ids = my_ids,
+  model = "gpt-4.1-nano"
+)
 
-# large-scale processing with custom output file:
-#structured extraction with schema:
+# large-scale processing with custom output directory:
+result <- oai_complete_chunks(
+  texts = my_texts,
+  ids = my_ids,
+  output_dir = "my_results",
+  chunk_size = 10000
+)
 
+# structured extraction with schema:
+result <- oai_complete_chunks(
+  texts = my_texts,
+  ids = my_ids,
+  schema = my_schema,
+  temperature = 0
+)
 
 # post-process structured results:
-xx <- xx |>
+processed <- result |>
   dplyr::filter(!.error) |>
-  dplyr::mutate(parsed = map(content, ~jsonlite::fromJSON(.x))) |>
-  unnest_wider(parsed)
+  dplyr::mutate(parsed = purrr::map(content, ~jsonlite::fromJSON(.x))) |>
+  tidyr::unnest_wider(parsed)
 } # }
 ```

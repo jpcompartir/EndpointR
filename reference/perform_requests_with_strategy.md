@@ -31,12 +31,17 @@ perform_requests_with_strategy(
 
 ## Value
 
-List of httr2_response objects or error objects for failed requests
+List of httr2_response objects (check status with resp_status()) or
+error objects for network failures
 
 ## Details
 
-returns responses in the order that requests were sent, and returns
-errors in a predictable format.
+Returns responses in the order that requests were sent. Since requests
+use req_error(is_error = ~ FALSE), HTTP error responses (status \>= 400)
+are returned as httr2_response objects rather than being thrown as
+errors. Callers should check response status with httr2::resp_status()
+or use httr2::resps_successes() / httr2::resps_failures() to categorise
+responses.
 
 ## Examples
 

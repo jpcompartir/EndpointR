@@ -78,7 +78,7 @@ oai_complete_df(
   review_df,
   text_var = text,
   id_var = id,
-  output_file = NULL, # leave this to 'auto' to have your results written to a file in your current working directory
+  output_dir = NULL, # leave this to 'auto' to have your results written to a directory in your current working directory
   system_prompt = sentiment_system_prompt,
   concurrent_requests = 2, 
   chunk_size = 5
@@ -90,7 +90,7 @@ oai_complete_df(
     ✔ Batch 1: 5 successful, 0 failed                                                                 
     ✔ Completed processing: 5 successful, 0 failed
     # A tibble: 5 × 5                                                                                   
-         id content                                                             .error .error_msg .batch
+         id content                                                             .error .error_msg .chunk
       
 
     1     1 "The sentiment of the text is highly positive."                     FALSE  NA              1
@@ -122,9 +122,9 @@ structured_df <- oai_complete_df(
   text_var = text,
   id_var = id,
   schema = sentiment_schema,
-  output_file = NULL,
+  output_dir = NULL,
   system_prompt = sentiment_system_prompt,
-  concurrent_requests = 2, 
+  concurrent_requests = 2,
   chunk_size = 5
 )
 ```
@@ -134,7 +134,7 @@ structured_df <- oai_complete_df(
     ✔ Batch 1: 5 successful, 0 failed                                                                 
     ✔ Completed processing: 5 successful, 0 failed
     # A tibble: 5 × 5                                                                                   
-         id content                        .error .error_msg .batch
+         id content                        .error .error_msg .chunk
       
 
     1     1 "{\"sentiment\":\"positive\"}" FALSE  NA              1
@@ -154,7 +154,7 @@ structured_df |>
 ```
 
     # A tibble: 5 × 5
-         id sentiment .error .error_msg .batch
+         id sentiment .error .error_msg .chunk
       
     1     1 positive  FALSE  NA              1
     2     2 negative  FALSE  NA              1
@@ -427,14 +427,14 @@ We have a function
 [`oai_complete_df()`](https://jpcompartir.github.io/EndpointR/reference/oai_complete_df.md)
 which takes a data frame, an id variable, and a text variable as
 mandatory inputs, and returns a data frame with columns: `id_var`,
-`text+var`, `.error_msg`, `.error`, `.batch`.
+`content`, `.error`, `.error_msg`, `.chunk`.
 
 ``` r
 oai_complete_df(df_classical_texts, 
                 text_var = text, 
                 id_var = id,
                 concurrent_requests = 5,
-                output_file = NULL # set this to write to a temporary file, useful for documentation and testing.
+                output_dir = NULL # set this to write to a temporary directory, useful for documentation and testing.
                 )
 ```
 

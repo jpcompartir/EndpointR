@@ -258,7 +258,7 @@ The result includes:
 
 - `text`: your original text
 - `.error`: TRUE if something went wrong
-- `.error_message`: what went wrong (if anything)
+- `.error_msg`: what went wrong (if anything)
 - `V1` to `V384`: the embedding values
 
 ### Processing Data Frames with Chunk Writing
