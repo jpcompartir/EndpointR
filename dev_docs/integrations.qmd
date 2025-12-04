@@ -1,0 +1,172 @@
+---
+title: "integrations"
+format: html
+---
+
+```{r, setup}
+library(tidyverse)
+library(httr2)
+library(EndpointR)
+
+n_tests <- 5
+test_df <- tibble(
+    id = 1:n_tests,
+    text = paste("This is test sentence number", 1:n_tests)
+  )
+```
+
+Space for integration tests (useful for not relying on unit tests when interacting with real APIs)
+
+# oai embed
+
+```{r, invalid_model_oai_embed}
+oai_embed_invalid_model <- oai_embed_df(
+    test_df,
+    text_var = "text",
+    id_var = "id",
+    model = "text-embedding-FAKE-model",
+    output_dir = NULL,
+    concurrent_requests = n_tests
+  )
+
+oai_embed_invalid_model |> dplyr::select(id, .error, .error_msg, .status)
+# expect: .error = TRUE, .status = 404, .error_msg contains model info
+```
+
+invalid API key returns 401 authentication error
+
+```{r, oai_embed_401_auth}
+oai_embed_bad_auth <- oai_embed_df(
+  test_df,
+  text_var = "text",
+  id_var = "id",
+  model = "text-embedding-3-small",
+  key_name = "FAKE_API_KEY",
+  output_dir = NULL,
+  concurrent_requests = n_tests
+)
+
+oai_embed_bad_auth |> dplyr::select(id, .error, .error_msg, .status)
+# expect: .error = TRUE, .status = 401, .error_msg mentions authentication
+```
+
+now succeed:
+
+```{r oai_embed_success}
+oai_embed_success <- oai_embed_df(
+  test_df, 
+  text_var = text, 
+  id_var = id, 
+  model = "text-embedding-3-small",
+  output_dir = NULL,
+  concurrent_requests = n_tests)
+
+oai_embed_success
+```
+
+# oai completions
+
+invalid API key for completions
+
+```{r}
+oai_complete_bad_auth <- oai_complete_df(
+  test_df,
+  text_var = "text",
+  id_var = "id",
+  model = "gpt-4o-mini",
+  system_prompt = "Summarize in one word.",
+  key_name = "FAKE_API_KEY",
+  output_dir = NULL,
+  concurrent_requests = n_tests
+)
+
+oai_complete_bad_auth |> dplyr::select(id, .error, .error_msg, .status)
+
+# expect: .error = TRUE, .status = 401
+```
+
+```{r}
+oai_complete_good_auth <- oai_complete_df(
+  test_df,
+  text_var = "text",
+  id_var = "id",
+  model = "gpt-4o-mini",
+  system_prompt = "Summarize in one word.",
+  key_name = "OPENAI_API_KEY",
+  output_dir = NULL,
+  concurrent_requests = n_tests
+)
+
+oai_complete_good_auth
+```
+
+# hf embed
+
+non-existent HuggingFace model
+
+```{r}
+ hf_embed_invalid_model <- hf_embed_df(
+   test_df,
+   text_var = "text",
+   id_var = "id",
+   endpoint_url = "https://api-inference.huggingface.co/pipeline/feature-extraction/FAKE-model-404",
+   key_name = "HF_TEST_API_KEY",
+   output_dir = NULL,
+   concurrent_requests = n_tests
+  )
+
+hf_embed_invalid_model |> dplyr::select(id, .error, .error_msg, .status)
+
+# expect: .error = TRUE, .status = 410, .error_msg mentions mhttps://api-inference.huggingface.co is no longer...
+```
+
+invalid HuggingFace token
+
+```{r, invalid_key_hf_embed}
+hf_embed_bad_auth <- hf_embed_df(
+  test_df, 
+  text_var = "text",
+  id_var = "id", 
+  endpoint_url = "https://router.huggingface.co/hf-inference/models/sentence-transformers/all-MiniLM-L6-v2/pipeline/sentence-similarity", 
+  key_name = "FAKE_API_KEY",
+  output_dir = NULL,
+  concurrent_requests = n_tests)
+
+hf_embed_bad_auth |> dplyr::select(id, .error, .error_msg, .status) 
+
+# expect: .error = TRUE, .status = 401
+```
+
+Non-existent classification model
+
+```{r, invalid_model_hf_classify}
+hf_classify_invalid_model <- hf_classify_df(
+  test_df, 
+  text_var = "text", 
+  id_var = "id", 
+  endpoint_url = "https://api-inference.huggingface.co/pipeline/feature-extraction/FAKE-model-404",
+  output_dir = NULL,
+  key_name = "HF_TEST_API_KEY",
+  concurrent_requests = n_tests
+  )
+
+hf_classify_invalid_model |> dplyr::select(id, .error, .error_msg, .status) 
+# expect: .error = TRUE, .status = 410
+```
+
+Using an embedding model for classification (wrong task type)
+
+```{r, bad_task_hf_classify}
+hf_classify_wrong_task <- hf_classify_df(
+  test_df, 
+  text_var = text, 
+  id_var = id, 
+  endpoint_url = "https://router.huggingface.co/hf-inference/models/sentence-transformers/all-MiniLM-L6-v2/pipeline/sentence-similarity",
+  key_name = "HF_TEST_API_KEY",
+  output_dir = NULL,
+  concurrent_requests = n_tests)
+
+hf_classify_wrong_task |> dplyr::select(id, .error, .error_msg, .status) 
+
+# expect: .error = TRUE, error message should indicate task mismatch, .status = 400
+```

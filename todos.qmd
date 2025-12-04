@@ -1,6 +1,42 @@
 # EndpointR Hugging Face Embeddings Implementation Checklist
 
-# 0.1.2
+# Versions
+
+## 0.2
+
+-   [ ] Support for Anthropic API
+    -   [ ] Batches
+    -   [ ] Messages (Completions)
+    -   [ ] Structured Outputs
+-   [ ] Support for Gemini API
+    -   [ ] Embeddings
+    -   [ ] Completions
+    -   [ ] Structured Outputs
+-   [ ] LLM Providers Vignette Updated
+-   [ ] Structured Outputs Vignette Updated
+-   [ ] Better error propagation throughout package (refactor, large)
+
+Error reporting is somewhat annoying by default with httr2::req_perform() if we don't:
+
+```         
+response <- req |>
+  httr2::req_error(is_error = ~ FALSE) |>
+  httr2::req_perform()
+
+if (httr2::resp_status(response) >= 400) {
+  error_body <- tryCatch(
+    httr2::resp_body_json(response),
+    error = function(e) list(error = list(message = paste("HTTP", httr2::resp_status(response))))
+  )
+  
+  cli::cli_abort(c(
+    "API request failed ({error_body$error$type %||% 'unknown'})",
+    "x" = error_body$error$message %||% paste("HTTP", httr2::resp_status(response))
+  ))
+}
+```
+
+## 0.1.2
 
 -   [x] tests passing following hf\_\* changes
 -   [x] max_length for hf functions - not applicable in hf_embed\_\* functions as they use HF's TEI which doesn't allow max_length
@@ -317,3 +353,58 @@ Schema -\> Type relationship? e.g. schema_number has its own method which coerce
 -   [x] Vignettes with real-world examples
 -   [x] Vignette re-working/refining based on JH feedback
 -   [ ] Optional Fields and Schemas
+
+# Anthropic API
+
+## Anthropic API - Messages
+
+Anthropic Version of Completions API [docs](https://platform.claude.com/docs/en/api/overview)
+
+-   [ ] build request with headers and auth. THey use X-api-key for auth
+-   [ ] `ant_complete_text()`
+-   [ ] `ant_complete_chunks()`
+-   [ ] `ant_complete_df()`
+-   [ ] Structured outputs [docs](https://platform.claude.com/docs/en/build-with-claude/structured-outputs) uses JSON schema similar to OAI "To use the feature, set the beta header structured-outputs-2025-11-13"
+
+Default request looks like:
+
+```         
+curl https://api.anthropic.com/v1/messages \
+    -H 'Content-Type: application/json' \
+    -H "X-Api-Key: $ANTHROPIC_API_KEY" \
+    -d '{
+          "max_tokens": 1024,
+          "messages": [
+            {
+              "content": "Hello, world",
+              "role": "user"
+            }
+          ],
+          "model": "claude-sonnet-4-5-20250929"
+        }'
+```
+
+Basic 200 response body:
+
+```         
+{
+  "id": "msg_01XFDUDYJgAACzvnptvVoYEL",
+  "type": "message",
+  "role": "assistant",
+  "content": [
+    {
+      "type": "text",
+      "text": "Hello!"
+    }
+  ],
+  "model": "claude-sonnet-4-5",
+  "stop_reason": "end_turn",
+  "stop_sequence": null,
+  "usage": {
+    "input_tokens": 12,
+    "output_tokens": 6
+  }
+}
+```
+
+## Anthropic API - Batches

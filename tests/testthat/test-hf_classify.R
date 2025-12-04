@@ -143,7 +143,7 @@ test_that("hf_classify_batch processes a batch of texts and returns a tidied cla
 
 
   expect_equal(nrow(res), 4)
-  expect_setequal(names(res), c("positive", "negative", "neutral", ".error", ".error_message"))
+  expect_setequal(names(res), c("positive", "negative", "neutral", ".error", ".error_msg"))
 
 })
 
@@ -152,7 +152,7 @@ test_that("hf_classify_chunks processes chunks correctly", {
   texts <- paste0("text", 1:6)
   ids <- paste0("id", 1:length(texts))
   temp_dir <- withr::local_tempdir()
-  expected_cols <- c("id", "text", ".error", ".error_msg", ".chunk", "positive", "negative", "neutral")
+  expected_cols <- c("id", "text", ".error", ".error_msg", ".status", ".chunk", "positive", "negative", "neutral")
 
   # Test with chunk_size = 2
   chunk_2 <- expect_no_error(hf_classify_chunks(

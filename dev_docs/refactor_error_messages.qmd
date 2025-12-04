@@ -1,0 +1,202 @@
+---
+title: "Error Handling Refactor Plan"
+format: html
+---
+
+# EndpointR Error Handling Refactor Plan
+
+## Problem Statement
+
+1. **httr2 catches errors prematurely** - When API requests fail, httr2 throws errors before we can inspect the response body, making debugging difficult. Users see generic error messages instead of the detailed API error messages.
+
+2. **Inconsistent error column naming** - The package uses both `.error_msg` (in `openai_completions.R`) and `.error_message` (everywhere else), causing confusion and potential bugs.
+
+## Solution Overview
+
+### Part A: Prevent httr2 from auto-catching errors
+
+Add `httr2::req_error(is_error = ~ FALSE)` to request building functions so httr2 doesn't throw errors automatically. Then check response status manually and extract meaningful error messages from the API response body.
+
+### Part B: Standardize on `.error_msg`
+
+Rename all `.error_message` occurrences to `.error_msg` for consistency (shorter, cleaner).
+
+---
+
+## Detailed Implementation Plan
+
+### Phase 1: Create a centralised error handling utility
+
+**File: `R/core.R`**
+
+Add a new helper function to extract error messages from failed responses:
+
+```r
+.extract_api_error <- function(response, fallback_message = "Unknown error") {
+  # Handle different response types
+  if (!inherits(response, "httr2_response")) {
+    if (inherits(response, "error") || inherits(response, "condition")) {
+      return(conditionMessage(response))
+    }
+    return(as.character(fallback_message))
+  }
+
+  status <- httr2::resp_status(response)
+  if (status < 400) return(NA_character_)
+
+  # Try to extract error from response body
+  tryCatch({
+    body <- httr2::resp_body_json(response)
+    # OpenAI format
+    if (!is.null(body$error$message)) return(body$error$message)
+    # Anthropic format
+    if (!is.null(body$error$message)) return(body$error$message)
+    # HuggingFace format
+    if (!is.null(body$error)) return(body$error)
+    # Generic message with status
+    paste("HTTP", status)
+  }, error = function(e) {
+    paste("HTTP", status)
+  })
+}
+```
+
+### Phase 2: Modify request building functions
+
+Add `httr2::req_error(is_error = ~ FALSE)` to each request builder:
+
+| File | Function | Change |
+|------|----------|--------|
+| `R/core.R` | `base_request()` | Add `req_error(is_error = ~ FALSE)` to the pipe chain |
+| `R/hf_inference.R` | `hf_build_request()` | Already uses `base_request()`, will inherit |
+| `R/hf_inference.R` | `hf_build_request_batch()` | Already uses `base_request()`, will inherit |
+| `R/openai_completions.R` | `oai_build_completions_request()` | Already uses `base_request()`, will inherit |
+| `R/openai_embed.R` | `oai_build_embedding_request()` | Already uses `base_request()`, will inherit |
+| `R/openai_embed.R` | `oai_build_embedding_request_batch()` | Already uses `base_request()`, will inherit |
+
+**Key insight:** Adding `req_error()` to `base_request()` will cascade to all derived request functions.
+
+### Phase 3: Update request performing functions
+
+Update functions that perform requests to check status manually:
+
+#### 3.1 `R/core.R` - `safely_perform_request()`
+- Currently wraps with `purrr::safely()`
+- Update to check response status and extract error messages
+
+#### 3.2 `R/core.R` - `perform_request_or_return_error()`
+- Remove tryCatch (no longer needed since errors won't be thrown)
+- Add status check and error extraction
+
+#### 3.3 `R/core.R` - `perform_requests_with_strategy()`
+- For parallel requests, httr2 returns all responses
+- Update to properly categorise successes/failures based on status code
+
+#### 3.4 `R/hf_inference.R` - `hf_perform_request()`
+- Add status check after `req_perform()`
+- Return error info if status >= 400
+
+### Phase 4: Update high-level functions
+
+Update functions that call perform functions to handle the new error format:
+
+| File | Functions |
+|------|-----------|
+| `R/openai_completions.R` | `oai_complete_text()`, `oai_complete_chunks()`, `oai_complete_df()` |
+| `R/openai_embed.R` | `oai_embed_text()`, `oai_embed_batch()`, `oai_embed_df()` |
+| `R/hf_embed.R` | `hf_embed_text()`, `hf_embed_batch()`, `hf_embed_df()` |
+| `R/hf_classify.R` | `hf_classify_text()`, `hf_classify_batch()`, `hf_classify_df()` |
+
+### Phase 5: Standardize error column naming
+
+Rename `.error_message` to `.error_msg` across the package:
+
+| File | Change |
+|------|--------|
+| `R/core.R` | Lines 135, 155, 179, 195 - `.error_message` -> `.error_msg` |
+| `R/hf_embed.R` | Line 233 - `.error_message` -> `.error_msg` |
+| `R/hf_classify.R` | Line 324 - `.error_message` -> `.error_msg` |
+| `R/openai_embed.R` | Lines 315, 334, 469, 494, 541 - `.error_message` -> `.error_msg` |
+| `R/zzz.R` | Line 2 - `.error_message` -> `.error_msg` in globalVariables |
+
+### Phase 6: Update tests and documentation
+
+| File | Changes Needed |
+|-----------|----------------|
+| `tests/testthat/test-openai_completions.R` | Already uses `.error_msg` - no changes |
+| `tests/testthat/test-core.R` | Line 134: `.error_message` -> `.error_msg` |
+| `tests/testthat/test-hf_embed.R` | Lines 63, 107, 137: `.error_message` -> `.error_msg` |
+| `tests/testthat/test-hf_classify.R` | Line 146: `.error_message` -> `.error_msg` |
+| `vignettes/*.Rmd` | Update examples to use `.error_msg` |
+| `man/*.Rd` | Will regenerate with `devtools::document()` |
+
+---
+
+## Files to Modify (Summary)
+
+1. **R/core.R** - Add `.extract_api_error()`, modify `base_request()`, update perform functions, rename `.error_message` -> `.error_msg`
+2. **R/openai_completions.R** - Update error handling (already uses `.error_msg`)
+3. **R/openai_embed.R** - Rename `.error_message` -> `.error_msg`, update error handling
+4. **R/hf_inference.R** - Update `hf_perform_request()` error handling
+5. **R/hf_embed.R** - Rename `.error_message` -> `.error_msg`, update error handling
+6. **R/hf_classify.R** - Rename `.error_message` -> `.error_msg`, update error handling
+7. **R/zzz.R** - Change globalVariables from `.error_message` to `.error_msg`
+8. **tests/testthat/test-core.R** - Update expected column name
+9. **tests/testthat/test-hf_embed.R** - Update expected column name
+10. **tests/testthat/test-hf_classify.R** - Update expected column name
+11. **vignettes/*.Rmd** - Update documentation examples
+12. **man/*.Rd** - Will regenerate with roxygen2
+
+---
+
+## Risk Assessment
+
+| Risk | Mitigation |
+|------|------------|
+| Breaking existing workflows | Run full test suite after each phase |
+| Response body structure varies by API | Handle multiple formats in `.extract_api_error()` |
+| Edge cases with empty responses | Default fallback messages |
+| Documentation sync | Regenerate docs with `devtools::document()` |
+
+---
+
+## Implementation Order
+
+1. Add `.extract_api_error()` helper (Phase 1)
+2. Add `req_error()` to `base_request()` (Phase 2)
+3. Update `perform_requests_with_strategy()` (Phase 3)
+4. Update individual perform functions (Phase 3)
+5. Rename `.error_message` to `.error_msg` across package (Phase 5)
+6. Update tests (Phase 6)
+7. Run tests and fix any issues
+8. Regenerate documentation with `devtools::document()`
+
+---
+
+## Implementation Notes (Completed)
+
+### Bug fix in `.extract_api_error()`
+
+During testing, discovered that the HuggingFace error format check must come **before** the OpenAI format check. When `body$error` is a string (HuggingFace format), attempting `body$error$message` throws "$ operator is invalid for atomic vectors".
+
+Fixed order:
+```r
+# huggingface format: {"error": "..."} - check first as it's a string not a list
+if (!is.null(body$error) && is.character(body$error)) return(body$error)
+# openai format: {"error": {"message": "...", "type": "..."}}
+if (!is.null(body$error) && is.list(body$error) && !is.null(body$error$message)) return(body$error$message)
+```
+
+### Tests added (40 new tests in test-core.R)
+
+- `base_request` includes `req_error` policy
+- `.extract_api_error()` extracts OpenAI-format error messages (400, 401, 429)
+- `.extract_api_error()` extracts HuggingFace-format error messages (500, 503)
+- `.extract_api_error()` extracts Anthropic-format error messages (529)
+- `.extract_api_error()` falls back to HTTP status when body parsing fails
+- `.extract_api_error()` returns NA for successful responses
+- `.extract_api_error()` handles non-response objects gracefully
+- `.extract_api_error()` handles all common HTTP error status codes (400, 401, 403, 404, 429, 500, 502, 503, 529)
+- `process_response()` handles HTTP error responses correctly
+- `process_response()` handles mixed success and error batches
+- `.create_error_tibble()` produces correct structure with `.error_msg` column

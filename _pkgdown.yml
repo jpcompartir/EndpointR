@@ -88,6 +88,12 @@ reference:
   - hf_get_endpoint_info
   - hf_get_model_max_length
 
+- title: "Anthropic Messages"
+  desc: "functions for working with Anthropic's Messages API"
+  contents:
+  - ant_build_messages_request
+
+
 - title: "OpenAI Completions"
   desc: "Functions for working with OpenAI's APIs including structured outputs"
   contents:
@@ -103,6 +109,7 @@ reference:
   - oai_build_embedding_request
   - oai_embed_text
   - oai_embed_batch
+  - oai_embed_chunks
   - oai_embed_df
   - tidy_oai_embedding
 - title: "JSON Schema for Structured Outputs"
@@ -159,8 +166,12 @@ development:
 
 news:
   releases:
+  - text: "Version 0.1.2"
+    href: news/index.html#endpointr-012
+  - text: "Version 0.1.1"
+    href: news/index.html#endpointr-011
   - text: "Version 0.1.0"
-    href: news/index.html
+    href: news/index.html#endpointr-010
 
 footer:
   structure:

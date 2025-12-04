@@ -323,7 +323,7 @@ hf_classify_batch <- function(texts,
         result <- tidy_func(response$result)
         result$original_index <- batch_data$batch_indices[[1]]
         result$.error <- FALSE
-        result$.error_message <- NA_character_
+        result$.error_msg <- NA_character_
       }, error = function(e) {
         cli::cli_warn("Error in single batch request: {conditionMessage(e)}")
         return(.create_error_tibble(batch_data$batch_indices, conditionMessage(e)))
@@ -527,8 +527,18 @@ hf_classify_chunks <- function(texts,
       progress = TRUE
     )
 
-    chunk_successes <- httr2::resps_successes(responses)
-    chunk_failures <- httr2::resps_failures(responses)
+    # separate actual responses from error objects (network failures, etc.)
+    is_response <- purrr::map_lgl(responses, inherits, "httr2_response")
+    response_objects <- responses[is_response]
+    error_objects <- responses[!is_response]
+
+    # split responses by HTTP status code (not just by type)
+    is_success <- purrr::map_lgl(response_objects, ~httr2::resp_status(.x) < 400)
+    chunk_successes <- response_objects[is_success]
+    http_failures <- response_objects[!is_success]
+
+    # combine HTTP failures with network/other errors
+    chunk_failures <- c(http_failures, error_objects)
 
     n_chunk_successes <- length(chunk_successes)
     n_chunk_failures <- length(chunk_failures)
@@ -551,6 +561,7 @@ hf_classify_chunks <- function(texts,
         !!text_col_name := successes_texts,
         .error = FALSE,
         .error_msg = NA_character_,
+        .status = NA_integer_,
         .chunk = chunk_num
       ) |>
         dplyr::bind_cols(successes_content)
@@ -561,14 +572,30 @@ hf_classify_chunks <- function(texts,
 
       failures_ids <- purrr::map(chunk_failures, \(x) purrr::pluck(x, "request", "headers", "endpointr_id")) |>  unlist()
       failures_texts <- purrr::map_chr(chunk_failures, \(x) purrr::pluck(x, "request", "body", "data", "inputs")) |> unlist()
-      failures_msgs <- purrr::map_chr(chunk_failures, \(x) purrr::pluck(x, "message", .default = "Unknown error"))
-
+      failures_msgs <- purrr::map_chr(chunk_failures, \(x) {
+        if (inherits(x, "httr2_response")) {
+          .extract_api_error(x)
+        } else {
+          # error object - try to get resp from it
+          resp <- purrr::pluck(x, "resp")
+          if (!is.null(resp)) .extract_api_error(resp) else .extract_api_error(x, "Unknown error")
+        }
+      })
+      failures_status <- purrr::map_int(chunk_failures, \(x) {
+        if (inherits(x, "httr2_response")) {
+          httr2::resp_status(x)
+        } else {
+          resp <- purrr::pluck(x, "resp")
+          if (!is.null(resp)) httr2::resp_status(resp) else NA_integer_
+        }
+      })
 
       chunk_results$failures <- tibble::tibble(
         !!id_col_name := failures_ids,
         !!text_col_name := failures_texts,
         .error = TRUE,
         .error_msg = failures_msgs,
+        .status = failures_status,
         .chunk = chunk_num
       )
     }

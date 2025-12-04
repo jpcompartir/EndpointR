@@ -60,7 +60,7 @@ test_that("hf_embed_batch works correctly with tidy_func parameter added", {
 
   expect_s3_class(result, "tbl_df")
   expect_equal(nrow(result), 2)
-  expect_true(all(c("V1", "V2", "V3", ".error", ".error_message") %in% names(result)))
+  expect_true(all(c("V1", "V2", "V3", ".error", ".error_msg") %in% names(result)))
 })
 
 test_that("hf_embed_batch allows custom tidy_func", {
@@ -88,7 +88,7 @@ test_that("hf_embed_chunks replaces hf_embed_batch", {
   texts <- paste0("text", 1:6)
   ids <- paste0('id', 1:length(texts))
   temp_dir <- withr::local_tempdir()
-  expected_cols <- c("id", ".error", ".error_msg", ".chunk", "V1", "V2", "V3")
+  expected_cols <- c("id", ".error", ".error_msg", ".status", ".chunk", "V1", "V2", "V3")
 
 
   chunk_2 <- expect_no_error(hf_embed_chunks(

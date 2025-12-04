@@ -312,7 +312,7 @@ oai_embed_text <- function(text,
 #' filled with NA values and marked with error information.
 #'
 #' The function returns a tibble with embedding columns (V1, V2, ..., Vn),
-#' error tracking columns (.error, .error_message), and optionally the
+#' error tracking columns (.error, .error_msg), and optionally the
 #' original texts.
 #'
 #' @param texts Vector or list of character strings to generate embeddings for
@@ -331,7 +331,7 @@ oai_embed_text <- function(text,
 #' @return A tibble containing:
 #'   - Embedding vectors as columns (V1, V2, ..., Vn)
 #'   - .error: Logical column indicating if embedding failed
-#'   - .error_message: Character column with error details
+#'   - .error_msg: Character column with error details
 #'   - text: Original texts (if include_texts = TRUE)
 #' @export
 #'
@@ -466,7 +466,7 @@ oai_embed_batch <- function(texts,
   # 5. Adding Error Information to Data Frame ----
   # add errors and messages to return df. FALSE and "" if no error.
   result$.error <- errors
-  result$.error_message <- error_msgs
+  result$.error_msg <- error_msgs
 
   n_failed <- sum(result$.error)
   n_succeeded <- n_texts - n_failed
@@ -491,14 +491,264 @@ oai_embed_batch <- function(texts,
   }
 
   # 6. Relocating Cols and Returning ----
-  result <- dplyr::relocate(result, c(.error, .error_message), .before = dplyr::all_of(relocate_col))
+  result <- dplyr::relocate(result, c(.error, .error_msg), .before = dplyr::all_of(relocate_col))
 
   return(result)
 }
 
 
-oai_embed_df <- function(df, text_var, id_var, model = "text-embedding-3-small", dimensions = NULL, batch_size = 1, concurrent_requests = 1, max_retries = 5, timeout = 20, endpoint_url = "https://api.openai.com/v1/embeddings", key_name = "OPENAI_API_KEY" ) {
+# oai_embed_chunks docs ----
+#' Embed text chunks through OpenAI's Embeddings API
+#'
+#' This function processes large volumes of text through OpenAI's Embeddings API
+#' in configurable chunks, writing results progressively to parquet files. It handles
+#' concurrent requests, automatic retries, while managing memory efficiently for
+#' large-scale processing.
+#'
+#' @details This function is designed for processing large text datasets that may not
+#' fit comfortably in memory. It divides the input into chunks, processes each chunk
+#' with concurrent API requests, and writes results immediately to disk to minimise
+#' memory usage.
+#'
+#' The function preserves data integrity by matching results to source texts through
+#' the `ids` parameter. Each chunk is processed independently with results written as
+#' parquet files to the output directory.
+#'
+#' The chunking strategy balances API efficiency with memory management. Larger
+#' `chunk_size` values reduce overhead but increase memory usage. Adjust based on
+#' your system resources and text sizes.
+#'
+#' Avoid risk of data loss by setting a low-ish chunk_size (e.g. 5,000, 10,000). Each chunk is written to a `.parquet` file in the `output_dir=` directory, which also contains a `metadata.json` file which tracks important information such as the model and endpoint URL used. Be sure to add output directories to .gitignore!
+#'
+#' @param texts Character vector of texts to process
+#' @param ids Vector of unique identifiers corresponding to each text (same length as texts)
+#' @param model OpenAI embedding model to use (default: "text-embedding-3-small")
+#' @param dimensions Number of embedding dimensions (default: 1536 for text-embedding-3-small)
+#' @param output_dir Path to directory for the .parquet chunks. "auto" generates a timestamped directory name. If NULL, uses a temporary directory.
+#' @param chunk_size Number of texts to process in each chunk before writing to disk (default: 5000)
+#' @param concurrent_requests Number of concurrent requests (default: 5)
+#' @param max_retries Maximum retry attempts per failed request (default: 5)
+#' @param timeout Request timeout in seconds (default: 20)
+#' @param endpoint_url OpenAI API endpoint URL (default: OpenAI's embedding endpoint)
+#' @param key_name Name of environment variable containing the API key (default: "OPENAI_API_KEY")
+#' @param id_col_name Name for the ID column in output (default: "id"). When called from oai_embed_df(), this preserves the original column name.
+#'
+#' @return A tibble with columns:
+#'   - ID column (name specified by `id_col_name`): Original identifier from input
+#'   - `.error`: Logical indicating if request failed
+#'   - `.error_msg`: Error message if failed, NA otherwise
+#'   - `.chunk`: Chunk number for tracking
+#'   - Embedding columns (V1, V2, etc.)
+#' @export
+#'
+#' @examples
+#' \dontrun{
+#'   # basic usage with automatic directory naming
+#'   result <- oai_embed_chunks(
+#'     texts = my_texts,
+#'     ids = my_ids,
+#'     model = "text-embedding-3-small"
+#'   )
+#'
+#'   # large-scale processing with custom settings
+#'   result <- oai_embed_chunks(
+#'     texts = my_texts,
+#'     ids = my_ids,
+#'     output_dir = "my_embeddings",
+#'     chunk_size = 10000,
+#'     dimensions = 512,
+#'     concurrent_requests = 10
+#'   )
+#' }
+# oai_embed_chunks docs ----
+oai_embed_chunks <- function(texts,
+                             ids,
+                             model = "text-embedding-3-small",
+                             dimensions = 1536,
+                             output_dir = "auto",
+                             chunk_size = 5000L,
+                             concurrent_requests = 5L,
+                             max_retries = 5L,
+                             timeout = 20L,
+                             endpoint_url = "https://api.openai.com/v1/embeddings",
+                             key_name = "OPENAI_API_KEY",
+                             id_col_name = "id") {
 
+  # input validation ----
+  stopifnot(
+    "texts must be a vector" = is.vector(texts),
+    "ids must be a vector" = is.vector(ids),
+    "texts and ids must be the same length" = length(texts) == length(ids),
+    "chunk_size must be a positive integer greater than 1" = is.numeric(chunk_size) && chunk_size > 0
+  )
+
+  output_dir <- .handle_output_directory(output_dir, base_dir_name = "oai_embeddings_batch")
+
+  if (!dir.exists(output_dir)) {
+    dir.create(output_dir, recursive = TRUE)
+  }
+
+  chunk_data <- batch_vector(seq_along(texts), chunk_size)
+  n_chunks <- length(chunk_data$batch_indices)
+
+  # write metadata to track important information for debugging and reproducibility
+  metadata <- list(
+    model = model,
+    endpoint_url = endpoint_url,
+    dimensions = dimensions,
+    chunk_size = chunk_size,
+    n_texts = length(texts),
+    concurrent_requests = concurrent_requests,
+    timeout = timeout,
+    max_retries = max_retries,
+    output_dir = output_dir,
+    key_name = key_name,
+    n_chunks = n_chunks,
+    timestamp = Sys.time()
+  )
+
+  jsonlite::write_json(metadata,
+                       file.path(output_dir, "metadata.json"),
+                       auto_unbox = TRUE,
+                       pretty = TRUE)
+
+  cli::cli_alert_info("Processing {length(texts)} text{?s} in {n_chunks} chunk{?s} of up to {chunk_size} each")
+  cli::cli_alert_info("Intermediate results will be saved as parquet files in {output_dir}")
+
+  total_successes <- 0
+  total_failures <- 0
+
+  ## chunk processing ----
+  for (chunk_num in seq_along(chunk_data$batch_indices)) {
+
+    chunk_indices <- chunk_data$batch_indices[[chunk_num]]
+    chunk_texts <- texts[chunk_indices]
+    chunk_ids <- ids[chunk_indices]
+
+    cli::cli_progress_message("Processing chunk {chunk_num}/{n_chunks} ({length(chunk_indices)} text{?s})")
+
+    ## build chunk requests ----
+    # use individual requests for each text rather than batching within request
+    requests <- purrr::map2(
+      .x = chunk_texts,
+      .y = chunk_ids,
+      .f = function(text, id) {
+        req <- oai_build_embedding_request(
+          input = text,
+          model = model,
+          dimensions = dimensions,
+          max_retries = max_retries,
+          timeout = timeout,
+          endpoint_url = endpoint_url,
+          key_name = key_name
+        )
+        # attach id to request headers for tracking
+        httr2::req_headers(req, endpointr_id = id)
+      }
+    )
+
+    # make sure we have some valid requests, or skip to the next iteration
+    is_valid_request <- purrr::map_lgl(requests, ~inherits(.x, "httr2_request"))
+    valid_requests <- requests[is_valid_request]
+
+    if (length(valid_requests) == 0) {
+      cli::cli_alert_warning("No valid request{?s} in chunk {chunk_num}, skipping")
+      next
+    }
+
+    # perform chunk requests ----
+    responses <- perform_requests_with_strategy(
+      valid_requests,
+      concurrent_requests = concurrent_requests,
+      progress = TRUE
+    )
+
+    # separate actual responses from error objects (network failures, etc.)
+    is_response <- purrr::map_lgl(responses, inherits, "httr2_response")
+    response_objects <- responses[is_response]
+    error_objects <- responses[!is_response]
+
+    # split responses by HTTP status code (not just by type)
+    is_success <- purrr::map_lgl(response_objects, ~httr2::resp_status(.x) < 400)
+    successes <- response_objects[is_success]
+    http_failures <- response_objects[!is_success]
+
+    # combine HTTP failures with network/other errors
+    failures <- c(http_failures, error_objects)
+
+    n_successes <- length(successes)
+    n_failures <- length(failures)
+    total_successes <- total_successes + n_successes
+    total_failures <- total_failures + n_failures
+
+    ## process chunk responses ----
+    # within chunk results
+    chunk_results <- list()
+
+    if (n_successes > 0) {
+      successes_ids <- purrr::map(successes, ~purrr::pluck(.x, "request", "headers", "endpointr_id")) |> unlist()
+      successes_content <- purrr::map(successes, tidy_oai_embedding) |>
+        purrr::list_rbind()
+
+      chunk_results$successes <- tibble::tibble(
+        !!id_col_name := successes_ids,
+        .error = FALSE,
+        .error_msg = NA_character_,
+        .status = NA_integer_,
+        .chunk = chunk_num
+      ) |>
+        dplyr::bind_cols(successes_content)
+    }
+
+    if (n_failures > 0) {
+      failures_ids <- purrr::map(failures, ~purrr::pluck(.x, "request", "headers", "endpointr_id")) |> unlist()
+      failures_msgs <- purrr::map_chr(failures, ~{
+        if (inherits(.x, "httr2_response")) {
+          .extract_api_error(.x)
+        } else {
+          # Error object - try to get resp from it
+          resp <- purrr::pluck(.x, "resp")
+          if (!is.null(resp)) .extract_api_error(resp) else .extract_api_error(.x, "Unknown error")
+        }
+      })
+      failures_status <- purrr::map_int(failures, ~{
+        if (inherits(.x, "httr2_response")) {
+          httr2::resp_status(.x)
+        } else {
+          resp <- purrr::pluck(.x, "resp")
+          if (!is.null(resp)) httr2::resp_status(resp) else NA_integer_
+        }
+      })
+
+      chunk_results$failures <- tibble::tibble(
+        !!id_col_name := failures_ids,
+        .error = TRUE,
+        .error_msg = failures_msgs,
+        .status = failures_status,
+        .chunk = chunk_num
+      )
+    }
+
+    chunk_df <- dplyr::bind_rows(chunk_results)
+
+    if (nrow(chunk_df) > 0) {
+      chunk_file <- glue::glue("{output_dir}/chunk_{stringr::str_pad(chunk_num, 3, pad = '0')}.parquet")
+      arrow::write_parquet(chunk_df, chunk_file)
+    }
+
+    cli::cli_alert_success("Chunk {chunk_num}: {n_successes} successful, {n_failures} failed")
+
+    rm(requests, responses, successes, failures, chunk_results, chunk_df)
+    gc(verbose = FALSE)
+  }
+
+  parquet_files <- list.files(output_dir, pattern = "\\.parquet$", full.names = TRUE)
+
+  cli::cli_alert_info("Processing completed, there were {total_successes} successes\n and {total_failures} failures.")
+  final_results <- arrow::open_dataset(parquet_files, format = "parquet") |>
+    dplyr::collect()
+
+  return(final_results)
 }
 
 
@@ -508,37 +758,43 @@ oai_embed_df <- function(df, text_var, id_var, model = "text-embedding-3-small",
 #' @description
 #' High-level function to generate embeddings for texts in a data frame using
 #' OpenAI's embedding API. This function handles the entire process from request
-#' creation to response processing, with options for batching & concurrent requests.
+#' creation to response processing, with options for chunking & concurrent requests.
 #'
 #' @details
 #' This function extracts texts from a specified column, generates embeddings using
-#' `oai_embed_batch()`, and joins the results back to the original data frame using
-#' a specified ID column.
+#' `oai_embed_chunks()`, and returns the results matched to the original IDs.
 #'
-#' The function preserves the original data frame structure and adds new columns
-#' for embedding dimensions (V1, V2, ..., Vn). If the number of rows doesn't match
-#' after processing (due to errors), it returns the results with a warning.
+#' The chunking approach enables processing of large data frames without memory
+#' constraints. Results are written progressively as parquet files (either to a specified
+#' directory or auto-generated) and then read back as the return value.
 #'
 #' OpenAI's embedding API allows you to specify the number of dimensions for the
-#' output embeddings, which can be useful for reducing memory usage, storage cost,s or matching
+#' output embeddings, which can be useful for reducing memory usage, storage costs, or matching
 #' specific downstream requirements. The default is model-specific (1536 for
 #' text-embedding-3-small). \href{https://openai.com/index/new-embedding-models-and-api-updates/}{OpenAI Embedding Updates}
+#'
+#' Avoid risk of data loss by setting a low-ish chunk_size (e.g. 5,000, 10,000). Each chunk is written to a `.parquet` file in the `output_dir=` directory, which also contains a `metadata.json` file. Be sure to add output directories to .gitignore!
 #'
 #' @param df Data frame containing texts to embed
 #' @param text_var Column name (unquoted) containing texts to embed
 #' @param id_var Column name (unquoted) for unique row identifiers
 #' @param model OpenAI embedding model to use (default: "text-embedding-3-small")
-#' @param dimensions Number of embedding dimensions (NULL uses model default)
+#' @param dimensions Number of embedding dimensions (default: 1536)
 #' @param key_name Name of environment variable containing the API key
-#' @param batch_size Number of texts to process in one batch (default: 10)
+#' @param output_dir Path to directory for the .parquet chunks. "auto" generates a timestamped directory name. If NULL, uses a temporary directory.
+#' @param chunk_size Number of texts to process in each chunk before writing to disk (default: 5000)
 #' @param concurrent_requests Number of concurrent requests (default: 1)
 #' @param max_retries Maximum retry attempts per request (default: 5)
 #' @param timeout Request timeout in seconds (default: 20)
 #' @param endpoint_url OpenAI API endpoint URL
 #' @param progress Whether to display a progress bar (default: TRUE)
 #'
-#' @return Original data frame with additional columns for embeddings (V1, V2, etc.),
-#'   plus .error and .error_message columns indicating any failures
+#' @return A tibble with columns:
+#'   - ID column (preserves original column name): Original identifier from input
+#'   - `.error`: Logical indicating if request failed
+#'   - `.error_msg`: Error message if failed, NA otherwise
+#'   - `.chunk`: Chunk number for tracking
+#'   - Embedding columns (V1, V2, etc.)
 #'
 #' @export
 #'
@@ -549,7 +805,7 @@ oai_embed_df <- function(df, text_var, id_var, model = "text-embedding-3-small",
 #'     text = c("First example", "Second example", "Third example")
 #'   )
 #'
-#'   # Generate embeddings with default dimensions
+#'   # Generate embeddings with default settings
 #'   embeddings_df <- oai_embed_df(
 #'     df = df,
 #'     text_var = text,
@@ -561,8 +817,8 @@ oai_embed_df <- function(df, text_var, id_var, model = "text-embedding-3-small",
 #'     df = df,
 #'     text_var = text,
 #'     id_var = id,
-#'     dimensions = 360,  # smaller embeddings
-#'     batch_size = 5
+#'     dimensions = 512,  # smaller embeddings
+#'     chunk_size = 10000
 #'   )
 #'
 #'   # Use with concurrent requests for faster processing
@@ -571,7 +827,7 @@ oai_embed_df <- function(df, text_var, id_var, model = "text-embedding-3-small",
 #'     text_var = text,
 #'     id_var = id,
 #'     model = "text-embedding-3-large",
-#'     concurrent_requests = 3
+#'     concurrent_requests = 5
 #'   )
 #' }
 oai_embed_df <- function(df,
@@ -580,10 +836,11 @@ oai_embed_df <- function(df,
                          model = "text-embedding-3-small",
                          dimensions = 1536,
                          key_name = "OPENAI_API_KEY",
-                         batch_size = 10,
-                         concurrent_requests = 1,
-                         max_retries = 5,
-                         timeout = 20,
+                         output_dir = "auto",
+                         chunk_size = 5000L,
+                         concurrent_requests = 1L,
+                         max_retries = 5L,
+                         timeout = 20L,
                          endpoint_url = "https://api.openai.com/v1/embeddings",
                          progress = TRUE) {
 
@@ -592,60 +849,37 @@ oai_embed_df <- function(df,
 
   stopifnot(
     "df must be a data frame" = is.data.frame(df),
+    "df must not be empty" = nrow(df) > 0,
+    "text_var must exist in df" = rlang::as_name(text_sym) %in% names(df),
+    "id_var must exist in df" = rlang::as_name(id_sym) %in% names(df),
     "endpoint_url must be provided" = !is.null(endpoint_url) && nchar(endpoint_url) > 0,
-    "concurrent_requests must be a number greater than 0" = is.numeric(concurrent_requests) && concurrent_requests > 0,
-    "batch_size must be a number greater than 0" = is.numeric(batch_size) && batch_size > 0
+    "concurrent_requests must be an integer" = is.numeric(concurrent_requests) && concurrent_requests > 0
   )
 
-  if (!rlang::as_string(text_sym) %in% names(df)) {
-    cli::cli_abort("Column {.code {rlang::as_string(text_sym)}} not found in data frame")
-  }
+  output_dir <- .handle_output_directory(output_dir, base_dir_name = "oai_embeddings_batch")
 
-  if (!rlang::as_string(id_sym) %in% names(df)) {
-    cli::cli_abort("Column {.code {rlang::as_string(id_sym)}} not found in data frame")
-  }
-
-  original_num_rows <- nrow(df)
-
-  # pull texts & ids into vectors for batch function
   texts <- dplyr::pull(df, !!text_sym)
   indices <- dplyr::pull(df, !!id_sym)
 
-  batch_size <- if(is.null(batch_size) || batch_size <= 1) 1 else batch_size
+  # preserve original column name
+  id_col_name <- rlang::as_name(id_sym)
 
-  embeddings_tbl <- oai_embed_batch(
+  chunk_size <- if(is.null(chunk_size) || chunk_size <= 1) 1 else chunk_size
+
+  results <- oai_embed_chunks(
     texts = texts,
+    ids = indices,
     model = model,
     dimensions = dimensions,
-    batch_size = batch_size,
+    output_dir = output_dir,
+    chunk_size = chunk_size,
     concurrent_requests = concurrent_requests,
     max_retries = max_retries,
     timeout = timeout,
     endpoint_url = endpoint_url,
     key_name = key_name,
-    include_texts = FALSE,
-    relocate_col = 1
+    id_col_name = id_col_name
   )
 
-  df_with_row_id <- df |> dplyr::mutate(.row_id = dplyr::row_number())
-
-  embeddings_tbl <- embeddings_tbl |>
-    dplyr::mutate(.row_id = dplyr::row_number())
-
-  result_df <- df_with_row_id |>
-    dplyr::left_join(embeddings_tbl, by = ".row_id") |>
-    dplyr::select(-.row_id)
-
-  # sanity check and alert user if there's a mismatch
-  final_num_rows <- nrow(result_df)
-
-  if(final_num_rows != original_num_rows){
-    cli::cli_warn("Rows in original data frame and returned data frame do not match:")
-    cli::cli_bullets(text = c(
-      "Rows in original data frame: {original_num_rows}",
-      "Rows in returned data frame: {final_num_rows}"
-    ))
-  }
-
-  return(result_df)
+  return(results)
 }

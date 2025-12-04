@@ -10,8 +10,9 @@ safely_perform_request(request)
 \item{request}{An httr2 request object}
 }
 \value{
-A list with components $result and $error
+A list with components $result (httr2_response or NULL) and $error (NULL or condition)
 }
 \description{
 Wrapper around httr2::req_perform that handles errors gracefully.
+Returns the response object directly - check status with httr2::resp_status().
 }
