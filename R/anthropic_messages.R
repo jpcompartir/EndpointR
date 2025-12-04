@@ -134,6 +134,7 @@ ant_build_messages_request <- function(
       "x-api-key" = api_key,
       "anthropic-version" = .ANT_API_VERSION
     ) |>
+    httr2::req_error(is_error = ~ FALSE) |> # don't let httr2 auto-throw errors; we handle them ourselves
     httr2::req_timeout(timeout) |>
     httr2::req_retry(
       max_tries = max_retries,
