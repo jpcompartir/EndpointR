@@ -1,5 +1,10 @@
 # EndpointR 0.2
 
+-   error message and status propagation improvement. Now writes .error, .error_msg (standardised across package), and .status. Main change is preventing httr2 eating the errors before we can deal with them
+-   adds parquet writing to oai_complete_df and oai_embed_df
+-   adds chunks func to oai_embed, and re-writes all batch -\> chunk logic
+-   implements the Anthropic messages API with structured outputs (via BETA)
+
 # EndpointR 0.1.2
 
 -   **File writing improvements**: `hf_embed_df()` and `hf_classify_df()` now write intermediate results as `.parquet` files to `output_dir` directories, similar to improvements in 0.1.1 for OpenAI functions
@@ -40,4 +45,3 @@ Initial BETA release, ships with:
 -   Support for text completion using OpenAI models via the Chat Completions API
 -   Support for embeddings with the OpenAI Embeddings API
 -   Structured outputs via JSON schemas and validators
-
