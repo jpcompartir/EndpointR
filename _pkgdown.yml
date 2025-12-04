@@ -166,6 +166,8 @@ development:
 
 news:
   releases:
+  - text: "Version 0.2"
+    href: nrews/index.html#endpointr-012
   - text: "Version 0.1.2"
     href: news/index.html#endpointr-012
   - text: "Version 0.1.1"

@@ -208,17 +208,22 @@ oai_complete_df(
 Complete a Data Frame of texts with schema:
 
 ``` r
-oai_complete_df(
+df_output_w_schema <- oai_complete_df(
   df = review_data,
   text_var = review_text,
   id_var = review_id,
   system_prompt = "Classify the following review:",
   schema = sentiment_schema,
   key_name = "OPENAI_API_KEY",
-  output_dir = "completions_output",
+  output_dir = NULL,
+  # output_dir = "completions_output",
   chunk_size = 1000,
   concurrent_requests = 5
 )
+
+df_output_w_schema |> 
+  dplyr::mutate(content = purrr::map(content, safely_from_json)) |>
+  tidyr::unnest_wider(content)
 ```
 
 # Working with Output Files
@@ -275,7 +280,7 @@ responses and metadata.
 
 Read the [LLM Providers Vignette](articles/llm_providers.html), and the
 [Structured Outputs
-Vignette](vignettes/structured_outputs_json_schema.html) for more
+Vignette](articles/structured_outputs_json_schema.html) for more
 information on common workflows with the OpenAI Chat Completions API
 [^1]
 
