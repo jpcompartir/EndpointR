@@ -520,6 +520,44 @@ ant_complete_chunks <- function(texts,
 # ant_complete_chunks ----
 
 # ant_complete_df ----
+#' Process a data frame through Anthropic's Messages API
+#'
+#' @description
+#' Takes a data frame with text inputs and processes each row through
+#' Anthropic's Messages API using chunked processing. Results are written
+#' progressively to parquet files and returned as a tibble. Supports
+#' structured outputs via the schema = argument.
+#'
+#' @details
+#' writes results to disk to minimise memory usage and possibility of data loss.
+#'
+#' Results are written as parquet files in the specified output directory,
+#' along with a metadata.json file containing processing parameters.
+#'
+#' When using the `output_dir =` argument, be careful that you select
+#' a new directory if you do not wish to overwrite existing chunks.
+#' If there is already a `chunks_001.parquet` file in the directory,
+#' it will be overwritten.
+#'
+#' @param df Data frame containing text to process
+#' @param text_var Column name (unquoted) containing text inputs
+#' @param id_var Column name (unquoted) for unique row identifiers
+#' @param model Anthropic model to use
+#' @param output_dir Directory for parquet chunks
+#' @param system_prompt Optional system prompt
+#' @param schema Optional JSON schema for structured output
+#' @param chunk_size Number of texts per chunk
+#' @param concurrent_requests Number of concurrent requests
+#' @param max_retries Maximum retry attempts
+#' @param timeout Request timeout in seconds
+#' @param temperature Sampling temperature
+#' @param max_tokens Maximum tokens per response
+#' @param key_name Environment variable name for API key
+#' @param endpoint_url Anthropic API endpoint URL
+#'
+#' @return A tibble with results
+#' @export
+#'
 ant_complete_df <- function(df,
                             text_var,
                             id_var,
