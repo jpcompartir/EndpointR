@@ -4,12 +4,13 @@
 .ANT_MESSAGES_ENDPOINT <- "https://api.anthropic.com/v1/messages"
 .ANT_DEFAULT_MODEL <- "claude-haiku-4-5"
 
+# ant_build_messages_request ----
 #' Build an Anthropic Messages API request
 #'
 #' @description
 #' Constructs an httr2 request object for Anthropic's Messages API.
 #' Handles message formatting, system prompts, and optional JSON schema
-#' for structured outputs. When using strucutred outputs you must select the correct model.
+#' for structured outputs. When using structured outputs you must select the correct model.
 #'
 #'
 #' @details
@@ -154,8 +155,10 @@ ant_build_messages_request <- function(
 
   return(request)
 }
+# ant_build_messages_request ----
 
-# ant_complete_text docs ----
+
+# ant_complete_text ----
 #' Generate a completion for a single text using Anthropic's Messages API
 #'
 #' @description
@@ -200,7 +203,7 @@ ant_build_messages_request <- function(
 #'     schema = sentiment_schema
 #'   )
 #' }
-# ant_complete_text docs ----
+
 ant_complete_text <- function(text,
                               model = .ANT_DEFAULT_MODEL,
                               system_prompt = NULL,
@@ -210,7 +213,7 @@ ant_complete_text <- function(text,
                               key_name = "ANTHROPIC_API_KEY",
                               endpoint_url = .ANT_MESSAGES_ENDPOINT,
                               max_retries = 5L,
-                              tiemout = 30L,
+                              timeout = 30L,
                               tidy = TRUE) {
 
   # surface errors quickly here, before building any request
@@ -234,7 +237,7 @@ ant_complete_text <- function(text,
     max_tokens = max_tokens,
     endpoint_url = endpoint_url,
     max_retries = max_retries,
-    timeout = 30L
+    timeout = timeout
   )
 
   tryCatch({
@@ -276,6 +279,213 @@ ant_complete_text <- function(text,
 
   return(content)
 }
+
+# ant_complete_text ----
+
+# ant_complete_chunks ----
+
+ant_complete_chunks <- function(texts,
+                                ids,
+                                chunk_size = 5000L,
+                                model = "claude-haiku-4-5",
+                                system_prompt = NULL,
+                                output_dir = "auto",
+                                schema = NULL,
+                                concurrent_requests = 5L,
+                                temperature = 0,
+                                max_tokens = 1024L,
+                                max_retries = 5L,
+                                timeout = 30L,
+                                key_name = "ANTHROPIC_API_KEY",
+                                endpoint_url = .ANT_MESSAGES_ENDPOINT,
+                                id_col_name = "id") {
+
+  stopifnot(
+    "texts must be a vector" = is.vector(texts),
+    "ids must be a vector" = is.vector(ids),
+    "texts and ids must be the same length" = length(texts) == length(ids),
+    "chunk_size must be a positive integer" = is.numeric(chunk_size) && chunk_size > 0
+  )
+
+  output_dir <- .handle_output_directory(output_dir, base_dir_name = "ant_messages_chunks")
+
+  if (!dir.exists(output_dir)) {
+    dir.create(output_dir, recursive = TRUE)
+  }
+
+  # build the schema just once (and apply later)
+  if (!is.null(schema) && inherits(schema, "EndpointR::json_schema")) {
+    formatted_schema <- .ant_format_schema(schema)
+  } else {
+    formatted_schema <- schema
+  }
+
+  chunk_data <- batch_vector(seq_along(texts), chunk_size)
+  n_chunks <- length(chunk_data$batch_indices)
+
+  metadata <- list(
+    output_dir = output_dir,
+    endpoint_url = endpoint_url,
+    model = model,
+    schema = NULL,
+    has_system_prompt = !is.null(system_prompt),
+    chunk_size = chunk_size,
+    n_chunks = n_chunks,
+    n_texts = length(texts),
+    concurrent_requests = concurrent_requests,
+    timeout = timeout,
+    max_retries = max_retries,
+    max_tokens = max_tokens,
+    temperature = temperature,
+    key_name = key_name,
+    timestamp = Sys.time()
+  )
+
+  if (!is.null(formatted_schema)) {
+    metadata$schema <- jsonlite::toJSON(formatted_schema) |>
+      jsonlite::prettify()
+  }
+
+  jsonlite::write_json(
+    metadata,
+    file.path(output_dir, "metadata.json"),
+    auto_unbox = TRUE,
+    pretty = TRUE
+  )
+
+  cli::cli_alert_info("Processing {length(texts)} text{?s} in {n_chunks} chunk{?s} of up to {chunk_size} each")
+  cli::cli_alert_info("Results will be saved as parquet files in {output_dir}")
+
+  total_successes <- 0
+  total_failures <- 0
+
+  # core processing logic
+  for (chunk_num in seq_along(chunk_data$batch_indices)) {
+    chunk_indices <- chunk_data$batch_indices[[chunk_num]]
+    chunk_texts <- texts[chunk_indices]
+    chunk_ids <- ids[chunk_indices]
+
+    cli::cli_progress_message("Processing chunk {chunk_num}/{n_chunks} ({length(chunk_indices)} text{?s})")
+
+    # within chunk reqs
+    requests <- purrr::map2(
+      .x = chunk_texts,
+      .y = chunk_ids,
+      .f = \(x, y) ant_build_messages_request(
+        input = x,
+        endpointr_id = y,
+        model = model,
+        temperature = temperature,
+        max_tokens = max_tokens,
+        schema = formatted_schema,
+        system_prompt = system_prompt,
+        key_name = key_name,
+        endpoint_url = endpoint_url,
+        max_retries = max_retries,
+        timeout = timeout
+      )
+    )
+
+    is_valid_request <- purrr::map_lgl(requests, \(x) inherits(x, "httr2_request"))
+    valid_requests <- requests[is_valid_request]
+
+    if (length(valid_requests) == 0) {
+      cli::cli_alert_warning("No valid request{?s} in chunk {chunk_num}, skipping")
+      next
+    }
+
+    responses <- perform_requests_with_strategy(
+      valid_requests,
+      concurrent_requests = concurrent_requests,
+      progress = TRUE
+    )
+
+    is_response <- purrr::map_lgl(responses, inherits, "httr2_response")
+    response_objects <- responses[is_response]
+    error_objects <- responses[!is_response]
+
+    is_success <- purrr::map_lgl(response_objects, \(x) httr2::resp_status(x) < 400)
+    successes <- response_objects[is_success]
+    http_failures <- response_objects[!is_success]
+
+    failures <- c(http_failures, error_objects)
+
+    n_successes <- length(successes)
+    n_failures <- length(failures)
+    total_successes <- total_successes + n_successes
+    total_failures <- total_failures + n_failures
+
+
+    chunk_results <- list()
+
+    if (n_successes > 0) {
+      successes_ids <- purrr::map(successes, \(x) purrr::pluck(x, "request", "headers", "endpointr_id")) |> unlist()
+      successes_content <- purrr::map_chr(successes, .extract_ant_message_content)
+
+      chunk_results$successes <- tibble::tibble(
+        !!id_col_name := successes_ids,
+        content = successes_content,
+        .error = FALSE,
+        .error_msg = NA_character_,
+        .status = NA_integer_,
+        .chunk = chunk_num
+      )
+    }
+
+    if (n_failures > 0) {
+      failures_ids <- purrr::map(failures, \(x) purrr::pluck(x, "request", "headers", "endpointr_id")) |> unlist()
+      failures_msgs <- purrr::map_chr(failures, \(x){
+        if (inherits(x, "httr2_response")) {
+          .extract_api_error(x)
+        } else {
+          # error object - try to get resp from it
+          resp <- purrr::pluck(x, "resp")
+          if (!is.null(resp)) .extract_api_error(resp) else .extract_api_error(x, "Unknown error")
+        }
+      })
+      failures_status <- purrr::map_int(failures, \(x){
+        if (inherits(x, "httr2_response")) {
+          httr2::resp_status(x)
+        } else {
+          resp <- purrr::pluck(x, "resp")
+          if (!is.null(resp)) httr2::resp_status(resp) else NA_integer_
+        }
+      })
+
+      chunk_results$failures <- tibble::tibble(
+        !!id_col_name := failures_ids,
+        content = NA_character_,
+        .error = TRUE,
+        .error_msg = failures_msgs,
+        .status = failures_status,
+        .chunk = chunk_num
+      )
+    }
+
+    chunk_df <- dplyr::bind_rows(chunk_results)
+
+    if (nrow(chunk_df) > 0) {
+      chunk_file <- glue::glue("{output_dir}/chunk_{stringr::str_pad(chunk_num, 3, pad = '0')}.parquet")
+      arrow::write_parquet(chunk_df, chunk_file)
+    }
+
+    cli::cli_alert_success("Chunk {chunk_num}: {n_successes} successful, {n_failures} failed")
+
+    rm(requests, responses, successes, failures, chunk_results, chunk_df)
+    gc(verbose = FALSE)
+  }
+
+  cli::cli_alert_info("Processing completed, there were {total_successes} successes\n and {total_failures} failures.")
+
+  parquet_files <- list.files(output_dir, pattern = "\\.parquet$", full.names = TRUE)
+  final_results <- arrow::open_dataset(parquet_files, format = "parquet") |>
+    dplyr::collect()
+
+  return(final_results)
+}
+
+# ant_complete_chunks ----
+
 
 
 #' Extract text content from Anthropic Messages API response
