@@ -432,6 +432,8 @@ oai_complete_chunks <- function(texts,
   metadata <- list(
     model = model,
     endpoint_url = endpoint_url,
+    schema = schema,
+    system_prompt = system_prompt,
     chunk_size = chunk_size,
     n_texts = length(texts),
     concurrent_requests = concurrent_requests,
@@ -442,8 +444,6 @@ oai_complete_chunks <- function(texts,
     output_dir = output_dir,
     key_name = key_name,
     n_chunks = n_chunks,
-    has_schema = !is.null(schema),
-    has_system_prompt = !is.null(system_prompt),
     timestamp = Sys.time()
   )
 
