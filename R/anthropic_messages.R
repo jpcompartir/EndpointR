@@ -283,7 +283,44 @@ ant_complete_text <- function(text,
 # ant_complete_text ----
 
 # ant_complete_chunks ----
-
+#' Process text chunks through Anthropic's Messages API with batch file output
+#'
+#' @description
+#' Processes large volumes of text through Anthropic's Messages API in
+#' configurable chunks, writing results progressively to parquet files.
+#' Handles concurrent requests, automatic retries, and structured outputs.
+#'
+#' @details
+#' This function is designed for processing large text datasets. It divides
+#' input into chunks, processes each chunk with concurrent API requests, and
+#' writes results to disk to minimise memory usage and possibility of data loss.
+#'
+#' Results are written as parquet files in the specified output directory,
+#' along with a metadata.json file containing processing parameters.
+#'
+#' When using the `output_dir =` argument, be careful that you select
+#' a new directory if you do not wish to overwrite existing chunks.
+#' If there is already a `chunks_001.parquet` file in the directory,
+#' it will be overwritten.
+#'
+#' @param texts Character vector of texts to process
+#' @param ids Vector of unique identifiers (same length as texts)
+#' @param chunk_size Number of texts per chunk before writing to disk
+#' @param model Anthropic model to use
+#' @param system_prompt Optional system prompt (applied to all requests)
+#' @param output_dir Directory for parquet chunks ("auto" generates timestamped dir)
+#' @param schema Optional JSON schema for structured output
+#' @param concurrent_requests Number of concurrent requests
+#' @param temperature Sampling temperature
+#' @param max_tokens Maximum tokens per response
+#' @param max_retries Maximum retry attempts per request
+#' @param timeout Request timeout in seconds
+#' @param key_name Environment variable name for API key
+#' @param endpoint_url Anthropic API endpoint URL
+#' @param id_col_name Name for ID column in output
+#'
+#' @return A tibble with all results
+#' @export
 ant_complete_chunks <- function(texts,
                                 ids,
                                 chunk_size = 5000L,
