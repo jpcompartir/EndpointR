@@ -146,7 +146,7 @@ hf_classify_df(
 ```
 
 Read the [Hugging Face Inference
-Vignette](articles/hugging_face_inference.html) for more infromation on
+Vignette](articles/hugging_face_inference.html) for more information on
 embedding and classifying using Dedicated Inference Endpoints and the
 Inference API from Hugging Face.
 

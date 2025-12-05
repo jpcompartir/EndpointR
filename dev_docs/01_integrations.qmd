@@ -7,6 +7,7 @@ format: html
 library(tidyverse)
 library(httr2)
 library(EndpointR)
+library(jsonlite)
 
 n_tests <- 5
 test_df <- tibble(
@@ -17,7 +18,9 @@ test_df <- tibble(
 
 Space for integration tests (useful for not relying on unit tests when interacting with real APIs)
 
-# oai embed
+# OpenAI
+
+## oai embed
 
 ```{r, invalid_model_oai_embed}
 oai_embed_invalid_model <- oai_embed_df(
@@ -64,7 +67,7 @@ oai_embed_success <- oai_embed_df(
 oai_embed_success
 ```
 
-# oai completions
+## oai completions
 
 invalid API key for completions
 
@@ -100,7 +103,9 @@ oai_complete_good_auth <- oai_complete_df(
 oai_complete_good_auth
 ```
 
-# hf embed
+# Hugging Face
+
+## hf embed
 
 non-existent HuggingFace model
 
@@ -169,4 +174,121 @@ hf_classify_wrong_task <- hf_classify_df(
 hf_classify_wrong_task |> dplyr::select(id, .error, .error_msg, .status) 
 
 # expect: .error = TRUE, error message should indicate task mismatch, .status = 400
+```
+
+# Anthroic
+
+```{r, chunk_df_test_texts_ids}
+ids <- c(paste0("id_", 1:10))
+texts <- c(
+  "The kettle whistled at 6 AM.",
+  "Machine learning models require substantial computational resources and careful hyperparameter tuning to achieve optimal performance on complex datasets with high dimensionality and temporal dependencies.",
+  "She bought milk.",
+  "Quantum entanglement remains one of the most counterintuitive phenomena in physics, suggesting that particles can influence each other instantaneously across arbitrary distances, challenging classical notions of locality and causality that governed physics for centuries.",
+  "It rained yesterday.",
+  "The algorithm iterated through 47 million records in under three minutes, filtering by date and category before aggregating results into hierarchical structures.",
+  "Dogs bark.",
+  "Brexit negotiations involved trade agreements, fisheries disputes, regulatory alignment across financial services, customs procedures, and residency rights for citizens living abroad, spanning four years of complex bilateral discussions.",
+  "Coffee is hot.",
+  "The startup pivoted twice before finding product-market fit in the enterprise SaaS space, eventually acquiring three smaller competitors and expanding to eighteen countries across three continents."
+)
+
+word_summary_schema <- create_json_schema(
+  name = "summary",
+  schema = schema_object(
+    summary = schema_string(),
+    required = list("summary")
+ 
+     )
+)
+```
+
+## chunks - ant_complete_chunks
+
+```{r, ant_complete_chunks}
+chunks_test <- ant_complete_chunks(
+  texts = texts,
+  ids = ids,
+  id_col_name = "id_column",
+  output_dir = "test_dir/anthropic/chunks/no_schema",
+  model = "claude-haiku-4-5",
+  concurrent_requests = 10,
+  chunk_size = 10,
+  system_prompt = "Write a one-word summary of the input text",
+  key_name = "ANTHROPIC_API_KEY"
+)
+```
+
+```{r}
+chunks_text_w_schema <- ant_complete_chunks(
+  texts = texts,
+  ids = ids,
+  id_col_name = "id_column",
+  output_dir = "test_dir/anthropic/chunks/schema",
+  model = "claude-haiku-4-5",
+  concurrent_requests = 10,
+  chunk_size = 10,
+  system_prompt = "Write a one-word summary of the input text",
+  schema = word_summary_schema,
+  key_name = "ANTHROPIC_API_KEY"
+)
+
+chunks_text_w_schema |> 
+  mutate(content = purrr::map(content, \(x) safely_from_json(x))) |> 
+  unnest_wider(content)
+```
+
+## df - ant_complete_df
+
+```{r, ant_complete_df}
+df <- tibble(
+  ids = ids,
+  text = texts
+)
+
+df_test <- df |> ant_complete_df(
+  text_var = text,
+  id_var = ids,
+  output_dir = "test_dir/anthropic/df/no_schema",
+  chunk_size = 10,
+  concurrent_requests = 10,
+  model = "claude-haiku-4-5",
+  system_prompt = "Write 1 word to describe the text",
+)
+
+df_test
+```
+
+```{r}
+df_w_schema <-df |> ant_complete_df(
+  text_var = text,
+  id_var = ids,
+  output_dir = "test_dir/anthropic/df/schema",
+  chunk_size = 10,
+  concurrent_requests = 10,
+  model = "claude-haiku-4-5",
+  system_prompt = "Write 1 word to describe the text",
+  schema = word_summary_schema
+)
+
+df_w_schema |> 
+  mutate(content = map(content, \(x) fromJSON(x))) |> 
+  unnest_wider(content)
+```
+
+```{r}
+df_no_system_prompt <- df |>
+  ant_complete_df(
+  text_var = text,
+  id_var = ids,
+  output_dir = "test_dir/anthropic/df/no_system_prompt",
+  chunk_size = 10,
+  concurrent_requests = 10,
+  model = "claude-haiku-4-5",
+  system_prompt = NULL,
+  max_tokens = 2,
+  schema = word_summary_schema
+)
+
+df_no_system_prompt
 ```

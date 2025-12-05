@@ -147,7 +147,7 @@ hf_classify_df(
   dplyr::rename(!!!labelid_2class())
 ```
 
-Read the [Hugging Face Inference Vignette](articles/hugging_face_inference.html) for more infromation on embedding and classifying using Dedicated Inference Endpoints and the Inference API from Hugging Face.
+Read the [Hugging Face Inference Vignette](articles/hugging_face_inference.html) for more information on embedding and classifying using Dedicated Inference Endpoints and the Inference API from Hugging Face.
 
 ## OpenAI - Chat Completions API
 
