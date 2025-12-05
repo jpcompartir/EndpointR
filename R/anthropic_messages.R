@@ -377,8 +377,7 @@ ant_complete_chunks <- function(texts,
   )
 
   if (!is.null(formatted_schema)) {
-    metadata$schema <- jsonlite::toJSON(formatted_schema) |>
-      jsonlite::prettify()
+    metadata$schema <- formatted_schema
   }
 
   jsonlite::write_json(
