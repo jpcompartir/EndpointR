@@ -2,6 +2,7 @@
 
 export(ant_build_messages_request)
 export(ant_complete_chunks)
+export(ant_complete_df)
 export(ant_complete_text)
 export(create_json_schema)
 export(get_api_key)

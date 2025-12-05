@@ -94,7 +94,7 @@ reference:
   - ant_build_messages_request
   - ant_complete_text
   - ant_complete_chunks
-  - ant_comple_df
+  - ant_complete_df
 
 
 - title: "OpenAI Completions"

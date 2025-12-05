@@ -33,7 +33,6 @@ Imports:
     tibble,
     S7,
     jsonvalidate,
-    readr,
     arrow
 VignetteBuilder: knitr
 Depends: 

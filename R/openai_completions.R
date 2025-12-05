@@ -432,7 +432,7 @@ oai_complete_chunks <- function(texts,
   metadata <- list(
     model = model,
     endpoint_url = endpoint_url,
-    schema = schema,
+    schema = dumped_schema,
     system_prompt = system_prompt,
     chunk_size = chunk_size,
     n_texts = length(texts),
