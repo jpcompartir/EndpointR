@@ -4,6 +4,10 @@
 -   adds parquet writing to oai_complete_df and oai_embed_df
 -   adds chunks func to oai_embed, and re-writes all batch -\> chunk logic
 -   implements the Anthropic messages API with structured outputs (via BETA)
+-   adds `ant_complete_df()` and `ant_complete_chunks()` for batch/chunked processing with the Anthropic API, with parquet writing and metadata tracking
+-   metadata tracking now includes `schema` and `system_prompt` for both OpenAI and Anthropic chunked processing functions
+-   bug fix: S7 schema objects now correctly serialised to metadata.json (previously caused "No method asJSON S3 class: S7_object" error)
+-   adds spelling test, sets language to en-GB in DESCRIPTION
 
 # EndpointR 0.1.2
 

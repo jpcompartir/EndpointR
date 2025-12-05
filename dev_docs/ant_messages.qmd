@@ -3,14 +3,19 @@ title: "ant_messages"
 format: html
 ---
 
-# Structured Outputs
-
-HTTP 400 errors
-
 ```{r}
 library(httr2)
+library(purrr)
 library(jsonlite)
+library(tidyr)
+library(dplyr)
+```
 
+# Structured Outputs
+
+HTTP 400 errors (discovery: due to structured outputs not being supported in certain models and I switched to default to Haiku for testing/\$\$\$)
+
+```{r}
 req <- ant_build_messages_request(input = "This is terrible, fin.")
 
 resp <- req_perform(req, verbosity = 1)
@@ -104,10 +109,6 @@ resp |>  resp_status()
 ## Nested Schemas
 
 ```{r}
-library(httr2)
-library(purrr)
-library(jsonlite)
-library(tidyr)
 absa_entities_schema <- create_json_schema(
   name = "entities",
   strict = TRUE,
@@ -137,12 +138,151 @@ resp |>  resp_body_json() |>
   purrr::pluck("content", 1, "text") |> 
   fromJSON() |>  
   pluck('entities')
-
-
 ```
 
 ```         
      entity sentiment
 1     Apple  positive
 2 Microsoft  negative
+```
+
+Now we run it again and expect an error, and that the error message will actually be viewable rather than a generic error message with the status code:
+
+```{r}
+error_400 <- req <- ant_build_messages_request(
+  "Apple have been wonderful, Microsoft... not so much. And by not so much I mean pathetic.",
+  schema = absa_entities_schema
+)
+resp_400 <- req_perform(error_400)
+.extract_api_error(resp_400)
+resp_400 |>  resp_body_json()
+```
+
+# text - ant_complete_text
+
+```{r}
+ant_complete_text("What's going on dawg?")
+
+absa_test <- ant_complete_text("Apple have been wonderful, Microsoft... not so much. And by not so much I mean pathetic.",
+                  model = "claude-sonnet-4-5",
+                  system_prompt = "Follow the schema and help the user.",
+                  schema = absa_entities_schema)
+
+absa_test$entities |>  
+  bind_rows()
+```
+
+# chunks - ant_complete_chunks
+
+```{r, chunk_df_test_texts_ids}
+ids <- c(paste0("id_", 1:10))
+texts <- c(
+  "The kettle whistled at 6 AM.",
+  "Machine learning models require substantial computational resources and careful hyperparameter tuning to achieve optimal performance on complex datasets with high dimensionality and temporal dependencies.",
+  "She bought milk.",
+  "Quantum entanglement remains one of the most counterintuitive phenomena in physics, suggesting that particles can influence each other instantaneously across arbitrary distances, challenging classical notions of locality and causality that governed physics for centuries.",
+  "It rained yesterday.",
+  "The algorithm iterated through 47 million records in under three minutes, filtering by date and category before aggregating results into hierarchical structures.",
+  "Dogs bark.",
+  "Brexit negotiations involved trade agreements, fisheries disputes, regulatory alignment across financial services, customs procedures, and residency rights for citizens living abroad, spanning four years of complex bilateral discussions.",
+  "Coffee is hot.",
+  "The startup pivoted twice before finding product-market fit in the enterprise SaaS space, eventually acquiring three smaller competitors and expanding to eighteen countries across three continents."
+)
+
+word_summary_schema <- create_json_schema(
+  name = "summary",
+  schema = schema_object(
+    summary = schema_string(),
+    required = list("summary")
+ 
+     )
+)
+```
+
+```{r, ant_complete_chunks}
+chunks_test <- ant_complete_chunks(
+  texts = texts,
+  ids = ids,
+  id_col_name = "id_column",
+  output_dir = "test_dir/anthropic/chunks/no_schema",
+  model = "claude-haiku-4-5",
+  concurrent_requests = 10,
+  chunk_size = 10,
+  system_prompt = "Write a one-word summary of the input text",
+  key_name = "ANTHROPIC_API_KEY"
+)
+```
+
+```{r}
+chunks_text_w_schema <- ant_complete_chunks(
+  texts = texts,
+  ids = ids,
+  id_col_name = "id_column",
+  output_dir = "test_dir/anthropic/chunks/schema",
+  model = "claude-haiku-4-5",
+  concurrent_requests = 10,
+  chunk_size = 10,
+  system_prompt = "Write a one-word summary of the input text",
+  schema = word_summary_schema,
+  key_name = "ANTHROPIC_API_KEY"
+)
+
+chunks_text_w_schema |> 
+  mutate(content = purrr::map(content, \(x) safely_from_json(x))) |> 
+  unnest_wider(content)
+```
+
+# df - ant_complete_df
+
+```{r, ant_complete_df}
+df <- tibble(
+  ids = ids,
+  text = texts
+)
+
+df_test <- df |> ant_complete_df(
+  text_var = text,
+  id_var = ids,
+  output_dir = "test_dir/anthropic/df/no_schema",
+  chunk_size = 10,
+  concurrent_requests = 10,
+  model = "claude-haiku-4-5",
+  system_prompt = "Write 1 word to describe the text",
+)
+
+df_test
+```
+
+```{r}
+df_w_schema <-df |> ant_complete_df(
+  text_var = text,
+  id_var = ids,
+  output_dir = "test_dir/anthropic/df/schema",
+  chunk_size = 10,
+  concurrent_requests = 10,
+  model = "claude-haiku-4-5",
+  system_prompt = "Write 1 word to describe the text",
+  schema = word_summary_schema
+)
+
+df_w_schema |> 
+  mutate(content = map(content, \(x) fromJSON(x))) |> 
+  unnest_wider(content)
+```
+
+```{r}
+df_no_system_prompt <- df |>
+  ant_complete_df(
+  text_var = text,
+  id_var = ids,
+  output_dir = "test_dir/anthropic/df/no_system_prompt",
+  chunk_size = 10,
+  concurrent_requests = 10,
+  model = "claude-haiku-4-5",
+  system_prompt = NULL,
+  max_tokens = 2,
+  schema = word_summary_schema
+)
+
+df_no_system_prompt
 ```

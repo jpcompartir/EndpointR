@@ -7,14 +7,14 @@
 -   [ ] Support for Anthropic API
     -   [ ] Batches
     -   [ ] Messages (Completions)
-    -   [ ] Structured Outputs
+    -   [x] Structured Outputs
 -   [ ] Support for Gemini API
     -   [ ] Embeddings
     -   [ ] Completions
     -   [ ] Structured Outputs
--   [ ] LLM Providers Vignette Updated
--   [ ] Structured Outputs Vignette Updated
--   [ ] Better error propagation throughout package (refactor, large)
+-   [x] LLM Providers Vignette Updated
+-   [x] Structured Outputs Vignette Updated
+-   [x] Better error propagation throughout package (refactor, large)
 
 Error reporting is somewhat annoying by default with httr2::req_perform() if we don't:
 

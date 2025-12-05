@@ -217,6 +217,80 @@ withr::local_envvar(HF_TEST_API_KEY = "fake-key")
 })
 
 
+# Anthropic Messages API mock endpoints
+.app$post("/test_ant_schemaless", function(req, res) {
+  response_data <- list(
+    content = list(
+      list(
+        type = "text",
+        text = "This is a helpful response from Claude."
+      )
+    ),
+    stop_reason = "end_turn"
+  )
+
+  res$
+    set_status(200L)$
+    set_header("Content-Type", "application/json")$
+    send_json(response_data)
+})
+
+.app$post("/test_ant_sentiment", function(req, res) {
+  sentiment_response <- list(
+    sentiment = "positive",
+    confidence = 0.85
+  )
+
+  response_data <- list(
+    content = list(
+      list(
+        type = "text",
+        text = jsonlite::toJSON(sentiment_response, auto_unbox = TRUE)
+      )
+    ),
+    stop_reason = "end_turn"
+  )
+
+  res$
+    set_status(200L)$
+    set_header("Content-Type", "application/json")$
+    send_json(response_data)
+})
+
+.app$post("/test_ant_complete_df_review", function(req, res) {
+  response_data <- list(
+    content = list(
+      list(
+        type = "text",
+        text = "positive"
+      )
+    ),
+    stop_reason = "end_turn"
+  )
+
+  res$
+    set_status(200L)$
+    set_header("Content-Type", "application/json")$
+    send(jsonlite::toJSON(response_data, auto_unbox = TRUE))
+})
+
+.app$post("/test_ant_complete_df_schema", function(req, res) {
+  response_data <- list(
+    content = list(
+      list(
+        type = "text",
+        text = '{"sentiment": "positive"}'
+      )
+    ),
+    stop_reason = "end_turn"
+  )
+
+  res$
+    set_status(200L)$
+    set_header("Content-Type", "application/json")$
+    send(jsonlite::toJSON(response_data, auto_unbox = TRUE))
+})
+
 server <- webfakes::local_app_process(.app)
 
 

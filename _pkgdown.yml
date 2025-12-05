@@ -92,6 +92,9 @@ reference:
   desc: "functions for working with Anthropic's Messages API"
   contents:
   - ant_build_messages_request
+  - ant_complete_text
+  - ant_complete_chunks
+  - ant_complete_df
 
 
 - title: "OpenAI Completions"
@@ -166,6 +169,8 @@ development:
 
 news:
   releases:
+  - text: "Version 0.2"
+    href: nrews/index.html#endpointr-012
   - text: "Version 0.1.2"
     href: news/index.html#endpointr-012
   - text: "Version 0.1.1"
