@@ -47,7 +47,7 @@ An httr2 request object
 \description{
 Constructs an httr2 request object for Anthropic's Messages API.
 Handles message formatting, system prompts, and optional JSON schema
-for structured outputs. When using strucutred outputs you must select the correct model.
+for structured outputs. When using structured outputs you must select the correct model.
 }
 \details{
 This function creates the HTTP request but does not execute it. For

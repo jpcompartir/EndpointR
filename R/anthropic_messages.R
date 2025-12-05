@@ -118,7 +118,6 @@ ant_build_messages_request <- function(
     if (inherits(schema, "EndpointR::json_schema")) {
       body$output_format <- .ant_format_schema(schema)
     } else if (is.list(schema)) {
-      cli::cli_alert_warning("Your {.arg schema} is a list, not an EndpointR json_schema")
       body$output_format <- schema
     } else {
       cli::cli_abort("{.arg chema} must be an EndpointR json_schema object or a list")
@@ -279,7 +278,6 @@ ant_complete_text <- function(text,
 
   return(content)
 }
-
 # ant_complete_text ----
 
 # ant_complete_chunks ----
@@ -520,10 +518,69 @@ ant_complete_chunks <- function(texts,
 
   return(final_results)
 }
-
 # ant_complete_chunks ----
 
+# ant_complete_df ----
+ant_complete_df <- function(df,
+                            text_var,
+                            id_var,
+                            model = "claude-haiku-4-5",
+                            output_dir = "auto",
+                            system_prompt = NULL,
+                            schema = NULL,
+                            chunk_size = 5000L,
+                            concurrent_requests = 5L,
+                            max_retries = 5L,
+                            timeout = 30,
+                            temperature = 0,
+                            max_tokens = 1024L,
+                            key_name = "ANTHROPIC_API_KEY",
+                            endpoint_url = .ANT_MESSAGES_ENDPOINT) {
 
+  text_sym <- rlang::ensym(text_var)
+  id_sym <- rlang::ensym(id_var)
+
+  stopifnot(
+    "df must be a data frame" = is.data.frame(df),
+    "df must not be empty" = nrow(df) > 0,
+    "text_var must exist in df" = rlang::as_name(text_sym) %in% names(df),
+    "id_var must exist in df" = rlang::as_name(id_sym) %in% names(df),
+    "model must be a character vector" = is.character(model),
+    "`chunk_size` must be a positive integer" = is.numeric(chunk_size) && chunk_size > 0
+  )
+
+  output_dir <- .handle_output_directory(output_dir, base_dir_name = "ant_messages_chunks")
+
+  text_vec <- dplyr::pull(df, !!text_sym)
+  id_vec <- dplyr::pull(df, !!id_sym)
+
+
+  id_col_name <- rlang::as_name(id_sym) # needed for preserving original col names in chunks func (which doesn't receive the id_var, but a vec of ids+texts)
+
+  results <- ant_complete_chunks(
+    texts = text_vec,
+    ids = id_vec,
+    model = model,
+    system_prompt = system_prompt,
+    schema = schema,
+    chunk_size = chunk_size,
+    concurrent_requests = concurrent_requests,
+    max_retries = max_retries,
+    timeout = timeout,
+    temperature = temperature,
+    max_tokens = max_tokens,
+    key_name = key_name,
+    endpoint_url = endpoint_url,
+    output_dir = output_dir,
+    id_col_name = id_col_name
+  )
+
+  results <- dplyr::rename(results, !!id_sym := !!rlang::sym(id_col_name))
+
+  return(results)
+}
+
+# ant_complete_df ----
 
 #' Extract text content from Anthropic Messages API response
 #' @keywords internal
