@@ -319,8 +319,8 @@ if (any(results$.error)) {
 4.  **Consider dedicated endpoints** for production Hugging Face
     deployments
 
-> **TIP**: Check your organisation’s tier on OpenAI, tier 5 organisatons
-> can send many more requests than tier 1. [OpenAI Rate
+> **TIP**: Check your organisation’s tier on OpenAI, tier 5
+> organisations can send many more requests than tier 1. [OpenAI Rate
 > Limits](https://platform.openai.com/settings/organization/limits)
 
 ### Cost Optimisation

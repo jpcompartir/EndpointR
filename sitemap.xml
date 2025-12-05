@@ -15,6 +15,9 @@
 <url><loc>https://jpcompartir.github.io/EndpointR/news/index.html</loc></url>
 <url><loc>https://jpcompartir.github.io/EndpointR/reference/EndpointR-package.html</loc></url>
 <url><loc>https://jpcompartir.github.io/EndpointR/reference/ant_build_messages_request.html</loc></url>
+<url><loc>https://jpcompartir.github.io/EndpointR/reference/ant_complete_chunks.html</loc></url>
+<url><loc>https://jpcompartir.github.io/EndpointR/reference/ant_complete_df.html</loc></url>
+<url><loc>https://jpcompartir.github.io/EndpointR/reference/ant_complete_text.html</loc></url>
 <url><loc>https://jpcompartir.github.io/EndpointR/reference/base_request.html</loc></url>
 <url><loc>https://jpcompartir.github.io/EndpointR/reference/batch_concurrent_benchmark.html</loc></url>
 <url><loc>https://jpcompartir.github.io/EndpointR/reference/chunk_dataframe.html</loc></url>
@@ -23,6 +26,7 @@
 <url><loc>https://jpcompartir.github.io/EndpointR/reference/df_sentiment_classification_example.html</loc></url>
 <url><loc>https://jpcompartir.github.io/EndpointR/reference/dot-ant_format_schema.html</loc></url>
 <url><loc>https://jpcompartir.github.io/EndpointR/reference/dot-create_error_tibble.html</loc></url>
+<url><loc>https://jpcompartir.github.io/EndpointR/reference/dot-extract_ant_message_content.html</loc></url>
 <url><loc>https://jpcompartir.github.io/EndpointR/reference/dot-extract_api_error.html</loc></url>
 <url><loc>https://jpcompartir.github.io/EndpointR/reference/dot-extract_successful_completion_content.html</loc></url>
 <url><loc>https://jpcompartir.github.io/EndpointR/reference/get_api_key.html</loc></url>

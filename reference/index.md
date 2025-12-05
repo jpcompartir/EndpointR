@@ -69,6 +69,14 @@ functions for working with Anthropic’s Messages API
 
 - [`ant_build_messages_request()`](https://jpcompartir.github.io/EndpointR/reference/ant_build_messages_request.md)
   : Build an Anthropic Messages API request
+- [`ant_complete_text()`](https://jpcompartir.github.io/EndpointR/reference/ant_complete_text.md)
+  : Generate a completion for a single text using Anthropic's Messages
+  API
+- [`ant_complete_chunks()`](https://jpcompartir.github.io/EndpointR/reference/ant_complete_chunks.md)
+  : Process text chunks through Anthropic's Messages API with batch file
+  output
+- [`ant_complete_df()`](https://jpcompartir.github.io/EndpointR/reference/ant_complete_df.md)
+  : Process a data frame through Anthropic's Messages API
 
 ## OpenAI Completions
 

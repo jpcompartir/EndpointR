@@ -1,5 +1,37 @@
 # EndpointR Development Guide
 
+## Pre-PR Checklist
+
+export necessary funcs and artefacts
+
+document with examples/full roxygen2 skeleton
+
+check DESCRIPTION for version bump or dependencies update
+
+update news.md
+
+update todos.md
+
+update \_pkgdown.yml (function reference, news etc.)
+
+run
+[`spelling::spell_check_package()`](https://docs.ropensci.org/spelling//reference/spell_check_package.html)
+
+`devtools::document()`
+
+run `testthat::test()`
+
+run `devtools::check()`
+
+run
+[`pkgdown::build_site()`](https://pkgdown.r-lib.org/reference/build_site.html)
+
+inspect site incl. vignettes
+
+PR
+
+Check CI/CD
+
 ## Commands
 
 - Run all tests: `testthat::test()`
