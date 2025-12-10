@@ -1,5 +1,7 @@
 # EndpointR
 
+![SAMY Data Science](reference/figures/samy_banner.png)
+
 EndpointR is a ‘batteries included’, open-source R package for
 connecting to various Application Programming Interfaces
 ([APIs](https://en.wikipedia.org/wiki/API)) for Machine Learning model

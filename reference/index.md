@@ -56,7 +56,7 @@ Low-level functions for building and performing Hugging Face requests
 
 ## Hugging Face Endpoint Utilities
 
-Small functions for checking things with Hugging FACE APIs
+Functions for checking Hugging Face API endpoints
 
 - [`hf_get_endpoint_info()`](https://jpcompartir.github.io/EndpointR/reference/hf_get_endpoint_info.md)
   : Retrieve information about an endpoint
@@ -65,7 +65,7 @@ Small functions for checking things with Hugging FACE APIs
 
 ## Anthropic Messages
 
-functions for working with Anthropic’s Messages API
+Functions for working with Anthropic’s Messages API
 
 - [`ant_build_messages_request()`](https://jpcompartir.github.io/EndpointR/reference/ant_build_messages_request.md)
   : Build an Anthropic Messages API request
