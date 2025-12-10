@@ -11,6 +11,8 @@ knitr::opts_chunk$set(
 )
 ```
 
+<img src="man/figures/samy_banner.png" alt="SAMY Data Science" width="100%"/>
+
 # EndpointR
 
 <!-- badges: start -->
