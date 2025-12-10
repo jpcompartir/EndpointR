@@ -1,29 +1,47 @@
 url: https://jpcompartir.github.io/EndpointR/
+
 template:
   bootstrap: 5
-  params:
-    toc: true
-    toc_depth: 3
-    toc_float:
-      collapsed: false
-      smooth_scroll: true
-      side: left
-    bootswatch: "flatly"
-    highlight: "tango"
-    code_folding: "show"
-    anchor_sections: true
-    search: true
+  bslib:
+    # SAMY Brand Colours
+    bg: "#F5F5F4"
+    fg: "#2C2E35"
+    primary: "#B5651D"
+    secondary: "#D4A574"
+    success: "#7C9885"
+    info: "#5B7C99"
+    warning: "#D4A574"
+    danger: "#8B5A6F"
 
+    # Typography
+    base_font:
+      google: "Lato"
+    heading_font:
+      google: "Merriweather"
+    code_font:
+      google: "Fira Code"
+
+    # Component Styling
+    navbar-bg: "#2C2E35"
+    code-bg: "#FDFDFD"
+    code-color: "#5B7C99"
 
 home:
   title: "EndpointR"
   description: "A batteries-included R package for connecting to Machine Learning inference APIs"
 
 navbar:
+  bg: dark
   structure:
-    left: [intro, reference, articles, tutorials, news]
+    left: [intro, reference, articles, news]
     right: [search, github]
   components:
+    intro:
+      text: Get Started
+      href: articles/api_keys.html
+    reference:
+      text: Reference
+      href: reference/index.html
     articles:
       text: Articles
       menu:
@@ -48,6 +66,14 @@ navbar:
       - text: Advanced Topics
       - text: Improving Performance
         href: articles/improving_performance.html
+    news:
+      text: Changelog
+      href: news/index.html
+
+footer:
+  structure:
+    left: developed_by
+    right: built_with
 
 reference:
 - title: "Getting Started"
@@ -83,19 +109,18 @@ reference:
   - hf_perform_request
 
 - title: "Hugging Face Endpoint Utilities"
-  desc: "Small functions for checking things with Hugging FACE APIs"
+  desc: "Functions for checking Hugging Face API endpoints"
   contents:
   - hf_get_endpoint_info
   - hf_get_model_max_length
 
 - title: "Anthropic Messages"
-  desc: "functions for working with Anthropic's Messages API"
+  desc: "Functions for working with Anthropic's Messages API"
   contents:
   - ant_build_messages_request
   - ant_complete_text
   - ant_complete_chunks
   - ant_complete_df
-
 
 - title: "OpenAI Completions"
   desc: "Functions for working with OpenAI's APIs including structured outputs"
@@ -115,6 +140,7 @@ reference:
   - oai_embed_chunks
   - oai_embed_df
   - tidy_oai_embedding
+
 - title: "JSON Schema for Structured Outputs"
   desc: "Type-safe schema creation and validation for structured LLM outputs"
   contents:
@@ -170,15 +196,10 @@ development:
 news:
   releases:
   - text: "Version 0.2"
-    href: nrews/index.html#endpointr-012
+    href: news/index.html#endpointr-012
   - text: "Version 0.1.2"
     href: news/index.html#endpointr-012
   - text: "Version 0.1.1"
     href: news/index.html#endpointr-011
   - text: "Version 0.1.0"
     href: news/index.html#endpointr-010
-
-footer:
-  structure:
-    left: developed_by
-    right: built_with

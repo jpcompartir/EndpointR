@@ -1,6 +1,8 @@
 
 <!-- README.md is generated from README.Rmd. Please edit that file -->
 
+<img src="man/figures/samy_banner.png" alt="SAMY Data Science" width="100%"/>
+
 # EndpointR
 
 <!-- badges: start -->
