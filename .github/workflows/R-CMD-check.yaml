@@ -19,6 +19,13 @@ jobs:
     env:
       GITHUB_PAT: ${{ secrets.GITHUB_TOKEN }}
       R_KEEP_PKG_SOURCE: yes
+      # Dummy API keys for testing (these are not real keys)
+      OPENAI_API_KEY: sk-test-dummy-key-for-ci-testing-only
+      ENDPOINTR_API_KEY: test-dummy-key-for-ci-testing-only
+      ANTHROPIC_API_KEY: sk-ant-test-dummy-key-for-ci-testing-only
+      HF_API_KEY: hf_test_dummy_key_for_ci_testing_only
+      HF_TEST_API_KEY: hf_test_dummy_key_for_ci_testing_only
+      FAKE_API_KEY: fake-test-dummy-key-for-ci-testing-only
     steps:
       - uses: actions/checkout@v3
 
@@ -29,8 +36,5 @@ jobs:
       - uses: r-lib/actions/setup-r-dependencies@v2
         with:
           extra-packages: any::rcmdcheck
-
-      - name: Create .Renviron for tests
-        run: touch ~/.Renviron
 
       - uses: r-lib/actions/check-r-package@v2
