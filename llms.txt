@@ -1,6 +1,7 @@
 # EndpointR
 
-![SAMY Data Science](reference/figures/samy_banner.png)
+[![R-CMD-check](https://github.com/jpcompartir/EndpointR/actions/workflows/R-CMD-check.yaml/badge.svg)](https://github.com/jpcompartir/EndpointR/actions/workflows/R-CMD-check.yaml)
+[![pkgdown](https://github.com/jpcompartir/EndpointR/actions/workflows/pkgdown.yaml/badge.svg)](https://github.com/jpcompartir/EndpointR/actions/workflows/pkgdown.yaml)
 
 EndpointR is a ‘batteries included’, open-source R package for
 connecting to various Application Programming Interfaces
@@ -293,6 +294,10 @@ Completions API [¹](#fn1)
   vignette for information on which API keys you need for wach endpoint
   we support, and how to securely import those API keys into your
   .Renvironfile.
+
+------------------------------------------------------------------------
+
+![SAMY Data Science](reference/figures/samy_banner.png)
 
 ------------------------------------------------------------------------
 

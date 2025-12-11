@@ -42,7 +42,7 @@ A data frame with 3 rows and 7 variables:
 
   Logical; whether the classification process failed
 
-- .error_msg:
+- .error_message:
 
   Character; error message if classification failed (NA if successful)
 
