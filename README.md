@@ -1,13 +1,10 @@
 
 <!-- README.md is generated from README.Rmd. Please edit that file -->
 
-<img src="man/figures/samy_banner.png" alt="SAMY Data Science" width="100%"/>
-
 # EndpointR
 
-<!-- badges: start -->
-
-<!-- badges: end -->
+[![R-CMD-check](https://github.com/jpcompartir/EndpointR/actions/workflows/R-CMD-check.yaml/badge.svg)](https://github.com/jpcompartir/EndpointR/actions/workflows/R-CMD-check.yaml)
+[![pkgdown](https://github.com/jpcompartir/EndpointR/actions/workflows/pkgdown.yaml/badge.svg)](https://github.com/jpcompartir/EndpointR/actions/workflows/pkgdown.yaml)
 
 EndpointR is a ‘batteries included’, open-source R package for
 connecting to various Application Programming Interfaces
@@ -296,6 +293,10 @@ information on common workflows with the OpenAI Chat Completions API
 - Read the [EndpointR API Keys](articles/api_keys.html) vignette for
   information on which API keys you need for wach endpoint we support,
   and how to securely import those API keys into your .Renvironfile.
+
+------------------------------------------------------------------------
+
+<img src="man/figures/samy_banner.png" alt="SAMY Data Science" width="100%"/>
 
 [^1]: Content pending implementation for Anthroic Messages API, Gemini
     API, and OpenAI Responses API

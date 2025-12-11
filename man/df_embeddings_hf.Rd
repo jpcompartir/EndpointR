@@ -11,7 +11,7 @@ A data frame with 3 rows and 773 variables:
 \item{text}{Character; the original text that was embedded}
 \item{category}{Character; category classification of the text}
 \item{.error}{Logical; whether the embedding process failed}
-\item{.error_msg}{Character; error message if embedding failed (NA if successful)}
+\item{.error_message}{Character; error message if embedding failed (NA if successful)}
 \item{V1}{Numeric; embedding vector dimensions}
 \item{V2}{Numeric; embedding vector dimensions}
 \item{V3}{Numeric; embedding vector dimensions}

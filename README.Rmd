@@ -11,13 +11,9 @@ knitr::opts_chunk$set(
 )
 ```
 
-<img src="man/figures/samy_banner.png" alt="SAMY Data Science" width="100%"/>
-
 # EndpointR
 
-<!-- badges: start -->
-
-<!-- badges: end -->
+[![R-CMD-check](https://github.com/jpcompartir/EndpointR/actions/workflows/R-CMD-check.yaml/badge.svg)](https://github.com/jpcompartir/EndpointR/actions/workflows/R-CMD-check.yaml) [![pkgdown](https://github.com/jpcompartir/EndpointR/actions/workflows/pkgdown.yaml/badge.svg)](https://github.com/jpcompartir/EndpointR/actions/workflows/pkgdown.yaml)
 
 EndpointR is a 'batteries included', open-source R package for connecting to various Application Programming Interfaces ([APIs](https://en.wikipedia.org/wiki/API){target="_blank"}) for Machine Learning model predictions.
 
@@ -283,3 +279,7 @@ Read the [LLM Providers Vignette](articles/llm_providers.html), and the [Structu
 -   Read the [httr2 vignette](https://httr2.r-lib.org/articles/wrapping-apis.html#basics){target="_blank"} on managing your API keys securely and encrypting them.
 
 -   Read the [EndpointR API Keys](articles/api_keys.html) vignette for information on which API keys you need for wach endpoint we support, and how to securely import those API keys into your .Renvironfile.
+
+---
+
+<img src="man/figures/samy_banner.png" alt="SAMY Data Science" width="100%"/>
