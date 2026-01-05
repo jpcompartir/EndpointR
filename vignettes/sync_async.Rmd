@@ -18,6 +18,10 @@ knitr::opts_chunk$set(
 library(EndpointR)
 ```
 
+# Quickstart
+
+TODO: Code samples when the functions etc. are up and running.
+
 # Introduction
 
 Most of EndpointR's integrations are with synchronous APIs such as [Completions](https://platform.openai.com/docs/api-reference/completions) by OpenAI, Hugging Face's [Inference Endpoints](https://huggingface.co/docs/inference-endpoints/en/index), and Messages by [Anthropic](https://platform.claude.com/docs/en/api/messages). When using these APIs, we send a request, wait a second or two and receive a response.
@@ -48,12 +52,13 @@ Batch processing jobs are often helpful in use cases like:
 
 # EndpointR Implementation of OpenAI Batch API
 
-Due to inherent differences between Synchronous and Asynchronous APIs, the EndpointR implementation of the OpenAI Batch API will feel more like submitting jobs to a cluster/serve than automagically working with an entire data frame as in `oai_complete_df()` and `oai_embed_df()`.
+Due to inherent differences between Synchronous and Asynchronous APIs, the EndpointR implementation of the OpenAI Batch API will feel more like submitting jobs to a cluster/server than automagically working with an entire data frame as in `oai_complete_df()` and `oai_embed_df()`. As such, different functions and workflows are needed.
 
-\`oai_batch_create
+You will likely want to use the Batch API for both embeddings and completions, so we have a separate function to prepare batches for each one:
 
-`oai_prepare_batch()` `oai_prepare_batches()`
+-   `oai_batch_prepare_embeddings()`
+-   `oai_batch_prepare_completions()`
 
-`oai_create_batch()` `oai_create_batches()`
+Each function expects a data frame as input: `oai_batch_prepare_embeddings()` will accept the relevant arguments from `oai_embed_df()`, `oai_batch_prepare_completions` will accept the relevant arguments from `oai_complete_df()`. Each row in the input data frame is converted first to a http request via {httr2}, and then to a line in a .jsonl file. The OpenAI Batch API expects a single .jsonl file of up 50,000 rows or 200 MB in size. If we want to perform the operation on a 150,000 row data frame, we need to create and manage 3 separate batches.
 
-`oai_check_batch_jobs()`
+> NOTE: For structured outputs the Batch API requires us to send the JSON schema with each request. Complex schemas will quickly lead to large file size, perhaps eclipsing the 200 MB limit.
