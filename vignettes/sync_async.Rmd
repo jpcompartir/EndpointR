@@ -1,0 +1,31 @@
+---
+title: "Synchronous vs Asynchronous APIs"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Synchronous vs Asynchronous APIs}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>"
+)
+```
+
+```{r setup}
+library(EndpointR)
+```
+
+# Introduction
+
+Most of EndpointR's integrations are with synchronous APIs such as [Completions](https://platform.openai.com/docs/api-reference/completions) by OpenAI, Hugging Face's [Inference Endpoints](https://huggingface.co/docs/inference-endpoints/en/index), and Messages by [Anthropic](https://platform.claude.com/docs/en/api/messages). When using these APIs, we send a request, wait a second or two and receive a response.
+
+However, most Generative AI providers also offer lower-cost, asynchronous APIs. The providers usually offer a guarantee of the results within a time frame, and an estimate of the average time to return the results. For example, they may guarantee results within 24 hours, but expect them within 1-3 hours.
+
+# When to choose Synchronous vs Asynchronous
+
+For us as consumers, the decision is a trade-off between time and money. If we are serving Generative AI to other consumers, e.g. in an application, we will usually favour a Synchronous API because users expect instant results. Alternatively, if we are running analyses over large datasets, or repeated batch-inference, we can usually afford to wait longer for the results so we may favour the Asynchronous APIs.
+
+Synchronous APIs are also very useful when we are still in the experimental step of an analysis and need quick feedback- i.e. when we're testing our prompts, and developing our [schemas](https://json-schema.org/) for [Structured Outputs](https://platform.openai.com/docs/guides/structured-outputs), we don't want to wait 24 hours to check whether our schema works. Instead, we want to send a request and receive a response within seconds. That way we can iteratively fix/develop our schemas/prompts and get to a better outcome quicker.
