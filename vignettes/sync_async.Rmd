@@ -26,6 +26,34 @@ However, most Generative AI providers also offer lower-cost, asynchronous APIs. 
 
 # When to choose Synchronous vs Asynchronous
 
-For us as consumers, the decision is a trade-off between time and money. If we are serving Generative AI to other consumers, e.g. in an application, we will usually favour a Synchronous API because users expect instant results. Alternatively, if we are running analyses over large datasets, or repeated batch-inference, we can usually afford to wait longer for the results so we may favour the Asynchronous APIs.
+> For a more comprehensive treatment, and motivating examples [OpenAI's offficial documentation/guide](https://platform.openai.com/docs/guides/batch) is a good place to start.
 
-Synchronous APIs are also very useful when we are still in the experimental step of an analysis and need quick feedback- i.e. when we're testing our prompts, and developing our [schemas](https://json-schema.org/) for [Structured Outputs](https://platform.openai.com/docs/guides/structured-outputs), we don't want to wait 24 hours to check whether our schema works. Instead, we want to send a request and receive a response within seconds. That way we can iteratively fix/develop our schemas/prompts and get to a better outcome quicker.
+As consumers, the decision represents a trade-off between time and money. If we are serving Generative AI to other consumers, e.g. in an application, we will usually favour a Synchronous API because users expect instant results. Alternatively, if we are running analyses over large datasets, or repeated batch-inference, we can usually afford to wait longer for the results so we may favour the Asynchronous APIs.
+
+Synchronous APIs are also very useful when we are still in the experimental step of an analysis and need quick feedback- i.e. when we're testing our prompts, and developing our [schemas](https://json-schema.org/) for [Structured Outputs](https://platform.openai.com/docs/guides/structured-outputs), we don't want to wait 24 hours to find out we made an error in our schema. Instead, we want to send a request and receive a response within seconds. That way we can iteratively fix/develop our schemas/prompts and get to a better outcome quicker.
+
+At the time of writing, [OpenAI's batch API](https://platform.openai.com/docs/guides/batch) offers a 50% discount on the Completions API, as well as higher rate limits:
+
+<blockquote>
+
+Learn how to use OpenAI's Batch API to send asynchronous groups of requests with 50% lower costs, a separate pool of significantly higher rate limits, and a clear 24-hour turnaround time. The service is ideal for processing jobs that don't require immediate responses.
+
+Batch processing jobs are often helpful in use cases like:
+
+1.  Running evaluations
+2.  Classifying large datasets
+3.  Embedding content repositories
+
+</blockquote>
+
+# EndpointR Implementation of OpenAI Batch API
+
+Due to inherent differences between Synchronous and Asynchronous APIs, the EndpointR implementation of the OpenAI Batch API will feel more like submitting jobs to a cluster/serve than automagically working with an entire data frame as in `oai_complete_df()` and `oai_embed_df()`.
+
+\`oai_batch_create
+
+`oai_prepare_batch()` `oai_prepare_batches()`
+
+`oai_create_batch()` `oai_create_batches()`
+
+`oai_check_batch_jobs()`
