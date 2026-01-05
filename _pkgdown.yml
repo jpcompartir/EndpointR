@@ -48,6 +48,9 @@ navbar:
       - text: Advanced Topics
       - text: Improving Performance
         href: articles/improving_performance.html
+      - text: Synchronous vs Asynchronous APIs
+        href: articles/sync_async.html
+
 
 reference:
 - title: "Getting Started"

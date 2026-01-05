@@ -2,13 +2,19 @@
 
 # Versions
 
+## 0.2.1
+
+-   [ ] OpenAI Batch API
+    -   [ ] Embeddings
+    -   [ ] Completions
+
 ## 0.2
 
 -   [ ] Support for Anthropic API
     -   [ ] Batches
-    -   [ ] Messages (Completions)
+    -   [x] Messages (Completions)
     -   [x] Structured Outputs
--   [ ] Support for Gemini API
+-   [ ] Support for Gemini API (moving to later release)
     -   [ ] Embeddings
     -   [ ] Completions
     -   [ ] Structured Outputs
