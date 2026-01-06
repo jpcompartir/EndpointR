@@ -59,6 +59,35 @@ You will likely want to use the Batch API for both embeddings and completions, s
 -   `oai_batch_prepare_embeddings()`
 -   `oai_batch_prepare_completions()`
 
-Each function expects a data frame as input: `oai_batch_prepare_embeddings()` will accept the relevant arguments from `oai_embed_df()`, `oai_batch_prepare_completions` will accept the relevant arguments from `oai_complete_df()`. Each row in the input data frame is converted first to a http request via {httr2}, and then to a line in a .jsonl file. The OpenAI Batch API expects a single .jsonl file of up 50,000 rows or 200 MB in size. If we want to perform the operation on a 150,000 row data frame, we need to create and manage 3 separate batches.
+Each function expects a data frame as input: `oai_batch_prepare_embeddings()` will accept the relevant arguments from `oai_embed_df()`, `oai_batch_prepare_completions` will accept the relevant arguments from `oai_complete_df()`. The OpenAI Batch API expects a single .jsonl file of up 50,000 rows or 200 MB in size. If we want to perform the operation on a 150,000 row data frame, we need to create and manage 3 separate batches.
 
-> NOTE: For structured outputs the Batch API requires us to send the JSON schema with each request. Complex schemas will quickly lead to large file size, perhaps eclipsing the 200 MB limit.
+> **NOTE:** For structured outputs the Batch API requires us to send the JSON schema with each request. Complex schemas will quickly lead to large file size, perhaps eclipsing the 200 MB limit.
+
+EndpointR prepares each batch, writes it to a file in temporary storage, and then sends the file to the OpenAI Files API. Once in the Files API, EndpointR can trigger the batch to run.
+
+Each line of of the .jsonl file should form a self-contained request. And rather than routing to the endpoint's URL we route to a stub. For reference, the entire batch gets sent to its own, full URL.
+
+Example for embeddings (no structured output!):
+
+Row version:
+
+```         
+"{\"custom_id\":1,\"method\":\"POST\",\"url\":\"/v1/embeddings\",\"body\":{\"input\":\"hello\",\"model\":\"text-embedding-3-small\",\"encoding_format\":\"float\"}}"
+```
+
+Prettify'd version:
+
+```         
+{
+    "custom_id": 1,
+    "method": "POST",
+    "url": "/v1/embeddings",
+    "body": {
+        "input": "hello",
+        "model": "text-embedding-3-small",
+        "encoding_format": "float"
+    }
+}
+```
+
+> **NOTE:** The Embeddings API expects the input in an 'input' field rather than 'messages' as in the Completions API, and the batch requests must adhere to this.

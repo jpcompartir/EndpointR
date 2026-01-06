@@ -3,10 +3,6 @@
 
 # EndpointR
 
-<!-- badges: start -->
-
-<!-- badges: end -->
-
 EndpointR is a ‘batteries included’, open-source R package for
 connecting to various Application Programming Interfaces
 (<a href="https://en.wikipedia.org/wiki/API" target="_blank">APIs</a>)
@@ -295,5 +291,5 @@ information on common workflows with the OpenAI Chat Completions API
   information on which API keys you need for wach endpoint we support,
   and how to securely import those API keys into your .Renvironfile.
 
-[^1]: Content pending implementation for Anthroic Messages API, Gemini
+[^1]: Content pending implementation for Anthropic Messages API, Gemini
     API, and OpenAI Responses API

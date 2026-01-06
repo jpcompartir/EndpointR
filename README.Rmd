@@ -13,10 +13,6 @@ knitr::opts_chunk$set(
 
 # EndpointR
 
-<!-- badges: start -->
-
-<!-- badges: end -->
-
 EndpointR is a 'batteries included', open-source R package for connecting to various Application Programming Interfaces ([APIs](https://en.wikipedia.org/wiki/API){target="_blank"}) for Machine Learning model predictions.
 
 > **TIP:** If you are an experienced programmer, or have experience with hitting APIs, consider going directly to [httr2](https://httr2.r-lib.org/reference/index.html)
@@ -274,7 +270,7 @@ metadata$endpoint_url
 
 Read the [LLM Providers Vignette](articles/llm_providers.html), and the [Structured Outputs Vignette](articles/structured_outputs_json_schema.html) for more information on common workflows with the OpenAI Chat Completions API [^1]
 
-[^1]: Content pending implementation for Anthroic Messages API, Gemini API, and OpenAI Responses API
+[^1]: Content pending implementation for Anthropic Messages API, Gemini API, and OpenAI Responses API
 
 # API Key Security
 
