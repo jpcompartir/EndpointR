@@ -25,9 +25,29 @@ oai_batch_build_embed_req <- function(input, id, model = "text-embedding-3-small
   return(embed_row_json)
 }
 
-oai_batch_prepare_embeddings <- function(df, text_var, id_var, model = "text-embedding-3-small", dimensions = NULL) {
+oai_batch_prepare_embeddings <- function(df, text_var, id_var, model = "text-embedding-3-small", dimensions = NULL, method = "POST", encoding_format = "float", endpoint = "/v1/embeddings") {
 
+  text_sym <- rlang::ensym(text_var)
+  id_sym <- rlang::ensym(id_var)
 
+  .texts <- dplyr::pull(df, !!text_sym)
+  .ids <- dplyr::pull(df, !!id_sym)
+
+  reqs <- purrr::map2_chr(.texts, .ids, \(x, y) {
+    oai_batch_build_embed_req(
+      input = x,
+      id = y,
+      model = model,
+      dimensions = dimensions,
+      method = method,
+      encoding_format = encoding_format,
+      endpoint = endpoint
+    )
+  })
+
+  reqs <- paste0(reqs, collapse = "\n")
+
+  return(reqs)
 }
 
 oai_batch_file_upload <- function(jsonl_rows, key_name = "OPENAI_API_KEY") {
