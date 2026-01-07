@@ -1,0 +1,104 @@
+---
+title: "openai_batch_api"
+format: html
+---
+
+So... we could actually re-use some of the logic from oai_embed.R / oai_classify.R. There are some small differences, e.g. we feed a stub of the endpoint URL to each request, and then we upload the batch of inputs as a file directly to the files API, then create the batch.
+
+```{r}
+embed_req <- oai_build_embedding_request("xx", dimensions = 324)
+
+body <- embed_req$body$data
+
+row <- list(
+  custom_id = "xx",
+  method = "POST",
+  url = "/v1/embeddings",
+  body = embed_req$body$data
+)
+```
+
+Initial thought was to just stream_out, but stream_out expects a data frame as input. Which we can use further down the line, but not here.
+
+```{r}
+jsonlite::stream_out(row, con = stdout()) 
+
+tib_w_row <- tibble::tibble(rows = list(row))
+
+jsonlite::stream_out(tib_w_row, con = file("test_dir/jsonl_outputs/batch_api_test.jsonl"))
+
+read_in <- jsonlite::stream_in(con = file("test_dir/jsonl_outputs/batch_api_test.jsonl")) |> jsonlite::toJSON()
+read_in["rows"]
+
+tibble::tibble(x = 1:10^5) |> 
+  chunk_dataframe(chunk_size = 80000)
+```
+
+So instead, we want to take the row, convert it to JSON with `auto_unbox = TRUE` and then writeLines to a `.jsonl` file. Recall that `auto_unbox` just stops each k:v pair's value being treated as a list
+
+```{r}
+# stream in./ out not the right way
+jsonlite::toJSON(row, auto_unbox = TRUE) |>
+  writeLines("test_dir/jsonl_outputs/batch_api_test_write_lines.jsonl")
+  
+
+x <- readLines("test_dir/jsonl_outputs/batch_api_test_write_lines.jsonl")
+jsonlite::toJSON(x, auto_unbox = TRUE)
+```
+
+We said we could re-use some of the logic, but looking at it we don't really benefit from using httr2 for each request - it's unnecessary overhead. So we just create lists for now. We may use httr2 for the actual batch request (but maybe not!)
+
+```{r}
+single_batch_row <- oai_batch_build_embed_req("hello", "1")
+
+list_rows <- purrr::map(1:10, \(x) oai_batch_build_embed_req("hello", x))
+```
+
+Then we can write them to a file as follows, and send it to OpenAI as a batch job.
+
+```{r}
+writeLines(
+  unlist(list_rows), 
+  "test_dir/jsonl_outputs/write_ten_lines.jsonl")
+
+
+readLines(
+  "test_dir/jsonl_outputs/write_ten_lines.jsonl",
+  n = 2
+)
+```
+
+```{r}
+test_df <- tibble::tibble(
+  x = letters,
+  y = 1:length(letters)
+)
+
+test_df |>
+  mutate(
+    reqs = map2_chr(x, y, \(text, id) {
+      oai_batch_build_embed_req(
+        text,
+        id,
+        dimensions = 324
+      )
+    })
+  )
+
+xx <- test_df |>
+  oai_batch_prepare_embeddings(
+    x,
+    y
+  )
+
+oai_batch_file_upload(
+  xx
+)
+
+batch_job_data <- oai_batch_file_list()
+temp_id <- batch_job_data$data[[1]]$id
+
+oai_batch_file_delete(temp_id)
+
+oai_batch_file_list()
+```
