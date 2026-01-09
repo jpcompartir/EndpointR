@@ -60,11 +60,25 @@ oai_batch_file_upload <- function(jsonl_rows, key_name = "OPENAI_API_KEY", purpo
   # question here is whether to also save this somewhere by force...
   # once OAI have the file it's backed up for 30 days.
 
-  httr2::request(base_url = "https://api.openai.com/v1/files") |>
+ resp <- httr2::request(base_url = "https://api.openai.com/v1/files") |>
     httr2::req_auth_bearer_token(api_key) |>
     httr2::req_body_multipart(file = curl::form_file(.tmp),
                               purpose = purpose) |>
     httr2::req_error(is_error = ~ FALSE) |>
+    httr2::req_perform()
+
+  result <- httr2::resp_body_json(resp)
+
+  if (httr2::resp_status(resp) >= 400) {
+    error_msg <- result$error$message %||% "Unknown error"
+    cli::cli_abort(c(
+      "Failed to upload file to OpenAI Files API",
+      "x" = error_msg
+    ))
+  }
+
+  return(result)
+}
     httr2::req_perform() |>
     httr2::resp_body_json()
 
