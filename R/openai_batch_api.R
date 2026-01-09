@@ -79,6 +79,25 @@ oai_batch_file_upload <- function(jsonl_rows, key_name = "OPENAI_API_KEY", purpo
 
   return(result)
 }
+
+oai_batch_list <- function(limit = 20L, after = NULL, key_name = "OPENAI_API_KEY") {
+
+  api_key <- get_api_key(key_name)
+
+  req <- httr2::request("https://api.openai.com/v1/batches") |>
+    httr2::req_auth_bearer_token(api_key) |>
+    httr2::req_url_query(limit = limit)
+
+  if (!is.null(after)) {
+    req <- httr2::req_url_query(req, after = after)
+  }
+
+  req |>
+    httr2::req_error(is_error = ~ FALSE) |>
+    httr2::req_perform() |>
+    httr2::resp_body_json()
+}
+
     httr2::req_perform() |>
     httr2::resp_body_json()
 
