@@ -130,7 +130,76 @@ oai_batch_list <- function(limit = 20L, after = NULL, key_name = "OPENAI_API_KEY
 
     httr2::req_perform() |>
     httr2::resp_body_json()
+oai_batch_parse_embeddings <- function(content, original_df = NULL, id_var = NULL) {
 
+  lines <- strsplit(content, "\n")[[1]]
+  lines <- lines[nchar(lines) > 0]
+
+  if (length(lines) == 0) {
+    return(tibble::tibble(
+      custom_id = character(),
+      .error = logical(),
+      .error_msg = character()
+    ))
+  }
+
+  parsed <- purrr::imap(lines, \(line, idx) {
+    tryCatch(
+      jsonlite::fromJSON(line, simplifyVector = FALSE),
+      error = function(e) {
+        list(
+          custom_id = paste0("__PARSE_ERROR_LINE_", idx),
+          error = list(message = paste("Failed to parse JSONL line", idx, ":", conditionMessage(e)))
+        )
+      }
+    )
+  })
+
+  results <- purrr::map(parsed, function(item) {
+    custom_id <- item$custom_id
+
+    if (!is.null(item$error)) {
+      return(tibble::tibble(
+        custom_id = custom_id,
+        .error = TRUE,
+        .error_msg = item$error$message %||% "Unknown error"
+      ))
+    }
+
+    embedding <- purrr::pluck(item, "response", "body", "data", 1, "embedding",
+                               .default = NULL)
+
+    if (is.null(embedding)) {
+      return(tibble::tibble(
+        custom_id = custom_id,
+        .error = TRUE,
+        .error_msg = "No embedding found in response"
+      ))
+    }
+
+    embed_tibble <- embedding |>
+      as.list() |>
+      stats::setNames(paste0("V", seq_along(embedding))) |>
+      tibble::as_tibble()
+
+    tibble::tibble(
+      custom_id = custom_id,
+      .error = FALSE,
+      .error_msg = NA_character_
+    ) |>
+      dplyr::bind_cols(embed_tibble)
+  })
+
+  result <- purrr::list_rbind(results)
+
+  if (!is.null(original_df) && !is.null(id_var)) {
+    id_sym <- rlang::ensym(id_var)
+    id_col_name <- rlang::as_name(id_sym)
+    result <- result |>
+      dplyr::rename(!!id_col_name := custom_id)
+  }
+
+  return(result)
 }
 
 
