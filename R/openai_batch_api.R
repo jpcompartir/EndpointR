@@ -83,6 +83,33 @@ oai_batch_file_upload <- function(jsonl_rows, key_name = "OPENAI_API_KEY", purpo
   return(result)
 }
 
+# batch job management ----
+oai_batch_create <- function(file_id,
+                              endpoint = c("/v1/embeddings", "/v1/chat/completions"),
+                              completion_window = "24h",
+                              metadata = NULL,
+                              key_name = "OPENAI_API_KEY") {
+
+  endpoint <- match.arg(endpoint)
+  api_key <- get_api_key(key_name)
+
+  body <- list(
+    input_file_id = file_id,
+    endpoint = endpoint,
+    completion_window = completion_window
+  )
+
+  if (!is.null(metadata)) {
+    body$metadata <- metadata
+  }
+
+  httr2::request("https://api.openai.com/v1/batches") |>
+    httr2::req_auth_bearer_token(api_key) |>
+    httr2::req_body_json(body) |>
+    httr2::req_error(is_error = ~ FALSE) |>
+    httr2::req_perform() |>
+    httr2::resp_body_json()
+}
 oai_batch_list <- function(limit = 20L, after = NULL, key_name = "OPENAI_API_KEY") {
 
   api_key <- get_api_key(key_name)
