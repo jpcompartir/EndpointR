@@ -22,3 +22,15 @@ oai_file_delete <- function(file_id, key_name = "OPENAI_API_KEY") {
     httr2::req_perform() |>
     httr2::resp_body_json()
 }
+
+oai_file_content <- function(file_id, key_name = "OPENAI_API_KEY") {
+
+  api_key <- get_api_key(key_name)
+
+  resp <- httr2::request(paste0("https://api.openai.com/v1/files/", file_id, "/content")) |>
+    httr2::req_auth_bearer_token(api_key) |>
+    httr2::req_error(is_error = ~ FALSE) |>
+    httr2::req_perform()
+
+  httr2::resp_body_string(resp)
+}
