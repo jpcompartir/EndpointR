@@ -1,5 +1,4 @@
 # the batch
-
 oai_batch_build_embed_req <- function(input, id, model = "text-embedding-3-small", dimensions = NULL, method = "POST", encoding_format = "float", endpoint = "/v1/embeddings") {
 
 
@@ -32,6 +31,10 @@ oai_batch_prepare_embeddings <- function(df, text_var, id_var, model = "text-emb
 
   .texts <- dplyr::pull(df, !!text_sym)
   .ids <- dplyr::pull(df, !!id_sym)
+
+  if (!.validate_batch_inputs(.ids, .texts)) {
+    return("")
+  }
 
   reqs <- purrr::map2_chr(.texts, .ids, \(x, y) {
     oai_batch_build_embed_req(
@@ -106,3 +109,34 @@ oai_batch_list <- function(limit = 20L, after = NULL, key_name = "OPENAI_API_KEY
 
 
 
+# internal/helper
+.validate_batch_inputs <- function(.ids, .texts, max_requests = 50000) {
+  n_requests <- length(.texts)
+
+  if (n_requests == 0) {
+    cli::cli_warn("Input is empty. Returning empty JSONL string.")
+    return(FALSE)
+  }
+
+  if (anyDuplicated(.ids)) {
+    duplicated_ids <- unique(.ids[duplicated(.ids)])
+    cli::cli_abort(c(
+      "custom_id values must be unique within a batch",
+      "x" = "Found {length(duplicated_ids)} duplicate ID{?s}: {.val {head(duplicated_ids, 3)}}"
+    ))
+  }
+
+  if (n_requests > max_requests) {
+    cli::cli_abort(c(
+      "OpenAI Batch API supports maximum {max_requests} requests per batch",
+      "x" = "Attempting to create {n_requests} requests",
+      "i" = "Consider splitting your data into multiple batches"
+    ))
+  }
+
+  if (n_requests > 10000) {
+    cli::cli_alert_info("Large batch with {n_requests} requests - processing may take significant time")
+  }
+
+  return(TRUE)
+}
