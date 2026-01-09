@@ -36,7 +36,7 @@ oai_batch_prepare_embeddings <- function(df, text_var, id_var, model = "text-emb
   reqs <- purrr::map2_chr(.texts, .ids, \(x, y) {
     oai_batch_build_embed_req(
       input = x,
-      id = y,
+      id = as.character(y),
       model = model,
       dimensions = dimensions,
       method = method,
