@@ -110,6 +110,18 @@ oai_batch_create <- function(file_id,
     httr2::req_perform() |>
     httr2::resp_body_json()
 }
+
+oai_batch_status <- function(batch_id, key_name = "OPENAI_API_KEY") {
+
+  api_key <- get_api_key(key_name)
+
+  httr2::request(paste0("https://api.openai.com/v1/batches/", batch_id)) |>
+    httr2::req_auth_bearer_token(api_key) |>
+    httr2::req_error(is_error = ~ FALSE) |>
+    httr2::req_perform() |>
+    httr2::resp_body_json()
+}
+
 oai_batch_list <- function(limit = 20L, after = NULL, key_name = "OPENAI_API_KEY") {
 
   api_key <- get_api_key(key_name)
@@ -128,8 +140,19 @@ oai_batch_list <- function(limit = 20L, after = NULL, key_name = "OPENAI_API_KEY
     httr2::resp_body_json()
 }
 
+oai_batch_cancel <- function(batch_id, key_name = "OPENAI_API_KEY") {
+
+  api_key <- get_api_key(key_name)
+
+  httr2::request(paste0("https://api.openai.com/v1/batches/", batch_id, "/cancel")) |>
+    httr2::req_auth_bearer_token(api_key) |>
+    httr2::req_method("POST") |>
+    httr2::req_error(is_error = ~ FALSE) |>
     httr2::req_perform() |>
     httr2::resp_body_json()
+}
+
+
 oai_batch_parse_embeddings <- function(content, original_df = NULL, id_var = NULL) {
 
   lines <- strsplit(content, "\n")[[1]]
