@@ -1,4 +1,20 @@
-# the batch
+# embed request building ---- 
+#' @description Create a single OpenAI Batch API - Embedding request
+#'
+#' This function prepares a single row of data for the OpenAI Batch/Files APIs, where each row should be valid JSON. The APIs do not guarantee the results will be in the same order, so we need to provide an ID with each request.
+#' 
+#' @param input Text input you wish to embed
+#' @param id A custom, unique Row ID
+#' @param model The embedding model to use
+#' @param dimensions Number of embedding dimensions to return
+#' @param method The http request type, usually 'POST'
+#' @param encoding_format Data type of the embedding values
+#' @param endpoint The internal suffix of the endpoint's url e.g. /v1/embeddings
+#'
+#' @returns a row of JSON
+#'
+#' @export
+#' @examples
 oai_batch_build_embed_req <- function(input, id, model = "text-embedding-3-small", dimensions = NULL, method = "POST", encoding_format = "float", endpoint = "/v1/embeddings") {
 
 
@@ -110,7 +126,17 @@ oai_batch_create <- function(file_id,
     httr2::req_perform() |>
     httr2::resp_body_json()
 }
-
+#' Check the status of a batch job on the OpenAI Batch API
+#' 
+#' 
+#'
+#' @param batch_id Batch Identifier, should start with 'batch_' and is returned by the `oai_create_batch` function
+#' @param key_name Name of the API key, usually OPENAI_API_KEY
+#'
+#' @returns Metadata about an OpenAI Batch API Job, including status, error_file_id, output_file_id, input_file_id etc.
+#'
+#' @export
+#' @examples
 oai_batch_status <- function(batch_id, key_name = "OPENAI_API_KEY") {
 
   api_key <- get_api_key(key_name)
@@ -153,6 +179,7 @@ oai_batch_cancel <- function(batch_id, key_name = "OPENAI_API_KEY") {
 }
 
 
+# results parsing ----
 oai_batch_parse_embeddings <- function(content, original_df = NULL, id_var = NULL) {
 
   lines <- strsplit(content, "\n")[[1]]
@@ -228,7 +255,7 @@ oai_batch_parse_embeddings <- function(content, original_df = NULL, id_var = NUL
 
 
 
-# internal/helper
+# internal/helpers ----
 .validate_batch_inputs <- function(.ids, .texts, max_requests = 50000) {
   n_requests <- length(.texts)
 
