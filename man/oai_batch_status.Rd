@@ -2,18 +2,25 @@
 % Please edit documentation in R/openai_batch_api.R
 \name{oai_batch_status}
 \alias{oai_batch_status}
-\title{Check the status of a batch job on the OpenAI Batch API}
+\title{Check the Status of a Batch Job on the OpenAI Batch API}
 \usage{
 oai_batch_status(batch_id, key_name = "OPENAI_API_KEY")
 }
 \arguments{
-\item{batch_id}{Batch Identifier, should start with 'batch_' and is returned by the \code{oai_create_batch} function}
+\item{batch_id}{Batch identifier (starts with 'batch_'), returned by oai_batch_create()}
 
-\item{key_name}{Name of the API key, usually OPENAI_API_KEY}
+\item{key_name}{Name of the environment variable containing your API key}
 }
 \value{
 Metadata about an OpenAI Batch API Job, including status, error_file_id, output_file_id, input_file_id etc.
 }
 \description{
-Check the status of a batch job on the OpenAI Batch API
+Check the Status of a Batch Job on the OpenAI Batch API
+}
+\examples{
+\dontrun{
+status <- oai_batch_status("batch_abc123")
+status$status # e.g., "completed", "in_progress", "failed"
+status$output_file_id # File ID for results when completed
+}
 }

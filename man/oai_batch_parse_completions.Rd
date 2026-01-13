@@ -2,13 +2,35 @@
 % Please edit documentation in R/openai_batch_api.R
 \name{oai_batch_parse_completions}
 \alias{oai_batch_parse_completions}
-\title{Parse a completions batch job into a data frame}
+\title{Parse a Completions Batch Job into a Data Frame}
 \usage{
 oai_batch_parse_completions(content, original_df = NULL, id_var = NULL)
 }
 \arguments{
-\item{id_var}{}
+\item{content}{Character string of JSONL content from the batch output file}
+
+\item{original_df}{Optional original data frame to rename custom_id column}
+
+\item{id_var}{If original_df provided, the column name to rename custom_id to}
+}
+\value{
+A tibble with custom_id (or renamed), content, .error, and .error_msg
 }
 \description{
-Parse a completions batch job into a data frame
+Parses the JSONL content returned from a completed chat completions batch
+job and converts it into a tidy data frame with one row per response.
+}
+\examples{
+\dontrun{
+# After downloading batch results with oai_files_content()
+content <- oai_files_content(status$output_file_id)
+completions_df <- oai_batch_parse_completions(content)
+
+# Optionally rename the ID column to match original data
+completions_df <- oai_batch_parse_completions(
+  content,
+  original_df = my_df,
+  id_var = query_id
+)
+}
 }

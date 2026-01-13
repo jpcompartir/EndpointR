@@ -3,18 +3,23 @@
 #'
 #' This function prepares a single row of data for the OpenAI Batch/Files APIs, where each row should be valid JSON. The APIs do not guarantee the results will be in the same order, so we need to provide an ID with each request.
 #' 
-#' @param input Text input you wish to embed
-#' @param id A custom, unique Row ID
+#' @param input Text input to embed
+#' @param id A custom, unique row ID
 #' @param model The embedding model to use
-#' @param dimensions Number of embedding dimensions to return
-#' @param method The http request type, usually 'POST'
+#' @param dimensions Number of embedding dimensions (NULL uses model default)
+#' @param method The HTTP request type, usually 'POST'
 #' @param encoding_format Data type of the embedding values
-#' @param endpoint The internal suffix of the endpoint's url e.g. /v1/embeddings
+#' @param endpoint The API endpoint path, e.g. /v1/embeddings
 #'
 #' @returns a row of JSON
 #'
 #' @export
 #' @examples
+#' \dontrun{
+#' text <- "embed_me"
+#' id <- "id_1"
+#' batch_req <- oai_batch_build_embed_req(text, id)
+#' }
 oai_batch_build_embed_req <- function(input, id, model = "text-embedding-3-small", dimensions = NULL, method = "POST", encoding_format = "float", endpoint = "/v1/embeddings") {
 
   body <- purrr::compact(
@@ -41,25 +46,28 @@ oai_batch_build_embed_req <- function(input, id, model = "text-embedding-3-small
     
 #' Prepare a Data Frame for the OpenAI Batch API - Embeddings
 #'
-#' @details Take an enitre data frame and turn each row into a valid line of JSON ready for a .jsonl file upload to the OpenAI Files API + Batch API job trigger.
+#' @details Takes an entire data frame and turns each row into a valid line of JSON ready for a .jsonl file upload to the OpenAI Files API + Batch API job trigger.
 #' 
 #' Each request must have its own ID, as the Batch API makes no guarantees about the order the results will be returned in. 
 #' 
 #' To reduce the overall size, and the explanatory power of the Embeddings, you can set dimensions to lower than the default (which vary based on model). 
 #' 
-#' @param df A data frame containing texts to embed
-#' @param text_var Name of the column containing text to embed
-#' @param id_var Name of the column to use as ID
-#' @param model OpenAI embedding model to use (default: "text-embedding-3-small")
-#' @param dimensions Number of embedding dimensions (NULL uses model default)
-#' @param method The http request type, usually 'POST'
-#' @param encoding_format Data type of the embedding values
-#' @param endpoint The internal suffix of the endpoint's url e.g. /v1/embeddings
+#' @param df A data frame containing text to process
+#' @param text_var Name of the column containing input text
+#' @param id_var Name of the column to use as row ID
+#' @inheritParams oai_batch_build_embed_req
 #'
 #' @returns A list of JSON requests
 #'
 #' @export
 #' @examples
+#' \dontrun{
+#' df <- data.frame(
+#'   id = c("doc_1", "doc_2", "doc_3"),
+#'   text = c("Hello world", "Embedding text", "Another document")
+#' )
+#' jsonl_content <- oai_batch_prepare_embeddings(df, text_var = text, id_var = id)
+#' }
 oai_batch_prepare_embeddings <- function(df, text_var, id_var, model = "text-embedding-3-small", dimensions = NULL, method = "POST", encoding_format = "float", endpoint = "/v1/embeddings") {
   
   text_sym <- rlang::ensym(text_var)
@@ -90,22 +98,34 @@ oai_batch_prepare_embeddings <- function(df, text_var, id_var, model = "text-emb
 }
     
 
-#' Title
+#' Create a Single OpenAI Batch API - Chat Completions Request
 #'
-#' @param input
-#' @param id
-#' @param model
-#' @param system_prompt
-#' @param temperature
-#' @param max_tokens
-#' @param schema
-#' @param method
-#' @param endpoint
+#' This function prepares a single row of data for the OpenAI Batch/Files APIs,
+#' where each row should be valid JSON. The APIs do not guarantee the results
+#' will be in the same order, so we need to provide an ID with each request.
 #'
-#' @returns
+#' @param input Text input (user message) for the completion
+#' @param id A custom, unique row ID
+#' @param model The chat completion model to use
+#' @param system_prompt Optional system prompt to guide the model's behaviour
+#' @param temperature Sampling temperature (0 = deterministic, higher = more random)
+#' @param max_tokens Maximum number of tokens to generate
+#' @param schema Optional JSON schema for structured output (json_schema object or list)
+#' @param method The HTTP request type, usually 'POST'
+#' @param endpoint The API endpoint path, e.g. /v1/chat/completions
+#'
+#' @returns A row of JSON suitable for the Batch API
 #'
 #' @export
 #' @examples
+#' \dontrun{
+#' req <- oai_batch_build_completions_req(
+#'   input = "What is the capital of France?",
+#'   id = "query_1",
+#'   model = "gpt-4o-mini",
+#'   temperature = 0
+#' )
+#' }
 oai_batch_build_completions_req <- function(input, id, model = "gpt-4o-mini", system_prompt = NULL, temperature = 0, max_tokens = 500L, schema = NULL, method = "POST", endpoint = "/v1/chat/completions") {
     
   messages <- list()
@@ -140,25 +160,38 @@ oai_batch_build_completions_req <- function(input, id, model = "gpt-4o-mini", sy
   
   jsonlite::toJSON(req_row, auto_unbox = TRUE)
 }
-  
-  #' Title
-  #'
-  #' @param df
-  #' @param text_var
-  #' @param id_var
-  #' @param model
-  #' @param system_prompt
-  #' @param temperature
-  #' @param max_tokens
-  #' @param schema
-  #' @param method
-  #' @param endpoint
-  #'
-  #' @returns
-  #'
-  #' @export
-  #' @examples
-  oai_batch_prepare_completions <- function(df, text_var, id_var, model = "gpt-4o-mini", system_prompt = NULL, temperature = 0, max_tokens = 500L, schema = NULL, method = "POST", endpoint = "/v1/chat/completions") {
+
+#' Prepare a Data Frame for the OpenAI Batch API - Chat Completions
+#'
+#' @description Takes an entire data frame and turns each row into a valid line
+#' of JSON ready for a .jsonl file upload to the OpenAI Files API + Batch API
+#' job trigger.
+#'
+#' @details Each request must have its own ID, as the Batch API makes no
+#' guarantees about the order the results will be returned in.
+#'
+#' @param df A data frame containing text to process
+#' @param text_var Name of the column containing input text
+#' @param id_var Name of the column to use as row ID
+#' @inheritParams oai_batch_build_completions_req
+#'
+#' @returns A character string of newline-separated JSON requests
+#'
+#' @export
+#' @examples
+#' \dontrun{
+#' df <- data.frame(
+#'   id = c("q1", "q2"),
+#'   prompt = c("What is 2+2?", "Explain gravity briefly.")
+#' )
+#' jsonl_content <- oai_batch_prepare_completions(
+#'   df,
+#'   text_var = prompt,
+#'   id_var = id,
+#'   system_prompt = "You are a helpful assistant."
+#' )
+#' }
+oai_batch_prepare_completions <- function(df, text_var, id_var, model = "gpt-4o-mini", system_prompt = NULL, temperature = 0, max_tokens = 500L, schema = NULL, method = "POST", endpoint = "/v1/chat/completions") {
       
   text_sym <- rlang::ensym(text_var)
   id_sym <- rlang::ensym(id_var)
@@ -197,15 +230,24 @@ oai_batch_build_completions_req <- function(input, id, model = "gpt-4o-mini", sy
 #'
 #' 
 #' 
-#' @param jsonl_rows Rows of valid JSON, output of a oai_batch_prepare* function
-#' @param key_name Name of the API key, usually OPENAI_API_KEY
-#' @param purpose Tag, e.g. 'classification', 'batch', 'fine-tuning'
+#' @param jsonl_rows Rows of valid JSON, output of an oai_batch_prepare* function
+#' @param key_name Name of the environment variable containing your API key
+#' @param purpose File purpose tag, e.g. 'batch', 'fine-tune'
 #'
 #' @returns Metadata for an upload to the OpenAI Files API
 #'
 #' @export
-#' @seealso `openai_files_api.R`
+#' @seealso `oai_files_upload()`, `oai_files_list()`
 #' @examples
+#' \dontrun{
+#' df <- data.frame(
+#'   id = c("doc_1", "doc_2"),
+#'   text = c("Hello world", "Goodbye world")
+#' )
+#' jsonl_content <- oai_batch_prepare_embeddings(df, text_var = text, id_var = id)
+#' file_info <- oai_batch_file_upload(jsonl_content)
+#' file_info$id # Use this ID to create a batch job
+#' }
 oai_batch_file_upload <- function(jsonl_rows, key_name = "OPENAI_API_KEY", purpose = "batch") {
     
 api_key <- get_api_key(key_name)
@@ -245,16 +287,24 @@ if (httr2::resp_status(resp) >= 400) {
 #' 
 #' Batch Job Ids start with "batch_", you'll receive a warning if you try to check batch status on a Files API file (the Files/Batch API set up is a lil bit clumsy for me)
 #' 
-#' @param file_id Pointer to a file uploaded to the OpenAI API
-#' @param endpoint The internal suffix of the endpoint's url e.g. /v1/embeddings
-#' @param completion_window Time until the batch should be returned, NOTE: OpenAI makes 24 hour guarantees only.
-#' @param metadata Any additional metadata you want to tag the batch with
-#' @param key_name Name of the API key, usually OPENAI_API_KEY
+#' @param file_id File ID returned by oai_batch_file_upload()
+#' @param endpoint The API endpoint path, e.g. /v1/embeddings
+#' @param completion_window Time window for batch completion (OpenAI guarantees 24h only)
+#' @param metadata Optional list of metadata to tag the batch with
+#' @inheritParams oai_batch_file_upload
 #'
 #' @returns Metadata about an OpenAI Batch Job Including the batch ID
 #'
 #' @export
 #' @examples
+#' \dontrun{
+#' # After uploading a file with oai_batch_file_upload()
+#' batch_job <- oai_batch_create(
+#'   file_id = "file-abc123",
+#'   endpoint = "/v1/embeddings"
+#' )
+#' batch_job$id # Use this to check status later
+#' }
 oai_batch_create <- function(file_id, endpoint = c("/v1/embeddings", "/v1/chat/completions"), completion_window = "24h", metadata = NULL, key_name = "OPENAI_API_KEY") {
   
   endpoint <- match.arg(endpoint)
@@ -278,17 +328,20 @@ oai_batch_create <- function(file_id, endpoint = c("/v1/embeddings", "/v1/chat/c
   httr2::resp_body_json()
 }
           
-#' Check the status of a batch job on the OpenAI Batch API
-#' 
-#' 
+#' Check the Status of a Batch Job on the OpenAI Batch API
 #'
-#' @param batch_id Batch Identifier, should start with 'batch_' and is returned by the `oai_create_batch` function
-#' @param key_name Name of the API key, usually OPENAI_API_KEY
+#' @param batch_id Batch identifier (starts with 'batch_'), returned by oai_batch_create()
+#' @inheritParams oai_batch_file_upload
 #'
 #' @returns Metadata about an OpenAI Batch API Job, including status, error_file_id, output_file_id, input_file_id etc.
 #'
 #' @export
 #' @examples
+#' \dontrun{
+#' status <- oai_batch_status("batch_abc123")
+#' status$status # e.g., "completed", "in_progress", "failed"
+#' status$output_file_id # File ID for results when completed
+#' }
 oai_batch_status <- function(batch_id, key_name = "OPENAI_API_KEY") {
   
   api_key <- get_api_key(key_name)
@@ -300,16 +353,25 @@ oai_batch_status <- function(batch_id, key_name = "OPENAI_API_KEY") {
   httr2::resp_body_json()
 }
           
-#' Title
+#' List Batch Jobs on the OpenAI Batch API
 #'
-#' @param limit
-#' @param after
-#' @param key_name
+#' Retrieve a paginated list of batch jobs associated with your API key.
 #'
-#' @returns
+#' @param limit Maximum number of batch jobs to return
+#' @param after Cursor for pagination; batch ID to start after
+#' @inheritParams oai_batch_file_upload
+#'
+#' @returns A list containing batch job metadata and pagination information
 #'
 #' @export
 #' @examples
+#' \dontrun{
+#' # List recent batch jobs
+#' batches <- oai_batch_list(limit = 10)
+#'
+#' # Paginate through results
+#' next_page <- oai_batch_list(after = batches$last_id)
+#' }
 oai_batch_list <- function(limit = 20L, after = NULL, key_name = "OPENAI_API_KEY") {
   
   api_key <- get_api_key(key_name)
@@ -328,15 +390,23 @@ oai_batch_list <- function(limit = 20L, after = NULL, key_name = "OPENAI_API_KEY
   httr2::resp_body_json()
 }
           
-#' Cancel a running batch job on the OpenAI Batch API
+#' Cancel a Running Batch Job on the OpenAI Batch API
 #'
-#' @param batch_id
-#' @param key_name
+#' Cancels an in-progress batch job. The batch will stop processing new
+#' requests, but requests already being processed may still complete.
 #'
-#' @returns
+#' @inheritParams oai_batch_status
+#' @inheritParams oai_batch_file_upload
+#'
+#' @returns Metadata about the cancelled batch job
 #'
 #' @export
 #' @examples
+#' \dontrun{
+#' # Cancel a batch job that's taking too long
+#' cancelled <- oai_batch_cancel("batch_abc123")
+#' cancelled$status # Will be "cancelling" or "cancelled"
+#' }
 oai_batch_cancel <- function(batch_id, key_name = "OPENAI_API_KEY") {
   
   api_key <- get_api_key(key_name)
@@ -351,16 +421,32 @@ oai_batch_cancel <- function(batch_id, key_name = "OPENAI_API_KEY") {
           
           
 # results parsing ----
-#' Parse an embeddings batch job into a data frame
+#' Parse an Embeddings Batch Job into a Data Frame
 #'
-#' @param content
-#' @param original_df
-#' @param id_var
+#' Parses the JSONL content returned from a completed embeddings batch job
+#' and converts it into a tidy data frame with one row per embedding.
 #'
-#' @returns
+#' @param content Character string of JSONL content from the batch output file
+#' @param original_df Optional original data frame to rename custom_id column
+#' @param id_var If original_df provided, the column name to rename custom_id to
+#'
+#' @returns A tibble with custom_id (or renamed), .error, .error_msg, and
+#'   embedding dimensions (V1, V2, ..., Vn)
 #'
 #' @export
 #' @examples
+#' \dontrun{
+#' # After downloading batch results with oai_files_content()
+#' content <- oai_files_content(status$output_file_id)
+#' embeddings_df <- oai_batch_parse_embeddings(content)
+#'
+#' # Optionally rename the ID column to match original data
+#' embeddings_df <- oai_batch_parse_embeddings(
+#'   content,
+#'   original_df = my_df,
+#'   id_var = doc_id
+#' )
+#' }
 oai_batch_parse_embeddings <- function(content, original_df = NULL, id_var = NULL) {
   
   lines <- strsplit(content, "\n")[[1]]
@@ -432,16 +518,29 @@ oai_batch_parse_embeddings <- function(content, original_df = NULL, id_var = NUL
   return(result)
 }
           
-#' Parse a completions batch job into a data frame
+#' Parse a Completions Batch Job into a Data Frame
 #'
-#' @param content
-#' @param original_df
-#' @param id_var
+#' Parses the JSONL content returned from a completed chat completions batch
+#' job and converts it into a tidy data frame with one row per response.
 #'
-#' @returns
+#' @inheritParams oai_batch_parse_embeddings
+#'
+#' @returns A tibble with custom_id (or renamed), content, .error, and .error_msg
 #'
 #' @export
 #' @examples
+#' \dontrun{
+#' # After downloading batch results with oai_files_content()
+#' content <- oai_files_content(status$output_file_id)
+#' completions_df <- oai_batch_parse_completions(content)
+#'
+#' # Optionally rename the ID column to match original data
+#' completions_df <- oai_batch_parse_completions(
+#'   content,
+#'   original_df = my_df,
+#'   id_var = query_id
+#' )
+#' }
 oai_batch_parse_completions <- function(content, original_df = NULL, id_var = NULL) {
   
   lines <- strsplit(content, "\n")[[1]]

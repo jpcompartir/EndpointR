@@ -2,13 +2,26 @@
 % Please edit documentation in R/openai_batch_api.R
 \name{oai_batch_cancel}
 \alias{oai_batch_cancel}
-\title{Cancel a running batch job on the OpenAI Batch API}
+\title{Cancel a Running Batch Job on the OpenAI Batch API}
 \usage{
 oai_batch_cancel(batch_id, key_name = "OPENAI_API_KEY")
 }
 \arguments{
-\item{key_name}{}
+\item{batch_id}{Batch identifier (starts with 'batch_'), returned by oai_batch_create()}
+
+\item{key_name}{Name of the environment variable containing your API key}
+}
+\value{
+Metadata about the cancelled batch job
 }
 \description{
-Cancel a running batch job on the OpenAI Batch API
+Cancels an in-progress batch job. The batch will stop processing new
+requests, but requests already being processed may still complete.
+}
+\examples{
+\dontrun{
+# Cancel a batch job that's taking too long
+cancelled <- oai_batch_cancel("batch_abc123")
+cancelled$status # Will be "cancelling" or "cancelled"
+}
 }

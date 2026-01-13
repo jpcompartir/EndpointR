@@ -2,13 +2,29 @@
 % Please edit documentation in R/openai_batch_api.R
 \name{oai_batch_list}
 \alias{oai_batch_list}
-\title{Title}
+\title{List Batch Jobs on the OpenAI Batch API}
 \usage{
 oai_batch_list(limit = 20L, after = NULL, key_name = "OPENAI_API_KEY")
 }
 \arguments{
-\item{key_name}{}
+\item{limit}{Maximum number of batch jobs to return}
+
+\item{after}{Cursor for pagination; batch ID to start after}
+
+\item{key_name}{Name of the environment variable containing your API key}
+}
+\value{
+A list containing batch job metadata and pagination information
 }
 \description{
-Title
+Retrieve a paginated list of batch jobs associated with your API key.
+}
+\examples{
+\dontrun{
+# List recent batch jobs
+batches <- oai_batch_list(limit = 10)
+
+# Paginate through results
+next_page <- oai_batch_list(after = batches$last_id)
+}
 }

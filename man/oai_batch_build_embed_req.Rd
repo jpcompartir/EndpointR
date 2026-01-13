@@ -15,23 +15,30 @@ oai_batch_build_embed_req(
 )
 }
 \arguments{
-\item{input}{Text input you wish to embed}
+\item{input}{Text input to embed}
 
-\item{id}{A custom, unique Row ID}
+\item{id}{A custom, unique row ID}
 
 \item{model}{The embedding model to use}
 
-\item{dimensions}{Number of embedding dimensions to return}
+\item{dimensions}{Number of embedding dimensions (NULL uses model default)}
 
-\item{method}{The http request type, usually 'POST'}
+\item{method}{The HTTP request type, usually 'POST'}
 
 \item{encoding_format}{Data type of the embedding values}
 
-\item{endpoint}{The internal suffix of the endpoint's url e.g. /v1/embeddings}
+\item{endpoint}{The API endpoint path, e.g. /v1/embeddings}
 }
 \value{
 a row of JSON
 }
 \description{
 This function prepares a single row of data for the OpenAI Batch/Files APIs, where each row should be valid JSON. The APIs do not guarantee the results will be in the same order, so we need to provide an ID with each request.
+}
+\examples{
+\dontrun{
+text <- "embed_me"
+id <- "id_1"
+batch_req <- oai_batch_build_embed_req(text, id)
+}
 }

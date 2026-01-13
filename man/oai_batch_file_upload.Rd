@@ -11,11 +11,11 @@ oai_batch_file_upload(
 )
 }
 \arguments{
-\item{jsonl_rows}{Rows of valid JSON, output of a oai_batch_prepare* function}
+\item{jsonl_rows}{Rows of valid JSON, output of an oai_batch_prepare* function}
 
-\item{key_name}{Name of the API key, usually OPENAI_API_KEY}
+\item{key_name}{Name of the environment variable containing your API key}
 
-\item{purpose}{Tag, e.g. 'classification', 'batch', 'fine-tuning'}
+\item{purpose}{File purpose tag, e.g. 'batch', 'fine-tune'}
 }
 \value{
 Metadata for an upload to the OpenAI Files API
@@ -23,6 +23,17 @@ Metadata for an upload to the OpenAI Files API
 \description{
 Prepare and upload a file to be uploaded to the OpenAI Batch API
 }
+\examples{
+\dontrun{
+df <- data.frame(
+  id = c("doc_1", "doc_2"),
+  text = c("Hello world", "Goodbye world")
+)
+jsonl_content <- oai_batch_prepare_embeddings(df, text_var = text, id_var = id)
+file_info <- oai_batch_file_upload(jsonl_content)
+file_info$id # Use this ID to create a batch job
+}
+}
 \seealso{
-\code{openai_files_api.R}
+\code{oai_files_upload()}, \code{oai_files_list()}
 }

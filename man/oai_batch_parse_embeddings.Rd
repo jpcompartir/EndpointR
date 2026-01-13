@@ -2,13 +2,36 @@
 % Please edit documentation in R/openai_batch_api.R
 \name{oai_batch_parse_embeddings}
 \alias{oai_batch_parse_embeddings}
-\title{Parse an embeddings batch job into a data frame}
+\title{Parse an Embeddings Batch Job into a Data Frame}
 \usage{
 oai_batch_parse_embeddings(content, original_df = NULL, id_var = NULL)
 }
 \arguments{
-\item{id_var}{}
+\item{content}{Character string of JSONL content from the batch output file}
+
+\item{original_df}{Optional original data frame to rename custom_id column}
+
+\item{id_var}{If original_df provided, the column name to rename custom_id to}
+}
+\value{
+A tibble with custom_id (or renamed), .error, .error_msg, and
+embedding dimensions (V1, V2, ..., Vn)
 }
 \description{
-Parse an embeddings batch job into a data frame
+Parses the JSONL content returned from a completed embeddings batch job
+and converts it into a tidy data frame with one row per embedding.
+}
+\examples{
+\dontrun{
+# After downloading batch results with oai_files_content()
+content <- oai_files_content(status$output_file_id)
+embeddings_df <- oai_batch_parse_embeddings(content)
+
+# Optionally rename the ID column to match original data
+embeddings_df <- oai_batch_parse_embeddings(
+  content,
+  original_df = my_df,
+  id_var = doc_id
+)
+}
 }

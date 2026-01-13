@@ -2,7 +2,7 @@
 % Please edit documentation in R/openai_batch_api.R
 \name{oai_batch_build_completions_req}
 \alias{oai_batch_build_completions_req}
-\title{Title}
+\title{Create a Single OpenAI Batch API - Chat Completions Request}
 \usage{
 oai_batch_build_completions_req(
   input,
@@ -17,8 +17,39 @@ oai_batch_build_completions_req(
 )
 }
 \arguments{
-\item{endpoint}{}
+\item{input}{Text input (user message) for the completion}
+
+\item{id}{A custom, unique row ID}
+
+\item{model}{The chat completion model to use}
+
+\item{system_prompt}{Optional system prompt to guide the model's behaviour}
+
+\item{temperature}{Sampling temperature (0 = deterministic, higher = more random)}
+
+\item{max_tokens}{Maximum number of tokens to generate}
+
+\item{schema}{Optional JSON schema for structured output (json_schema object or list)}
+
+\item{method}{The HTTP request type, usually 'POST'}
+
+\item{endpoint}{The API endpoint path, e.g. /v1/chat/completions}
+}
+\value{
+A row of JSON suitable for the Batch API
 }
 \description{
-Title
+This function prepares a single row of data for the OpenAI Batch/Files APIs,
+where each row should be valid JSON. The APIs do not guarantee the results
+will be in the same order, so we need to provide an ID with each request.
+}
+\examples{
+\dontrun{
+req <- oai_batch_build_completions_req(
+  input = "What is the capital of France?",
+  id = "query_1",
+  model = "gpt-4o-mini",
+  temperature = 0
+)
+}
 }

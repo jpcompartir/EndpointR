@@ -16,21 +16,21 @@ oai_batch_prepare_embeddings(
 )
 }
 \arguments{
-\item{df}{A data frame containing texts to embed}
+\item{df}{A data frame containing text to process}
 
-\item{text_var}{Name of the column containing text to embed}
+\item{text_var}{Name of the column containing input text}
 
-\item{id_var}{Name of the column to use as ID}
+\item{id_var}{Name of the column to use as row ID}
 
-\item{model}{OpenAI embedding model to use (default: "text-embedding-3-small")}
+\item{model}{The embedding model to use}
 
 \item{dimensions}{Number of embedding dimensions (NULL uses model default)}
 
-\item{method}{The http request type, usually 'POST'}
+\item{method}{The HTTP request type, usually 'POST'}
 
 \item{encoding_format}{Data type of the embedding values}
 
-\item{endpoint}{The internal suffix of the endpoint's url e.g. /v1/embeddings}
+\item{endpoint}{The API endpoint path, e.g. /v1/embeddings}
 }
 \value{
 A list of JSON requests
@@ -39,9 +39,18 @@ A list of JSON requests
 Prepare a Data Frame for the OpenAI Batch API - Embeddings
 }
 \details{
-Take an enitre data frame and turn each row into a valid line of JSON ready for a .jsonl file upload to the OpenAI Files API + Batch API job trigger.
+Takes an entire data frame and turns each row into a valid line of JSON ready for a .jsonl file upload to the OpenAI Files API + Batch API job trigger.
 
 Each request must have its own ID, as the Batch API makes no guarantees about the order the results will be returned in.
 
 To reduce the overall size, and the explanatory power of the Embeddings, you can set dimensions to lower than the default (which vary based on model).
+}
+\examples{
+\dontrun{
+df <- data.frame(
+  id = c("doc_1", "doc_2", "doc_3"),
+  text = c("Hello world", "Embedding text", "Another document")
+)
+jsonl_content <- oai_batch_prepare_embeddings(df, text_var = text, id_var = id)
+}
 }

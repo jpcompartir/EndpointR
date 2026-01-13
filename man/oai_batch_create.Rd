@@ -13,15 +13,15 @@ oai_batch_create(
 )
 }
 \arguments{
-\item{file_id}{Pointer to a file uploaded to the OpenAI API}
+\item{file_id}{File ID returned by oai_batch_file_upload()}
 
-\item{endpoint}{The internal suffix of the endpoint's url e.g. /v1/embeddings}
+\item{endpoint}{The API endpoint path, e.g. /v1/embeddings}
 
-\item{completion_window}{Time until the batch should be returned, NOTE: OpenAI makes 24 hour guarantees only.}
+\item{completion_window}{Time window for batch completion (OpenAI guarantees 24h only)}
 
-\item{metadata}{Any additional metadata you want to tag the batch with}
+\item{metadata}{Optional list of metadata to tag the batch with}
 
-\item{key_name}{Name of the API key, usually OPENAI_API_KEY}
+\item{key_name}{Name of the environment variable containing your API key}
 }
 \value{
 Metadata about an OpenAI Batch Job Including the batch ID
@@ -35,4 +35,14 @@ Once a file has been uploaded to the OpenAI Files API it's necessary to trigger 
 It's important to choose the right endpoint. If processing should be done by the Completions API, be sure to route to v1/chat/completions, and this must match each row in your uploaded file.
 
 Batch Job Ids start with "batch_", you'll receive a warning if you try to check batch status on a Files API file (the Files/Batch API set up is a lil bit clumsy for me)
+}
+\examples{
+\dontrun{
+# After uploading a file with oai_batch_file_upload()
+batch_job <- oai_batch_create(
+  file_id = "file-abc123",
+  endpoint = "/v1/embeddings"
+)
+batch_job$id # Use this to check status later
+}
 }
