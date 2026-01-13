@@ -337,10 +337,68 @@ oai_batch_parse_embeddings <- function(content, original_df = NULL, id_var = NUL
 
   return(result)
 }
-
-
-
-
+oai_batch_parse_completions <- function(content, original_df = NULL, id_var = NULL) {
+  
+  lines <- strsplit(content, "\n")[[1]]
+  lines <- lines[nchar(lines) > 0]
+  
+  if (length(lines) == 0) {
+    return(tibble::tibble(
+      custom_id = character(),
+      content = character(),
+      .error = logical(),
+      .error_msg = character()
+    ))
+  }
+  
+  parsed <- purrr::imap(lines, \(line, idx) {
+    tryCatch(
+      jsonlite::fromJSON(line, simplifyVector = FALSE),
+      error = function(e) {
+        list(
+          custom_id = paste0("__PARSE_ERROR_LINE_", idx),
+          error = list(message = paste("Failed to parse JSONL line", idx, ":", conditionMessage(e)))
+        )
+      }
+    )
+  })
+  
+  results <- purrr::map(parsed, function(item) {
+    custom_id <- item$custom_id
+    
+    if (!is.null(item$error)) {
+      return(tibble::tibble(
+        custom_id = custom_id,
+        content = NA_character_,
+        .error = TRUE,
+        .error_msg = item$error$message %||% "Unknown error"
+      ))
+    }
+    
+    response_content <- purrr::pluck(
+      item, "response", "body", "choices", 1, "message", "content",
+      .default = NA_character_
+    )
+    
+    tibble::tibble(
+      custom_id = custom_id,
+      content = response_content,
+      .error = FALSE,
+      .error_msg = NA_character_
+    )
+  })
+  
+  result <- purrr::list_rbind(results)
+  
+  if (!is.null(original_df) && !is.null(id_var)) {
+    id_sym <- rlang::ensym(id_var)
+    id_col_name <- rlang::as_name(id_sym)
+    result <- result |>
+    dplyr::rename(!!id_col_name := custom_id)
+  }
+  
+  return(result)
+}
 # internal/helpers ----
 .validate_batch_inputs <- function(.ids, .texts, max_requests = 50000) {
   n_requests <- length(.texts)
