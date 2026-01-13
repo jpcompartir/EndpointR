@@ -112,6 +112,49 @@ oai_batch_build_completion_req <- function(
   jsonlite::toJSON(req_row, auto_unbox = TRUE)
 }
   
+  oai_batch_prepare_completions <- function(
+    df,
+    text_var,
+    id_var,
+    model = "gpt-4o-mini",
+    system_prompt = NULL,
+    temperature = 0,
+    max_tokens = 500L,
+    schema = NULL,
+    method = "POST",
+    endpoint = "/v1/chat/completions") {
+      
+  text_sym <- rlang::ensym(text_var)
+  id_sym <- rlang::ensym(id_var)
+  
+  .texts <- dplyr::pull(df, !!text_sym)
+  .ids <- dplyr::pull(df, !!id_sym)
+  
+  if (!.validate_batch_inputs(.ids, .texts)) {
+    return("")
+  }
+  
+  ## pre-process schema once if S7 object to avoid repeated json_dump() calls
+  if (!is.null(schema) && inherits(schema, "json_schema")) {
+    schema <- json_dump(schema)
+  }
+  
+  reqs <- purrr::map2_chr(.texts, .ids, \(x, y) {
+    oai_batch_build_completion_req(
+      input = x,
+      id = as.character(y),
+      model = model,
+      system_prompt = system_prompt,
+      temperature = temperature,
+      max_tokens = max_tokens,
+      schema = schema,
+      method = method,
+      endpoint = endpoint
+    )
+  })
+  
+  return(paste0(reqs, collapse = "\n"))
+}
 oai_batch_file_upload <- function(jsonl_rows, key_name = "OPENAI_API_KEY", purpose = "batch") {
 
   api_key <- get_api_key(key_name)
