@@ -2,7 +2,7 @@
 % Please edit documentation in R/openai_batch_api.R
 \name{oai_batch_parse_completions}
 \alias{oai_batch_parse_completions}
-\title{Title}
+\title{Parse a completions batch job into a data frame}
 \usage{
 oai_batch_parse_completions(content, original_df = NULL, id_var = NULL)
 }
@@ -10,5 +10,5 @@ oai_batch_parse_completions(content, original_df = NULL, id_var = NULL)
 \item{id_var}{}
 }
 \description{
-Title
+Parse a completions batch job into a data frame
 }

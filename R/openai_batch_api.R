@@ -1,5 +1,5 @@
 # embed request building ---- 
-#' @description Create a single OpenAI Batch API - Embedding request
+#' Create a single OpenAI Batch API - Embedding request
 #'
 #' This function prepares a single row of data for the OpenAI Batch/Files APIs, where each row should be valid JSON. The APIs do not guarantee the results will be in the same order, so we need to provide an ID with each request.
 #' 
@@ -89,7 +89,7 @@ oai_batch_prepare_embeddings <- function(df, text_var, id_var, model = "text-emb
   return(reqs)
 }
     
-# completions request building ----
+
 #' Title
 #'
 #' @param input
@@ -106,16 +106,7 @@ oai_batch_prepare_embeddings <- function(df, text_var, id_var, model = "text-emb
 #'
 #' @export
 #' @examples
-oai_batch_build_completion_req <- function(
-  input,
-  id,
-  model = "gpt-4o-mini",
-  system_prompt = NULL,
-  temperature = 0,
-  max_tokens = 500L,
-  schema = NULL,
-  method = "POST",
-  endpoint = "/v1/chat/completions") {
+oai_batch_build_completions_req <- function(input, id, model = "gpt-4o-mini", system_prompt = NULL, temperature = 0, max_tokens = 500L, schema = NULL, method = "POST", endpoint = "/v1/chat/completions") {
     
   messages <- list()
   
@@ -167,17 +158,7 @@ oai_batch_build_completion_req <- function(
   #'
   #' @export
   #' @examples
-  oai_batch_prepare_completions <- function(
-    df,
-    text_var,
-    id_var,
-    model = "gpt-4o-mini",
-    system_prompt = NULL,
-    temperature = 0,
-    max_tokens = 500L,
-    schema = NULL,
-    method = "POST",
-    endpoint = "/v1/chat/completions") {
+  oai_batch_prepare_completions <- function(df, text_var, id_var, model = "gpt-4o-mini", system_prompt = NULL, temperature = 0, max_tokens = 500L, schema = NULL, method = "POST", endpoint = "/v1/chat/completions") {
       
   text_sym <- rlang::ensym(text_var)
   id_sym <- rlang::ensym(id_var)
@@ -274,11 +255,7 @@ if (httr2::resp_status(resp) >= 400) {
 #'
 #' @export
 #' @examples
-oai_batch_create <- function(file_id,
-  endpoint = c("/v1/embeddings", "/v1/chat/completions"),
-  completion_window = "24h",
-  metadata = NULL,
-  key_name = "OPENAI_API_KEY") {
+oai_batch_create <- function(file_id, endpoint = c("/v1/embeddings", "/v1/chat/completions"), completion_window = "24h", metadata = NULL, key_name = "OPENAI_API_KEY") {
   
   endpoint <- match.arg(endpoint)
   api_key <- get_api_key(key_name)
@@ -351,6 +328,15 @@ oai_batch_list <- function(limit = 20L, after = NULL, key_name = "OPENAI_API_KEY
   httr2::resp_body_json()
 }
           
+#' Cancel a running batch job on the OpenAI Batch API
+#'
+#' @param batch_id
+#' @param key_name
+#'
+#' @returns
+#'
+#' @export
+#' @examples
 oai_batch_cancel <- function(batch_id, key_name = "OPENAI_API_KEY") {
   
   api_key <- get_api_key(key_name)
@@ -365,7 +351,7 @@ oai_batch_cancel <- function(batch_id, key_name = "OPENAI_API_KEY") {
           
           
 # results parsing ----
-#' Title
+#' Parse an embeddings batch job into a data frame
 #'
 #' @param content
 #' @param original_df
@@ -446,7 +432,7 @@ oai_batch_parse_embeddings <- function(content, original_df = NULL, id_var = NUL
   return(result)
 }
           
-#' Title
+#' Parse a completions batch job into a data frame
 #'
 #' @param content
 #' @param original_df
@@ -522,9 +508,7 @@ oai_batch_parse_completions <- function(content, original_df = NULL, id_var = NU
           
 # internal/helpers ----
 #' @keywords internal
-.validate_batch_inputs <- function(.ids, 
-  .texts, 
-  max_requests = 50000) {
+.validate_batch_inputs <- function(.ids,  .texts,  max_requests = 50000) { 
   n_requests <- length(.texts)
   
   if (n_requests == 0) {

@@ -126,6 +126,29 @@ reference:
   - json_dump
   - validate_response
 
+- title: "OpenAI Files API"
+  desc: "Functions for uploading and managing files on OpenAI's Files API"
+  contents:
+  - oai_file_list
+  - oai_file_delete
+  - oai_file_content
+
+- title: "OpenAI Batch API"
+  desc: "Functions for managing batches on OpenAI's Batch API"
+  contents:
+  - oai_batch_file_upload
+  - oai_batch_create
+  - oai_batch_status
+  - oai_batch_list
+  - oai_batch_cancel
+  - oai_batch_build_embed_req
+  - oai_batch_prepare_embeddings
+  - oai_batch_parse_embeddings
+  - oai_batch_build_completions_req
+  - oai_batch_prepare_completions
+  - oai_batch_parse_completions
+  
+
 - title: "Schema Builders"
   desc: "Helper functions for creating different types of JSON schema properties"
   contents:
