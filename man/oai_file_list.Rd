@@ -2,7 +2,7 @@
 % Please edit documentation in R/openai_files_api.R
 \name{oai_file_list}
 \alias{oai_file_list}
-\title{List files available in the OpenAI Files API}
+\title{List Files on the OpenAI Files API}
 \usage{
 oai_file_list(
   purpose = c("batch", "fine-tune", "assistants", "vision", "user_data", "evals"),
@@ -10,10 +10,33 @@ oai_file_list(
 )
 }
 \arguments{
-\item{purpose}{The intended purpose of the uploaded file, one of "batch", "fine-tune", "assistants", "vision", "user_data", "evals"}
+\item{purpose}{The intended purpose of the uploaded file. Must be one of
+"batch", "fine-tune", "assistants", "vision", "user_data", or "evals".}
 
-\item{key_name}{The name of your API key, usually "OPENAI_API_KEY"}
+\item{key_name}{Name of the environment variable containing your API key}
+}
+\value{
+A list containing file metadata and pagination information. Each
+file entry includes id, filename, purpose, bytes, created_at, and status.
 }
 \description{
-List files available in the OpenAI Files API
+Retrieve a list of files that have been uploaded to the OpenAI Files API,
+filtered by purpose. Files are retained for 30 days after upload.
+}
+\examples{
+\dontrun{
+# List all batch files
+batch_files <- oai_file_list(purpose = "batch")
+
+# List fine-tuning files
+ft_files <- oai_file_list(purpose = "fine-tune")
+
+# Access file IDs
+file_ids <- purrr::map_chr(batch_files$data, "id")
+}
+}
+\seealso{
+\code{\link[=oai_file_content]{oai_file_content()}} to retrieve file contents,
+\code{\link[=oai_file_delete]{oai_file_delete()}} to remove files,
+\code{\link[=oai_batch_file_upload]{oai_batch_file_upload()}} to upload batch files
 }

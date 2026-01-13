@@ -2,15 +2,34 @@
 % Please edit documentation in R/openai_files_api.R
 \name{oai_file_delete}
 \alias{oai_file_delete}
-\title{Delete a file from the OpenAI Files API}
+\title{Delete a File from the OpenAI Files API}
 \usage{
 oai_file_delete(file_id, key_name = "OPENAI_API_KEY")
 }
 \arguments{
-\item{file_id}{ID of the file given by OpenAI}
+\item{file_id}{File identifier (starts with 'file-'), returned by
+\code{\link[=oai_batch_file_upload]{oai_batch_file_upload()}} or \code{\link[=oai_file_list]{oai_file_list()}}}
 
-\item{key_name}{The name of your API key, usually "OPENAI_API_KEY"}
+\item{key_name}{Name of the environment variable containing your API key}
+}
+\value{
+A list containing the file id, object type, and deletion status
+(deleted = TRUE/FALSE)
 }
 \description{
-Delete a file from the OpenAI Files API
+Permanently deletes a file from the OpenAI Files API. This action cannot
+be undone. Note that files associated with active batch jobs cannot be
+deleted until the job completes.
+}
+\examples{
+\dontrun{
+# Delete a specific file
+result <- oai_file_delete("file-abc123")
+result$deleted # TRUE if successful
+
+}
+}
+\seealso{
+\code{\link[=oai_file_list]{oai_file_list()}} to find file IDs,
+\code{\link[=oai_file_content]{oai_file_content()}} to retrieve file contents before deletion
 }

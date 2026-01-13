@@ -2,15 +2,38 @@
 % Please edit documentation in R/openai_files_api.R
 \name{oai_file_content}
 \alias{oai_file_content}
-\title{Retrieve content from a file on the OpenAI Files API}
+\title{Retrieve Content from a File on the OpenAI Files API}
 \usage{
 oai_file_content(file_id, key_name = "OPENAI_API_KEY")
 }
 \arguments{
-\item{file_id}{ID of the file given by OpenAI}
+\item{file_id}{File identifier (starts with 'file-'), typically the
+output_file_id from \code{\link[=oai_batch_status]{oai_batch_status()}}}
 
-\item{key_name}{The name of your API key, usually "OPENAI_API_KEY"}
+\item{key_name}{Name of the environment variable containing your API key}
+}
+\value{
+A character string containing the file contents. For batch outputs,
+this is JSONL format (one JSON object per line).
 }
 \description{
-Retrieve content from a file on the OpenAI Files API
+Downloads and returns the content of a file stored on the OpenAI Files API.
+For batch job outputs, this returns JSONL content that can be parsed with
+\code{\link[=oai_batch_parse_embeddings]{oai_batch_parse_embeddings()}} or \code{\link[=oai_batch_parse_completions]{oai_batch_parse_completions()}}.
+}
+\examples{
+\dontrun{
+# Get batch job status and download results
+status <- oai_batch_status("batch_abc123")
+
+if (status$status == "completed") {
+  content <- oai_file_content(status$output_file_id)
+  results <- oai_batch_parse_embeddings(content)
+}
+}
+}
+\seealso{
+\code{\link[=oai_batch_status]{oai_batch_status()}} to get output_file_id from completed batches,
+\code{\link[=oai_batch_parse_embeddings]{oai_batch_parse_embeddings()}} and \code{\link[=oai_batch_parse_completions]{oai_batch_parse_completions()}} to
+parse batch results
 }
