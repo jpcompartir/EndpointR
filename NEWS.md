@@ -1,6 +1,34 @@
 # EndpointR 0.2.1
 
--   OpenAI Batch API for Embeddings and Completions
+## OpenAI Batch API
+
+Adds support for OpenAI's asynchronous Batch API, offering 50% cost savings and higher rate limits compared to synchronous endpoints. Ideal for large-scale embeddings, classifications, and batch inference tasks.
+
+**Request preparation:**
+
+-   `oai_batch_build_embed_req()` - Build a single embedding request row
+-   `oai_batch_prepare_embeddings()` - Prepare an entire data frame for batch embeddings
+-   `oai_batch_build_completions_req()` - Build a single chat completions request row
+-   `oai_batch_prepare_completions()` - Prepare an entire data frame for batch completions (supports structured outputs via JSON schema)
+
+**Job management:**
+
+-   `oai_batch_file_upload()` - Upload prepared JSONL to OpenAI Files API
+-   `oai_batch_create()` - Trigger a batch job on an uploaded file
+-   `oai_batch_status()` - Check the status of a running batch job
+-   `oai_batch_list()` - List all batch jobs associated with your API key
+-   `oai_batch_cancel()` - Cancel an in-progress batch job
+
+**Results parsing:**
+
+-   `oai_batch_parse_embeddings()` - Parse batch embedding results into a tidy data frame
+-   `oai_batch_parse_completions()` - Parse batch completion results into a tidy data frame
+
+## OpenAI Files API
+
+-   `oai_file_list()` - List files uploaded to the OpenAI Files API
+-   `oai_file_content()` - Retrieve the content of a file (e.g., batch results)
+-   `oai_file_delete()` - Delete a file from the Files API
 
 # EndpointR 0.2.0
 

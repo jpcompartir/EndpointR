@@ -26,8 +26,8 @@ test_that("oai_batch_build_embed_req creates a row of JSON and responds to its i
   expect_equal(no_dims_str$body$model, "text-embedding-3-small")
 })
 
-test_that("oai_batch_build_completion_req creates valid JSON structure", {
-  result <- oai_batch_build_completion_req(
+test_that("oai_batch_build_completions_req creates valid JSON structure", {
+  result <- oai_batch_build_completions_req(
     input = "Hello",
     id = "test_1",
     model = "gpt-4o-mini"
@@ -44,8 +44,8 @@ test_that("oai_batch_build_completion_req creates valid JSON structure", {
   expect_equal(parsed$body$messages[[1]]$content, "Hello")
 })
 
-test_that("oai_batch_build_completion_req handles system_prompt", {
-  result <- oai_batch_build_completion_req(
+test_that("oai_batch_build_completions_req handles system_prompt", {
+  result <- oai_batch_build_completions_req(
     input = "Hello",
     id = "test_2",
     system_prompt = "You are helpful"
@@ -59,7 +59,7 @@ test_that("oai_batch_build_completion_req handles system_prompt", {
   expect_equal(parsed$body$messages[[2]]$role, "user")
 })
 
-test_that("oai_batch_build_completion_req handles schema as list", {
+test_that("oai_batch_build_completions_req handles schema as list", {
   test_schema <- list(
     type = "json_schema",
     json_schema = list(
@@ -68,7 +68,7 @@ test_that("oai_batch_build_completion_req handles schema as list", {
     )
   )
 
-  result <- oai_batch_build_completion_req(
+  result <- oai_batch_build_completions_req(
     input = "Hello",
     id = "test_3",
     schema = test_schema
@@ -80,8 +80,8 @@ test_that("oai_batch_build_completion_req handles schema as list", {
   expect_equal(parsed$body$response_format$type, "json_schema")
 })
 
-test_that("oai_batch_build_completion_req respects temperature and max_tokens", {
-  result <- oai_batch_build_completion_req(
+test_that("oai_batch_build_completions_req respects temperature and max_tokens", {
+  result <- oai_batch_build_completions_req(
     input = "Hello",
     id = "test_4",
     temperature = 0.7,

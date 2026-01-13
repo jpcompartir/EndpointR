@@ -209,7 +209,7 @@ oai_batch_prepare_completions <- function(df, text_var, id_var, model = "gpt-4o-
   }
   
   reqs <- purrr::map2_chr(.texts, .ids, \(x, y) {
-    oai_batch_build_completion_req(
+    oai_batch_build_completions_req(
       input = x,
       id = as.character(y),
       model = model,
