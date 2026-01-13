@@ -14,6 +14,14 @@ knitr::opts_chunk$set(
 )
 ```
 
+TODOS: 
+
+- [ ] Quick start code when it's all ready
+- [ ] OpenAI Batch API & Files API
+- [ ] Batch API for embeddings
+- [ ] Batch API for completions
+
+
 ```{r setup}
 library(EndpointR)
 ```
@@ -24,9 +32,12 @@ TODO: Code samples when the functions etc. are up and running.
 
 # Introduction
 
-Most of EndpointR's integrations are with synchronous APIs such as [Completions](https://platform.openai.com/docs/api-reference/completions) by OpenAI, Hugging Face's [Inference Endpoints](https://huggingface.co/docs/inference-endpoints/en/index), and Messages by [Anthropic](https://platform.claude.com/docs/en/api/messages). When using these APIs, we send a request, wait a second or two and receive a response.
+Most of EndpointR's integrations are with synchronous APIs such as [Completions](https://platform.openai.com/docs/api-reference/completions) by OpenAI, Hugging Face's [Inference Endpoints](https://huggingface.co/docs/inference-endpoints/en/index), and Messages by [Anthropic](https://platform.claude.com/docs/en/api/messages). When using these APIs, we send a request, wait a second or two and receive a response. 
 
-However, most Generative AI providers also offer lower-cost, asynchronous APIs. The providers usually offer a guarantee of the results within a time frame, and an estimate of the average time to return the results. For example, they may guarantee results within 24 hours, but expect them within 1-3 hours.
+For many use-cases the synchronous APIs work just fine. But often as data scientists we need to do the same thing to thousands, or millions of rows of data. Hammering the provider's servers in such cases is inefficient for us and them. Plus, we probably don't want to sit around with a locked R session for 5 hours as our results get returned to us.
+
+Most Generative AI providers also offer lower-cost, asynchronous APIs. The providers usually offer a guarantee of the results within a time frame, and an estimate of the average time to return the results. For example, they may guarantee results within 24 hours, but expect them within 1-3 hours.
+
 
 # When to choose Synchronous vs Asynchronous
 
@@ -50,11 +61,21 @@ Batch processing jobs are often helpful in use cases like:
 
 </blockquote>
 
+# Files API
+
+In order to use OpenAI's Batch API, we need to upload files to the Files API. Luckily this process is quite simple, but do keep in mind that to successfully run a batch job of embeddings, you will need to work with three APIs:
+
+- Embeddings API
+- Batch API
+- Files API
+
+Fortunately, the Batch and Files API dovetail quite well, and the same mental models will be useful for both. 
+
 # EndpointR Implementation of OpenAI Batch API
 
 Due to inherent differences between Synchronous and Asynchronous APIs, the EndpointR implementation of the OpenAI Batch API will feel more like submitting jobs to a cluster/server than automagically working with an entire data frame as in `oai_complete_df()` and `oai_embed_df()`. As such, different functions and workflows are needed.
 
-You will likely want to use the Batch API for both embeddings and completions, so we have a separate function to prepare batches for each one:
+You will likely want to use the Batch API for both embeddings and completions at separate times and with distinct arguments, so we have a separate function to prepare batches for each one:
 
 -   `oai_batch_prepare_embeddings()`
 -   `oai_batch_prepare_completions()`
@@ -63,9 +84,9 @@ Each function expects a data frame as input: `oai_batch_prepare_embeddings()` wi
 
 > **NOTE:** For structured outputs the Batch API requires us to send the JSON schema with each request. Complex schemas will quickly lead to large file size, perhaps eclipsing the 200 MB limit.
 
-EndpointR prepares each batch, writes it to a file in temporary storage, and then sends the file to the OpenAI Files API. Once in the Files API, EndpointR can trigger the batch to run.
+EndpointR prepares each batch, writes it to a file in temporary storage, and then sends the file to the OpenAI Files API. Once in the Files API where it will receive a file ID and some other metadata. EndpointR can pass the file ID to the Batch API and trigger a batch job to run. Once running, the batch job's status can be checked and in the end we'll receive information on where to find the results in the **Files API**. 
 
-Each line of of the .jsonl file should form a self-contained request. And rather than routing to the endpoint's URL we route to a stub. For reference, the entire batch gets sent to its own, full URL.
+Whether using the Batch API for embeddings or chat completions, each line of of the .jsonl file must form a self-contained request with a unique identifier.
 
 Example for embeddings (no structured output!):
 
@@ -90,4 +111,5 @@ Prettify'd version:
 }
 ```
 
-> **NOTE:** The Embeddings API expects the input in an 'input' field rather than 'messages' as in the Completions API, and the batch requests must adhere to this.
+> **NOTE:** The Embeddings API expects the input in an 'input' field rather than 'messages' as in the Completions API, and batch requests must adhere to this.
+
