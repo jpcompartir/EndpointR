@@ -80,6 +80,30 @@ test_that("oai_batch_build_completions_req handles schema as list", {
   expect_equal(parsed$body$response_format$type, "json_schema")
 })
 
+test_that("oai_batch_build_completions_req handles json_schema S7 object", {
+  test_schema <- create_json_schema(
+    name = "sentiment_schema",
+    description = "Sentiment analysis result",
+    schema = schema_object(
+      sentiment = schema_string("The sentiment", enum = c("positive", "negative", "neutral")),
+      required = c("sentiment")
+    )
+  )
+
+  result <- oai_batch_build_completions_req(
+    input = "Analyse the sentiment of this text",
+    id = "test_s7_schema",
+    schema = test_schema
+  )
+
+  parsed <- jsonlite::fromJSON(result, simplifyVector = FALSE)
+
+  expect_true("response_format" %in% names(parsed$body))
+  expect_equal(parsed$body$response_format$type, "json_schema")
+  expect_equal(parsed$body$response_format$json_schema$name, "sentiment_schema")
+  expect_equal(parsed$body$response_format$json_schema$strict, TRUE)
+})
+
 test_that("oai_batch_build_completions_req respects temperature and max_tokens", {
   result <- oai_batch_build_completions_req(
     input = "Hello",

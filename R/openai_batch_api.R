@@ -144,7 +144,7 @@ oai_batch_build_completions_req <- function(input, id, model = "gpt-4o-mini", sy
   )
   
   if (!is.null(schema)) {
-    if (inherits(schema, "json_schema")) {
+    if (S7::S7_inherits(schema, json_schema)) {
       body$response_format <- json_dump(schema)
     } else if (is.list(schema)) {
       body$response_format <- schema
@@ -204,7 +204,7 @@ oai_batch_prepare_completions <- function(df, text_var, id_var, model = "gpt-4o-
   }
   
   ## pre-process schema once if S7 object to avoid repeated json_dump() calls
-  if (!is.null(schema) && inherits(schema, "json_schema")) {
+  if (!is.null(schema) && S7::S7_inherits(schema, json_schema)) {
     schema <- json_dump(schema)
   }
   
