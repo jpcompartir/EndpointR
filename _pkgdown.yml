@@ -184,6 +184,8 @@ reference:
 authors:
   Jack Penzer:
     href: https://github.com/jpcompartir
+  Claude:
+    href: https://claude.ai
 
 repo:
   url:
@@ -195,8 +197,10 @@ development:
 
 news:
   releases:
-  - text: "Version 0.2"
-    href: nrews/index.html#endpointr-012
+  - text: "Version 0.2.1"
+    href: news/index.html#endpointr-021
+  - text: "Version 0.2.0"
+    href: news/index.html#endpointr-020
   - text: "Version 0.1.2"
     href: news/index.html#endpointr-012
   - text: "Version 0.1.1"

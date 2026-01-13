@@ -2,7 +2,7 @@
 
 -   OpenAI Batch API for Embeddings and Completions
 
-# EndpointR 0.2
+# EndpointR 0.2.0
 
 -   error message and status propagation improvement. Now writes .error, .error_msg (standardised across package), and .status. Main change is preventing httr2 eating the errors before we can deal with them
 -   adds parquet writing to oai_complete_df and oai_embed_df
