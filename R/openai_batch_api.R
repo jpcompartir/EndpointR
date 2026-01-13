@@ -68,7 +68,50 @@ oai_batch_prepare_embeddings <- function(df, text_var, id_var, model = "text-emb
 
   return(reqs)
 }
-
+oai_batch_build_completion_req <- function(
+  input,
+  id,
+  model = "gpt-4o-mini",
+  system_prompt = NULL,
+  temperature = 0,
+  max_tokens = 500L,
+  schema = NULL,
+  method = "POST",
+  endpoint = "/v1/chat/completions") {
+    
+  messages <- list()
+  
+  if (!is.null(system_prompt)) {
+    messages <- append(messages, list(list(role = "system", content = system_prompt)))
+  }
+  
+  messages <- append(messages, list(list(role = "user", content = input)))
+  
+  body <- list(
+    model = model,
+    messages = messages,
+    temperature = temperature,
+    max_tokens = max_tokens
+  )
+  
+  if (!is.null(schema)) {
+    if (inherits(schema, "json_schema")) {
+      body$response_format <- json_dump(schema)
+    } else if (is.list(schema)) {
+      body$response_format <- schema
+    }
+  }
+  
+  req_row <- list(
+    custom_id = as.character(id),
+    method = method,
+    url = endpoint,
+    body = body
+  )
+  
+  jsonlite::toJSON(req_row, auto_unbox = TRUE)
+}
+  
 oai_batch_file_upload <- function(jsonl_rows, key_name = "OPENAI_API_KEY", purpose = "batch") {
 
   api_key <- get_api_key(key_name)
