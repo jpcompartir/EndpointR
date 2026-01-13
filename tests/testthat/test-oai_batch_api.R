@@ -26,6 +26,59 @@ test_that("oai_batch_build_embed_req creates a row of JSON and responds to its i
   expect_equal(no_dims_str$body$model, "text-embedding-3-small")
 })
 
+test_that("oai_batch_build_completion_req creates valid JSON structure", {
+  result <- oai_batch_build_completion_req(
+    input = "Hello",
+    id = "test_1",
+    model = "gpt-4o-mini"
+  )
+
+  parsed <- jsonlite::fromJSON(result, simplifyVector = FALSE)
+
+  expect_equal(parsed$custom_id, "test_1")
+  expect_equal(parsed$method, "POST")
+  expect_equal(parsed$url, "/v1/chat/completions")
+  expect_equal(parsed$body$model, "gpt-4o-mini")
+  expect_equal(length(parsed$body$messages), 1)
+  expect_equal(parsed$body$messages[[1]]$role, "user")
+  expect_equal(parsed$body$messages[[1]]$content, "Hello")
+})
+test_that("oai_batch_build_completion_req handles system_prompt", {
+  result <- oai_batch_build_completion_req(
+    input = "Hello",
+    id = "test_2",
+    system_prompt = "You are helpful"
+  )
+
+  parsed <- jsonlite::fromJSON(result, simplifyVector = FALSE)
+
+  expect_equal(length(parsed$body$messages), 2)
+  expect_equal(parsed$body$messages[[1]]$role, "system")
+  expect_equal(parsed$body$messages[[1]]$content, "You are helpful")
+  expect_equal(parsed$body$messages[[2]]$role, "user")
+})
+
+test_that("oai_batch_build_completion_req handles schema as list", {
+  test_schema <- list(
+    type = "json_schema",
+    json_schema = list(
+      name = "test",
+      schema = list(type = "object", properties = list(sentiment = list(type = "string")))
+    )
+  )
+
+  result <- oai_batch_build_completion_req(
+    input = "Hello",
+    id = "test_3",
+    schema = test_schema
+  )
+
+  parsed <- jsonlite::fromJSON(result)
+
+  expect_true("response_format" %in% names(parsed$body))
+  expect_equal(parsed$body$response_format$type, "json_schema")
+})
+
 test_that("oai_batch_prepare_completions creates valid JSONL", {
   test_df <- tibble::tibble(
     id = c("a", "b"),
@@ -81,4 +134,21 @@ test_that("oai_batch_parse_embeddings handles multiple rows", {
   expect_equal(nrow(result), 2)
   expect_equal(result$custom_id, c("1", "2"))
   expect_equal(result$V1, c(0.1, 0.3))
+})
+test_that("oai_batch_prepare_embeddings rejects duplicate IDs", {
+  test_df <- tibble::tibble(
+    id = c("a", "a", "b"),
+    text = c("Text 1", "Text 2", "Text 3")
+  )
+
+  expect_error(
+    oai_batch_prepare_embeddings(test_df, text, id),
+    "custom_id values must be unique"
+  )
+})
+test_that("oai_batch_parse_embeddings handles empty input", {
+  result <- oai_batch_parse_embeddings("")
+  expect_equal(nrow(result), 0)
+  expect_true("custom_id" %in% names(result))
+  expect_true(".error" %in% names(result))
 })
