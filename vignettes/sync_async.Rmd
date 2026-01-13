@@ -14,21 +14,186 @@ knitr::opts_chunk$set(
 )
 ```
 
-TODOS: 
-
-- [ ] Quick start code when it's all ready
-- [ ] OpenAI Batch API & Files API
-- [ ] Batch API for embeddings
-- [ ] Batch API for completions
-
-
 ```{r setup}
 library(EndpointR)
 ```
 
 # Quickstart
 
-TODO: Code samples when the functions etc. are up and running.
+The Batch API workflow follows three stages: **prepare**, **submit**, and **retrieve**. Below are complete examples for embeddings and completions.
+
+## Batch Embeddings
+
+```{r batch-embeddings, eval = FALSE}
+# 1. Prepare your data
+df <- data.frame(
+ id = c("doc_1", "doc_2", "doc_3"),
+ text = c(
+   "The quick brown fox jumps over the lazy dog",
+   "Machine learning is transforming data science",
+   "R is a powerful language for statistical computing"
+ )
+)
+
+# 2. Prepare requests for the Batch API
+jsonl_content <- oai_batch_prepare_embeddings(
+ df,
+ text_var = text,
+ id_var = id,
+ model = "text-embedding-3-small",
+ dimensions = 256
+)
+
+# 3. Upload to the Files API
+file_info <- oai_batch_file_upload(jsonl_content)
+file_info$id
+#> "file-abc123..."
+
+# 4. Trigger the batch job
+batch_job <- oai_batch_create(
+ file_id = file_info$id,
+ endpoint = "/v1/embeddings"
+)
+batch_job$id
+#> "batch-xyz789..."
+
+# 5. Check status (repeat until completed)
+status <- oai_batch_status(batch_job$id)
+status$status
+#> "in_progress" ... later ... "completed"
+
+# 6. Download and parse results
+content <- oai_file_content(status$output_file_id)
+embeddings_df <- oai_batch_parse_embeddings(content)
+
+# Result: tidy data frame with id and embedding dimensions (V1, V2, ..., V256)
+embeddings_df
+#> # A tibble
+#>   custom_id .error .error_msg    V1      V2      V3 ...
+#>   <chr>     <lgl>  <chr>      <dbl>   <dbl>   <dbl> ...
+#> 1 doc_1     FALSE  NA         0.023  -0.041   0.018 ...
+#> 2 doc_2     FALSE  NA        -0.015   0.032   0.044 ...
+#> 3 doc_3     FALSE  NA         0.008  -0.027   0.031 ...
+```
+
+## Batch Completions
+
+```{r batch-completions, eval = FALSE}
+# 1. Prepare your data
+df <- data.frame(
+ id = c("q1", "q2", "q3"),
+ prompt = c(
+   "What is the capital of France?",
+   "Explain photosynthesis in one sentence.",
+   "What is 2 + 2?"
+ )
+)
+
+# 2. Prepare requests
+jsonl_content <- oai_batch_prepare_completions(
+ df,
+ text_var = prompt,
+ id_var = id,
+ model = "gpt-4o-mini",
+ system_prompt = "You are a helpful assistant. Be concise.",
+ temperature = 0,
+ max_tokens = 100
+)
+
+# 3. Upload and trigger batch job
+file_info <- oai_batch_file_upload(jsonl_content)
+batch_job <- oai_batch_create(
+ file_id = file_info$id,
+ endpoint = "/v1/chat/completions"
+)
+
+# 4. Check status and retrieve results
+status <- oai_batch_status(batch_job$id)
+# ... wait for status$status == "completed" ...
+
+content <- oai_file_content(status$output_file_id)
+completions_df <- oai_batch_parse_completions(content)
+
+completions_df
+#> # A tibble
+#>   custom_id content                                      .error .error_msg
+#>   <chr>     <chr>                                        <lgl>  <chr>
+#> 1 q1        The capital of France is Paris.              FALSE  NA
+#> 2 q2        Photosynthesis converts sunlight into energy FALSE  NA
+#> 3 q3        2 + 2 equals 4.                              FALSE  NA
+```
+
+## Batch Completions with Structured Output
+
+For classification tasks or when you need structured data back, combine the Batch API with JSON schemas:
+
+```{r batch-completions-schema, eval = FALSE}
+# 1. Define a schema for sentiment classification
+sentiment_schema <- create_json_schema(
+ name = "sentiment_analysis",
+ schema_object(
+   sentiment = schema_enum(
+     c("positive", "negative", "neutral"),
+     description = "The sentiment of the text"
+   ),
+   confidence = schema_number(
+     description = "Confidence score between 0 and 1"
+   )
+ )
+)
+
+# 2. Prepare data
+df <- data.frame(
+ id = c("review_1", "review_2", "review_3"),
+ text = c(
+   "This product is absolutely fantastic! Best purchase ever.",
+   "Terrible quality, broke after one day. Complete waste of money.",
+   "It's okay, nothing special but does the job."
+ )
+)
+
+# 3. Prepare requests with schema
+jsonl_content <- oai_batch_prepare_completions(
+ df,
+ text_var = text,
+ id_var = id,
+ model = "gpt-4o-mini",
+ system_prompt = "Analyse the sentiment of the following text.",
+ schema = sentiment_schema,
+ temperature = 0
+)
+
+# 4. Upload and trigger batch job
+file_info <- oai_batch_file_upload(jsonl_content)
+batch_job <- oai_batch_create(
+ file_id = file_info$id,
+ endpoint = "/v1/chat/completions"
+)
+
+# 5. Retrieve and parse results
+status <- oai_batch_status(batch_job$id)
+content <- oai_file_content(status$output_file_id)
+results_df <- oai_batch_parse_completions(content)
+
+# The content column contains JSON that can be parsed
+results_df$content
+#> [1] "{\"sentiment\":\"positive\",\"confidence\":0.95}"
+#> [2] "{\"sentiment\":\"negative\",\"confidence\":0.92}"
+#> [3] "{\"sentiment\":\"neutral\",\"confidence\":0.78}"
+
+# Parse the JSON content into columns
+results_df |>
+ dplyr::mutate(
+   parsed = purrr::map(content, jsonlite::fromJSON)
+ ) |>
+ tidyr::unnest_wider(parsed)
+#> # A tibble
+#>   custom_id sentiment confidence .error .error_msg
+#>   <chr>     <chr>          <dbl> <lgl>  <chr>
+#> 1 review_1  positive        0.95 FALSE  NA
+#> 2 review_2  negative        0.92 FALSE  NA
+#> 3 review_3  neutral         0.78 FALSE  NA
+```
 
 # Introduction
 
