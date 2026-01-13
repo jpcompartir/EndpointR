@@ -102,3 +102,181 @@ oai_batch_file_delete(temp_id)
 
 oai_batch_file_list()
 ```
+
+# Testing
+
+## Embeddings
+
+```{r}
+uploaded_files <- oai_file_list(
+  purpose = "batch"
+)
+assertthat::validate_that(length(uploaded_files$data) == 0)
+```
+
+First batch failed due to ID beingan integer, so ID has to be a string...
+
+```{r}
+embedding_rows <- test_df |>
+  oai_batch_prepare_embeddings(
+    x,
+    y
+  )
+
+embedding_file <- oai_batch_file_upload(embedding_rows)
+
+embedding_batch <- oai_batch_create(embedding_file$id,
+                 endpoint = "/v1/embeddings")
+
+batch_jobs <- oai_batch_list()
+batch_jobs
+oai_batch_status(embedding_batch$id)
+```
+
+And then this time, so we need to fix how the tmpfile is created and prepend with batch:
+
+```         
+$error$message
+[1] "Invalid 'batch_id': 'file-K6vaHgwcJsE5z1MMFvVMix'. Expected an ID that begins with 'batch'."
+```
+
+Once we've made sure the ID is a string, then we create the file, upload it, start the batch, check the status, download it.
+
+I would say that this still feels quite janky. There's a few different file ids going on, and then we need to handle any errors separately it seems?
+
+```{r}
+embedding_rows_id_string <- test_df |>
+  oai_batch_prepare_embeddings(
+    x,
+    y
+  )
+
+embedding_file_id_string <- oai_batch_file_upload(embedding_rows_id_string)
+
+embedding_batch_id_string <- oai_batch_create(embedding_file_id_string$id,
+                 endpoint = "/v1/embeddings")
+
+embedding_batch_metadata <- oai_batch_status(
+  embedding_batch_id_string$id # "batch_6960e0b48bf481909751c76756ac9fec"
+)
+
+output_file_contents <- oai_file_content(
+  embedding_batch_metadata$output_file_id
+)
+
+
+oai_batch_parse_embeddings(output_file_contents, original_df = NULL)
+```
+
+## Low dimensions
+
+Looks good, 327 columns = 324 + 3 (id, .error, .error_msg)
+
+```{r}
+ld_embed_rows <- test_df |>
+  oai_batch_prepare_embeddings(
+    x,
+    y,
+    dimensions = 324
+  )
+
+ld_file <- oai_batch_file_upload(
+  jsonl_rows = ld_embed_rows,
+  purpose = "batch"
+)
+
+ld_batch_job <- oai_batch_create(ld_file$id, endpoint = "/v1/embeddings")
+
+oai_batch_status(ld_batch_job$id)[["status"]]
+ld_results <- oai_file_content(oai_batch_status(ld_batch_job$id)[["output_file_id"]])
+
+oai_batch_parse_embeddings(ld_results)
+  
+```
+
+Delete/clean up
+
+We can delete the input/output files, but it doesn't seem like we can actually delete batches.
+
+```{r}
+oai_batch_list()[["data"]] |> 
+  map( pluck("id")
+) |>  unlist()
+
+oai_batch_status("batch_6960ed03eea8819080aaa69a8982de66")
+oai_file_delete("file-4f8STaon74XE5yP6M7mWmH")
+oai_file_delete("file-FteMgeWV4mK85kdcntGU29")
+
+oai_batch_status("batch_6960dfe7d8ac8190acf682a59e844b71")
+oai_file_delete("file-HRFKx63PimYZYqsraQHR6T")
+oai_file_delete("file-HRFKx63PimYZYqsraQHR6T")
+oai_batch_status("batch_6960e0b48bf481909751c76756ac9fec")
+oai_file_delete('file-TcV6dGkFEsrzGTNxkPKYCb') # output file
+oai_file_delete('file-K6vaHgwcJsE5z1MMFvVMix') # input file
+
+```
+
+## Completions
+
+testing the funcs for Completions, we need to get an input, make a file, start the batch, checl the status, retrieve the content
+```{r}
+completions_req <- oai_batch_build_completions_req(
+  input = "Tell me a joke about my country, the United Kingdom",
+  id = "id_1"
+)
+
+completions_file <- oai_batch_file_upload(
+  completions_req
+)
+```
+
+Do need to remember to fill in endpoint = "/v1/chat/completions" here instead of default arg for embeddings
+```{r}
+completions_batch <- oai_batch_create(
+  completions_file$id,
+  endpoint = "/v1/chat/completions"
+)
+
+completions_status <- oai_batch_status(
+  completions_batch$id
+)
+
+completions_status$status
+completions_status$output_file_id # file-Q8TaFRoCYGHRZJKiYQKhx9
+
+output <- oai_file_content(completions_status$output_file_id)
+
+oai_batch_parse_completions(output) |> 
+  purrr::pluck("content", 1)
+```
+
+### With Schema
+
+```{r}
+joke_schema <- create_json_schema(
+  name = "joke_schema",
+  description = "A set up and a punchline",
+  schema = schema_object(
+    setup = schema_string("The set up for the joke"),
+    punchline = schema_string("The punchline of the joke, make it pop"),
+    required = c("setup", "punchline")
+  )
+)
+
+completions_req_w_schema <- oai_batch_build_completions_req(
+  input = "Tell me a joke about my country, the United Kingdom",
+  id = "id_1",
+  schema = joke_schema,
+  temperature = 1
+)
+
+.file <- oai_batch_file_upload(
+  completions_req_w_schema
+)
+
+.batch <- oai_batch_create(.file$id, endpoint = "/v1/chat/completions")
+
+oai_batch_status(.batch$id)[["status"]]
+```
+
+

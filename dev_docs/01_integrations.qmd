@@ -103,6 +103,10 @@ oai_complete_good_auth <- oai_complete_df(
 oai_complete_good_auth
 ```
 
+## Batch API
+
+TODO:
+
 # Hugging Face
 
 ## hf embed
