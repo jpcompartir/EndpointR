@@ -1,5 +1,5 @@
 ---
-title: "Synchronous vs Asynchronous APIs"
+title: "Synchronous vs Asynchronous/Batch APIs"
 output: rmarkdown::html_vignette
 vignette: >
   %\VignetteIndexEntry{Synchronous vs Asynchronous APIs}
@@ -14,9 +14,23 @@ knitr::opts_chunk$set(
 )
 ```
 
-```{r setup}
+```{r setup}  
 library(EndpointR)
 ```
+
+# Introduction
+
+Most of EndpointR's integrations are with synchronous APIs such as [Completions](https://platform.openai.com/docs/api-reference/completions) by OpenAI, Hugging Face's [Inference Endpoints](https://huggingface.co/docs/inference-endpoints/en/index), and Messages by [Anthropic](https://platform.claude.com/docs/en/api/messages). When using these APIs, we send a HTTP request, wait a second or two and receive a response.
+
+However, data scientists often need to process an entire data frame, resulting in thousands or millions of HTTP requests. This is inefficient because:
+
+1.  Cost - Providers don't offer discounts for these requests
+2.  Session Blocking - Our coding consoles get blocked for hours at a time
+3.  Rate Limits - Providers enforce stricter rate limits on these APIs
+
+A solution to these problems is to use providers' 'Batch APIs' which offer asynchronous results. These often come with a 50% discount and higher rate limits, with a guarantee of results within a time frame, e.g. 24 hours.
+
+> **TIP**: It's worth noting that the results are often ready much faster, consider checking in 1-2 hours after triggering the batch.
 
 # Quickstart
 
@@ -154,13 +168,13 @@ df <- data.frame(
 
 # 3. Prepare requests with schema
 jsonl_content <- oai_batch_prepare_completions(
- df,
- text_var = text,
- id_var = id,
- model = "gpt-4o-mini",
- system_prompt = "Analyse the sentiment of the following text.",
- schema = sentiment_schema,
- temperature = 0
+  df,
+  text_var = text,
+  id_var = id,
+  model = "gpt-4o-mini",
+  system_prompt = "Analyse the sentiment of the following text.",
+  schema = sentiment_schema,
+  temperature = 0
 )
 
 # 4. Upload and trigger batch job
@@ -195,86 +209,60 @@ results_df |>
 #> 3 review_3  neutral         0.78 FALSE  NA
 ```
 
-# Introduction
-
-Most of EndpointR's integrations are with synchronous APIs such as [Completions](https://platform.openai.com/docs/api-reference/completions) by OpenAI, Hugging Face's [Inference Endpoints](https://huggingface.co/docs/inference-endpoints/en/index), and Messages by [Anthropic](https://platform.claude.com/docs/en/api/messages). When using these APIs, we send a request, wait a second or two and receive a response. 
-
-For many use-cases the synchronous APIs work just fine. But often as data scientists we need to do the same thing to thousands, or millions of rows of data. Hammering the provider's servers with thousands/millions of requests is inefficient for us and them. Plus, we don't want to sit around with a blocked R session for 5 hours as our results get returned to us.
-
-Most Generative AI providers also offer lower-cost, asynchronous APIs. The providers usually offer a guarantee of the results within a time frame, and an estimate of the average time to return the results. For example, they may guarantee results within 24 hours, but expect them within 1-3 hours.
-
+> **Limits**: Each batch file can contain up to 50,000 requests or 200MB, whichever is reached first. For larger datasets, split into multiple batches.
 
 # When to choose Synchronous vs Asynchronous
 
-> For a more comprehensive treatment, and motivating examples [OpenAI's offficial documentation/guide](https://platform.openai.com/docs/guides/batch) is a good place to start.
+> For a more comprehensive treatment, and motivating examples [OpenAI's official documentation/guide](https://platform.openai.com/docs/guides/batch) is a good place to start.
 
-As consumers, the decision represents a trade-off between time and money. If we are serving Generative AI to other consumers, e.g. in an application, we will usually favour a Synchronous API because users expect instant results. Alternatively, if we are running analyses over large datasets, or repeated batch-inference, we can usually afford to wait longer for the results so we may favour the Asynchronous APIs.
+|   | Synchronous | Asynchronous (Batch) |
+|----|----|----|
+| Cost | Full price per token | \~50% Discount per token |
+| Latency | Real-time | Up to 24 hours |
+| Use Case | Experimentation, Prompt testing,  Schema development, User-facing applications, | Recurrent workflows (evals etc.), embedding large datasets, classifying large datasets |
+| Data Size | Up to \~10,000 | \~10,000+ |
 
-Synchronous APIs are also very useful when we are still in the experimental step of an analysis and need quick feedback- i.e. when we're testing our prompts, and developing our [schemas](https://json-schema.org/) for [Structured Outputs](https://platform.openai.com/docs/guides/structured-outputs), we don't want to wait 24 hours to find out we made an error in our schema. Instead, we want to send a request and receive a response within seconds. That way we can iteratively fix/develop our schemas/prompts and get to a better outcome quicker.
+> **Recommendation**: Use the Synchronous API when you need immediate feedback e.g. prompt or schema development, and for small datasets where cost savings are irrelevant. Once everything is figured out, move to the Batch API to save on cost.
 
-At the time of writing, [OpenAI's batch API](https://platform.openai.com/docs/guides/batch) offers a 50% discount on the Completions API, as well as higher rate limits:
+# Cleaning Up
 
-<blockquote>
+Once the batch job has been completed, the associated files will live on the OpenAI API, inside the Files API. Your OpenAI account will be charged for storage, so it's best to download the results and save in your org's own cloud storage.
 
-Learn how to use OpenAI's Batch API to send asynchronous groups of requests with 50% lower costs, a separate pool of significantly higher rate limits, and a clear 24-hour turnaround time. The service is ideal for processing jobs that don't require immediate responses.
+```{r, eval = FALSE}
+oai_file_delete(file_info$id) # delete the input file 
 
-Batch processing jobs are often helpful in use cases like:
-
-1.  Running evaluations
-2.  Classifying large datasets
-3.  Embedding content repositories
-
-</blockquote>
-
-# Files API
-
-In order to use OpenAI's Batch API, we need to upload files to the Files API. Luckily this process is quite simple, but do keep in mind that to successfully run a batch job of embeddings, you will need to work with three APIs:
-
-- Embeddings API
-- Batch API
-- Files API
-
-Fortunately, the same mental models will be useful for both the Batch and the Files APIs.
-
-# EndpointR Implementation of OpenAI Batch API
-
-Due to inherent differences between Synchronous and Asynchronous APIs, the EndpointR implementation of the OpenAI Batch API will feel more like submitting jobs to a cluster/server than automagically working with an entire data frame as in `oai_complete_df()` and `oai_embed_df()`. As such, different functions and workflows are needed.
-
-The two main functions for **preparing the requests** are
-
--   `oai_batch_prepare_embeddings()`
--   `oai_batch_prepare_completions()`
-
-Each function expects a data frame as input: `oai_batch_prepare_embeddings()` will accept the relevant arguments from `oai_embed_df()`, `oai_batch_prepare_completions` will accept the relevant arguments from `oai_complete_df()`. The OpenAI Batch API expects a single .jsonl file of up 50,000 rows or 200 MB in size. If we want to perform the operation on a 150,000 row data frame, we need to create and manage 3 separate batches.
-
-> **NOTE:** For structured outputs the Batch API requires us to send the JSON schema with each request. Complex schemas will quickly lead to large file size, perhaps eclipsing the 200 MB limit.
-
-EndpointR prepares each batch, writes it to a file in temporary storage, and then sends the file to the OpenAI Files API. Once in the Files API where it will receive a file ID and some other metadata. EndpointR can pass the file ID to the Batch API and trigger a batch job to run. Once running, the batch job's status can be checked and in the end we'll receive information on where to find the results in the **Files API**. 
-
-Whether using the Batch API for embeddings or chat completions, each line of of the .jsonl file must form a self-contained request with a unique identifier.
-
-E.g. for an embeddings task on the Batch API, the request in each row should look something like:
-
-Row version:
-
-```         
-"{\"custom_id\":1,\"method\":\"POST\",\"url\":\"/v1/embeddings\",\"body\":{\"input\":\"hello\",\"model\":\"text-embedding-3-small\",\"encoding_format\":\"float\"}}"
+oai_file_delete(status$output_file_id) # delete the output file
+oai_file_delete(status$error_file_id) # delete the error file
 ```
 
-Prettify'd version:
 
-```         
+> **NOTE**: At the time of writing, OpenAI save information in both the Batch API and the Files API, you need to delete your input, output, error files from the *Files API*, you cannot delete from the Batch API
+
+# Technical Details
+
+## Batch Limits
+
+The OpenAI Batch API enforces specific limits per batch file. If your data exceeds these, you must split it into multiple batch jobs.
+
+- Max Requests per Batch: 50,000
+- Max File Size: 200 MB
+  
+  > **Warning**: When using Structured Outputs, the JSON schema is repeated for every single request in the batch file. For complex schemas, you may hit the 200 MB file size limit well before you reach the 50,000 row limit.
+
+## Underlying Request Format
+
+EndpointR handles the JSON formatting for you, but for debugging purposes, it is helpful to know what the API expects. Each line in the batch file is a JSON object containing a custom_id and the request body.
+
+
+```{json}         
 {
-    "custom_id": 1,
+    "custom_id": "doc_1",
     "method": "POST",
     "url": "/v1/embeddings",
     "body": {
-        "input": "hello",
+        "input": "The quick brown fox...",
         "model": "text-embedding-3-small",
         "encoding_format": "float"
     }
 }
 ```
-
-> **NOTE:** The Embeddings API expects the input in an 'input' field rather than 'messages' as in the Completions API, and batch requests must adhere to this.
-

@@ -48,7 +48,7 @@ navbar:
       - text: Advanced Topics
       - text: Improving Performance
         href: articles/improving_performance.html
-      - text: Synchronous vs Asynchronous APIs
+      - text: Synchronous vs Asynchronous (Batch) APIs
         href: articles/sync_async.html
 
 
