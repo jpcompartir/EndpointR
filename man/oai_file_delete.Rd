@@ -8,7 +8,7 @@ oai_file_delete(file_id, key_name = "OPENAI_API_KEY")
 }
 \arguments{
 \item{file_id}{File identifier (starts with 'file-'), returned by
-\code{\link[=oai_batch_file_upload]{oai_batch_file_upload()}} or \code{\link[=oai_file_list]{oai_file_list()}}}
+\code{\link[=oai_batch_upload]{oai_batch_upload()}} or \code{\link[=oai_file_list]{oai_file_list()}}}
 
 \item{key_name}{Name of the environment variable containing your API key}
 }

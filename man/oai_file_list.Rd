@@ -38,5 +38,5 @@ file_ids <- purrr::map_chr(batch_files$data, "id")
 \seealso{
 \code{\link[=oai_file_content]{oai_file_content()}} to retrieve file contents,
 \code{\link[=oai_file_delete]{oai_file_delete()}} to remove files,
-\code{\link[=oai_batch_file_upload]{oai_batch_file_upload()}} to upload batch files
+\code{\link[=oai_batch_upload]{oai_batch_upload()}} to upload batch files
 }

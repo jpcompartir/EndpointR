@@ -13,7 +13,7 @@
 #' @export
 #' @seealso [oai_file_content()] to retrieve file contents,
 #'   [oai_file_delete()] to remove files,
-#'   [oai_batch_file_upload()] to upload batch files
+#'   [oai_batch_upload()] to upload batch files
 #' @examples
 #' \dontrun{
 #' # List all batch files
@@ -39,6 +39,28 @@ oai_file_list <- function(purpose = c("batch", "fine-tune", "assistants", "visio
 
 }
 
+
+#' Upload a file to the OpenAI Files API
+#'
+#' @param file File object you wish to upload
+#' @param purpose The intended purpose of the uploaded file. Must be one of
+#'   "batch", "fine-tune", "assistants", "vision", "user_data", or "evals".
+#' @param key_name Name of the environment variable containing your API key
+#' @param endpoint_url OpenAI API endpoint URL (default: OpenAI's Files API V1)
+#'
+#' @returns File upload status and metadata inlcuding id, purpose, filename, created_at etc.
+#' @seealso \url{https://platform.openai.com/docs/api-reference/files?lang=curl}
+#' @export
+#' @examples
+#' \dontrun{
+#'  tmp <- tempfile(fileext = ".jsonl")
+#'  writeLines("Hello!", tmp)
+#'  oai_file_upload(
+#'    file = tmp,
+#'    purpose = "user_data"
+#' )
+#' 
+#' }
 oai_file_upload <- function(file, purpose = c("batch", "fine-tune", "assistants", "vision", "user_data", "evals"), key_name = "OPENAI_API_KEY", endpoint_url = "https://api.openai.com/v1/files") {
  
   api_key <- get_api_key(key_name)
@@ -72,7 +94,7 @@ oai_file_upload <- function(file, purpose = c("batch", "fine-tune", "assistants"
 #' deleted until the job completes.
 #'
 #' @param file_id File identifier (starts with 'file-'), returned by
-#'   [oai_batch_file_upload()] or [oai_file_list()]
+#'   [oai_batch_upload()] or [oai_file_list()]
 #' @param key_name Name of the environment variable containing your API key
 #'
 #' @returns A list containing the file id, object type, and deletion status

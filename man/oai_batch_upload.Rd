@@ -14,7 +14,8 @@ oai_batch_upload(
 \arguments{
 \item{jsonl_rows}{Rows of valid JSON, output of an oai_batch_prepare* function}
 
-\item{purpose}{File purpose tag, e.g. 'batch', 'fine-tune'}
+\item{purpose}{The intended purpose of the uploaded file. Must be one of
+"batch", "fine-tune", "assistants", "vision", "user_data", or "evals".}
 
 \item{key_name}{Name of the environment variable containing your API key}
 

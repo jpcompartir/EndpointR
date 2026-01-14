@@ -231,7 +231,8 @@ oai_batch_prepare_completions <- function(df, text_var, id_var, model = "gpt-4o-
 #' 
 #' 
 #' @param jsonl_rows Rows of valid JSON, output of an oai_batch_prepare* function
-#' @param purpose File purpose tag, e.g. 'batch', 'fine-tune'
+#' @param purpose The intended purpose of the uploaded file. Must be one of
+#'   "batch", "fine-tune", "assistants", "vision", "user_data", or "evals".
 #' @param key_name Name of the environment variable containing your API key
 #' @param endpoint_url OpenAI API endpoint URL (default: OpenAI's Files API V1)
 #'
