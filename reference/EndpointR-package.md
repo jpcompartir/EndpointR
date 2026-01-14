@@ -14,3 +14,7 @@ Useful links:
 ## Author
 
 **Maintainer**: Jack Penzer <Jack.penzer@sharecreative.com>
+
+Authors:
+
+- Claude AI

@@ -1,6 +1,55 @@
 # Changelog
 
-## EndpointR 0.2
+## EndpointR 0.2.1
+
+### OpenAI Batch API
+
+Adds support for OpenAI’s asynchronous Batch API, offering 50% cost
+savings and higher rate limits compared to synchronous endpoints. Ideal
+for large-scale embeddings, classifications, and batch inference tasks.
+
+**Request preparation:**
+
+- [`oai_batch_build_embed_req()`](https://jpcompartir.github.io/EndpointR/reference/oai_batch_build_embed_req.md) -
+  Build a single embedding request row
+- [`oai_batch_prepare_embeddings()`](https://jpcompartir.github.io/EndpointR/reference/oai_batch_prepare_embeddings.md) -
+  Prepare an entire data frame for batch embeddings
+- [`oai_batch_build_completions_req()`](https://jpcompartir.github.io/EndpointR/reference/oai_batch_build_completions_req.md) -
+  Build a single chat completions request row
+- [`oai_batch_prepare_completions()`](https://jpcompartir.github.io/EndpointR/reference/oai_batch_prepare_completions.md) -
+  Prepare an entire data frame for batch completions (supports
+  structured outputs via JSON schema)
+
+**Job management:**
+
+- [`oai_batch_upload()`](https://jpcompartir.github.io/EndpointR/reference/oai_batch_upload.md) -
+  Upload prepared JSONL to OpenAI Files API
+- [`oai_batch_start()`](https://jpcompartir.github.io/EndpointR/reference/oai_batch_start.md) -
+  Trigger a batch job on an uploaded file
+- [`oai_batch_status()`](https://jpcompartir.github.io/EndpointR/reference/oai_batch_status.md) -
+  Check the status of a running batch job
+- [`oai_batch_list()`](https://jpcompartir.github.io/EndpointR/reference/oai_batch_list.md) -
+  List all batch jobs associated with your API key
+- [`oai_batch_cancel()`](https://jpcompartir.github.io/EndpointR/reference/oai_batch_cancel.md) -
+  Cancel an in-progress batch job
+
+**Results parsing:**
+
+- [`oai_batch_parse_embeddings()`](https://jpcompartir.github.io/EndpointR/reference/oai_batch_parse_embeddings.md) -
+  Parse batch embedding results into a tidy data frame
+- [`oai_batch_parse_completions()`](https://jpcompartir.github.io/EndpointR/reference/oai_batch_parse_completions.md) -
+  Parse batch completion results into a tidy data frame
+
+### OpenAI Files API
+
+- [`oai_file_list()`](https://jpcompartir.github.io/EndpointR/reference/oai_file_list.md) -
+  List files uploaded to the OpenAI Files API
+- [`oai_file_content()`](https://jpcompartir.github.io/EndpointR/reference/oai_file_content.md) -
+  Retrieve the content of a file (e.g., batch results)
+- [`oai_file_delete()`](https://jpcompartir.github.io/EndpointR/reference/oai_file_delete.md) -
+  Delete a file from the Files API
+
+## EndpointR 0.2.0
 
 - error message and status propagation improvement. Now writes .error,
   .error_msg (standardised across package), and .status. Main change is

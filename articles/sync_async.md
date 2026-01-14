@@ -1,0 +1,289 @@
+# Synchronous vs Asynchronous/Batch APIs
+
+``` r
+library(EndpointR)
+```
+
+## Introduction
+
+Most of EndpointR’s integrations are with synchronous APIs such as
+[Completions](https://platform.openai.com/docs/api-reference/completions)
+by OpenAI, Hugging Face’s [Inference
+Endpoints](https://huggingface.co/docs/inference-endpoints/en/index),
+and Messages by
+[Anthropic](https://platform.claude.com/docs/en/api/messages). When
+using these APIs, we send a HTTP request, wait a second or two and
+receive a response.
+
+However, data scientists often need to process an entire data frame,
+resulting in thousands or millions of HTTP requests. This is inefficient
+because:
+
+1.  Cost - Providers don’t offer discounts for these requests
+2.  Session Blocking - Our coding consoles get blocked for hours at a
+    time
+3.  Rate Limits - Providers enforce stricter rate limits on these APIs
+
+A solution to these problems is to use providers’ ‘Batch APIs’ which
+offer asynchronous results. These often come with a 50% discount and
+higher rate limits, with a guarantee of results within a time frame,
+e.g. 24 hours.
+
+> **TIP**: It’s worth noting that the results are often ready much
+> faster, consider checking in 1-2 hours after triggering the batch.
+
+## Quickstart
+
+The OpenAI Batch API workflow follows three stages: **prepare**,
+**submit**, and **retrieve**. Below are complete examples for embeddings
+and completions.
+
+### Batch Embeddings
+
+``` r
+# 1. Prepare your data
+df <- data.frame(
+ id = c("doc_1", "doc_2", "doc_3"),
+ text = c(
+   "The quick brown fox jumps over the lazy dog",
+   "Machine learning is transforming data science",
+   "R is a powerful language for statistical computing"
+ )
+)
+
+# 2. Prepare requests for the Batch API
+jsonl_content <- oai_batch_prepare_embeddings(
+ df,
+ text_var = text,
+ id_var = id,
+ model = "text-embedding-3-small",
+ dimensions = 256
+)
+
+# 3. Upload to the Files API
+file_info <- oai_batch_file_upload(jsonl_content)
+file_info$id
+#> "file-abc123..."
+
+# 4. Trigger the batch job
+batch_job <- oai_batch_start(
+ file_id = file_info$id,
+ endpoint = "/v1/embeddings"
+)
+batch_job$id
+#> "batch-xyz789..."
+
+# 5. Check status (repeat until completed)
+status <- oai_batch_status(batch_job$id)
+status$status
+#> "in_progress" ... later ... "completed"
+
+# 6. Download and parse results
+content <- oai_file_content(status$output_file_id)
+embeddings_df <- oai_batch_parse_embeddings(content)
+
+# Result: tidy data frame with id and embedding dimensions (V1, V2, ..., V256)
+embeddings_df
+#> # A tibble
+#>   custom_id .error .error_msg    V1      V2      V3 ...
+#>   <chr>     <lgl>  <chr>      <dbl>   <dbl>   <dbl> ...
+#> 1 doc_1     FALSE  NA         0.023  -0.041   0.018 ...
+#> 2 doc_2     FALSE  NA        -0.015   0.032   0.044 ...
+#> 3 doc_3     FALSE  NA         0.008  -0.027   0.031 ...
+```
+
+### Batch Completions
+
+``` r
+# 1. Prepare your data
+df <- data.frame(
+ id = c("q1", "q2", "q3"),
+ prompt = c(
+   "What is the capital of France?",
+   "Explain photosynthesis in one sentence.",
+   "What is 2 + 2?"
+ )
+)
+
+# 2. Prepare requests
+jsonl_content <- oai_batch_prepare_completions(
+ df,
+ text_var = prompt,
+ id_var = id,
+ model = "gpt-4o-mini",
+ system_prompt = "You are a helpful assistant. Be concise.",
+ temperature = 0,
+ max_tokens = 100
+)
+
+# 3. Upload and trigger batch job
+file_info <- oai_batch_file_upload(jsonl_content)
+batch_job <- oai_batch_start(
+ file_id = file_info$id,
+ endpoint = "/v1/chat/completions"
+)
+
+# 4. Check status and retrieve results
+status <- oai_batch_status(batch_job$id)
+# ... wait for status$status == "completed" ...
+
+content <- oai_file_content(status$output_file_id)
+completions_df <- oai_batch_parse_completions(content)
+
+completions_df
+#> # A tibble
+#>   custom_id content                                      .error .error_msg
+#>   <chr>     <chr>                                        <lgl>  <chr>
+#> 1 q1        The capital of France is Paris.              FALSE  NA
+#> 2 q2        Photosynthesis converts sunlight into energy FALSE  NA
+#> 3 q3        2 + 2 equals 4.                              FALSE  NA
+```
+
+### Batch Completions with Structured Output
+
+For classification tasks or when you need structured data back, combine
+the Batch API with JSON schemas:
+
+``` r
+# 1. Define a schema for sentiment classification
+sentiment_schema <- create_json_schema(
+ name = "sentiment_analysis",
+ schema_object(
+   sentiment = schema_enum(
+     c("positive", "negative", "neutral"),
+     description = "The sentiment of the text"
+   ),
+   confidence = schema_number(
+     description = "Confidence score between 0 and 1"
+   )
+ )
+)
+
+# 2. Prepare data
+df <- data.frame(
+ id = c("review_1", "review_2", "review_3"),
+ text = c(
+   "This product is absolutely fantastic! Best purchase ever.",
+   "Terrible quality, broke after one day. Complete waste of money.",
+   "It's okay, nothing special but does the job."
+ )
+)
+
+# 3. Prepare requests with schema
+jsonl_content <- oai_batch_prepare_completions(
+  df,
+  text_var = text,
+  id_var = id,
+  model = "gpt-4o-mini",
+  system_prompt = "Analyse the sentiment of the following text.",
+  schema = sentiment_schema,
+  temperature = 0
+)
+
+# 4. Upload and trigger batch job
+file_info <- oai_batch_file_upload(jsonl_content)
+batch_job <- oai_batch_start(
+ file_id = file_info$id,
+ endpoint = "/v1/chat/completions"
+)
+
+# 5. Retrieve and parse results
+status <- oai_batch_status(batch_job$id)
+content <- oai_file_content(status$output_file_id)
+results_df <- oai_batch_parse_completions(content)
+
+# The content column contains JSON that can be parsed
+results_df$content
+#> [1] "{\"sentiment\":\"positive\",\"confidence\":0.95}"
+#> [2] "{\"sentiment\":\"negative\",\"confidence\":0.92}"
+#> [3] "{\"sentiment\":\"neutral\",\"confidence\":0.78}"
+
+# Parse the JSON content into columns
+results_df |>
+ dplyr::mutate(
+   parsed = purrr::map(content, jsonlite::fromJSON)
+ ) |>
+ tidyr::unnest_wider(parsed)
+#> # A tibble
+#>   custom_id sentiment confidence .error .error_msg
+#>   <chr>     <chr>          <dbl> <lgl>  <chr>
+#> 1 review_1  positive        0.95 FALSE  NA
+#> 2 review_2  negative        0.92 FALSE  NA
+#> 3 review_3  neutral         0.78 FALSE  NA
+```
+
+> **Limits**: Each batch file can contain up to 50,000 requests or
+> 200MB, whichever is reached first. For larger datasets, split into
+> multiple batches.
+
+## When to choose Synchronous vs Asynchronous
+
+> For a more comprehensive treatment, and motivating examples [OpenAI’s
+> official
+> documentation/guide](https://platform.openai.com/docs/guides/batch) is
+> a good place to start.
+
+|           | Synchronous                                                                    | Asynchronous (Batch)                                                                   |
+|-----------|--------------------------------------------------------------------------------|----------------------------------------------------------------------------------------|
+| Cost      | Full price per token                                                           | ~50% Discount per token                                                                |
+| Latency   | Real-time                                                                      | Up to 24 hours                                                                         |
+| Use Case  | Experimentation, Prompt testing, Schema development, User-facing applications, | Recurrent workflows (evals etc.), embedding large datasets, classifying large datasets |
+| Data Size | Up to ~10,000                                                                  | ~10,000+                                                                               |
+
+> **Recommendation**: Use the Synchronous API when you need immediate
+> feedback e.g. prompt or schema development, and for small datasets
+> where cost savings are irrelevant. Once everything is figured out,
+> move to the Batch API to save on cost.
+
+## Cleaning Up
+
+Once the batch job has been completed, the associated files will live on
+the OpenAI API, inside the Files API. Your OpenAI account will be
+charged for storage, so it’s best to download the results and save in
+your org’s own cloud storage.
+
+``` r
+oai_file_delete(file_info$id) # delete the input file 
+
+oai_file_delete(status$output_file_id) # delete the output file
+oai_file_delete(status$error_file_id) # delete the error file
+```
+
+> **NOTE**: At the time of writing, OpenAI save information in both the
+> Batch API and the Files API, you need to delete your input, output,
+> error files from the *Files API*, you cannot delete from the Batch API
+
+## Technical Details
+
+### Batch Limits
+
+The OpenAI Batch API enforces specific limits per batch file. If your
+data exceeds these, you must split it into multiple batch jobs.
+
+- Max Requests per Batch: 50,000
+
+- Max File Size: 200 MB
+
+  > **Warning**: When using Structured Outputs, the JSON schema is
+  > repeated for every single request in the batch file. For complex
+  > schemas, you may hit the 200 MB file size limit well before you
+  > reach the 50,000 row limit.
+
+### Underlying Request Format
+
+EndpointR handles the JSON formatting for you, but for debugging
+purposes, it is helpful to know what the API expects. Each line in the
+batch file is a JSON object containing a custom_id and the request body.
+
+``` json
+{
+    "custom_id": "doc_1",
+    "method": "POST",
+    "url": "/v1/embeddings",
+    "body": {
+        "input": "The quick brown fox...",
+        "model": "text-embedding-3-small",
+        "encoding_format": "float"
+    }
+}
+```

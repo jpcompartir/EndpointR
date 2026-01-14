@@ -25,7 +25,7 @@
 
     <a class="navbar-brand me-2" href="index.html">EndpointR</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="Released version">0.2</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="Released version">0.2.1</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -54,9 +54,23 @@
     <li><hr class="dropdown-divider"></li>
     <li><h6 class="dropdown-header" data-toc-skip>Advanced Topics</h6></li>
     <li><a class="dropdown-item" href="articles/improving_performance.html">Improving Performance</a></li>
+    <li><a class="dropdown-item" href="articles/sync_async.html">Synchronous vs Asynchronous (Batch) APIs</a></li>
   </ul>
 </li>
-<li class="nav-item"><a class="nav-link" href="news/index.html">Changelog</a></li>
+<li class="nav-item dropdown">
+  <button class="nav-link dropdown-toggle" type="button" id="dropdown-news" data-bs-toggle="dropdown" aria-expanded="false" aria-haspopup="true">News</button>
+  <ul class="dropdown-menu" aria-labelledby="dropdown-news">
+<li><h6 class="dropdown-header" data-toc-skip>Releases</h6></li>
+    <li><a class="dropdown-item" href="news/index.html#endpointr-021">Version 0.2.1</a></li>
+    <li><a class="dropdown-item" href="news/index.html#endpointr-020">Version 0.2.0</a></li>
+    <li><a class="dropdown-item" href="news/index.html#endpointr-012">Version 0.2</a></li>
+    <li><a class="dropdown-item" href="news/index.html#endpointr-012">Version 0.1.2</a></li>
+    <li><a class="dropdown-item" href="news/index.html#endpointr-011">Version 0.1.1</a></li>
+    <li><a class="dropdown-item" href="news/index.html#endpointr-010">Version 0.1.0</a></li>
+    <li><hr class="dropdown-divider"></li>
+    <li><a class="dropdown-item" href="news/index.html">Changelog</a></li>
+  </ul>
+</li>
       </ul>
 <ul class="navbar-nav">
 <li class="nav-item"><form class="form-inline" role="search">
@@ -308,10 +322,21 @@
 </h1>
 <ul>
 <li><p>Read the <a href="https://httr2.r-lib.org/articles/wrapping-apis.html#basics" target="_blank" class="external-link">httr2 vignette</a> on managing your API keys securely and encrypting them.</p></li>
-<li><p>Read the <a href="articles/api_keys.html">EndpointR API Keys</a> vignette for information on which API keys you need for wach endpoint we support, and how to securely import those API keys into your .Renvironfile.</p></li>
+<li><p>Read the <a href="articles/api_keys.html">EndpointR API Keys</a> vignette for information on which API keys you need for each endpoint we support, and how to securely import those API keys into your .Renvironfile.</p></li>
 </ul>
-<hr>
+</div>
+<div class="section level1">
+<h1 id="batch-jobs">Batch Jobs<a class="anchor" aria-label="anchor" href="#batch-jobs"></a>
+</h1>
+<ul>
+<li>Read the <a href="articles/sync_async.html">EndpointR vignette</a> on Synchronous vs Asynchronous APIs</li>
+</ul>
+<div class="section level2">
+<h2 id="id_1-content-pending-implementation-for-anthropic-messages-api-gemini">
+<a class="footnote-ref" tabindex="0" data-bs-toggle="popover" data-bs-content="&lt;p&gt;Content pending implementation for Anthroic Messages API, Gemini API, and OpenAI Responses API&lt;/p&gt;"><sup>2</sup></a>: Content pending implementation for Anthropic Messages API, Gemini<a class="anchor" aria-label="anchor" href="#id_1-content-pending-implementation-for-anthropic-messages-api-gemini"></a>
+</h2>
 <p><img src="reference/figures/samy_banner.png" alt="SAMY Data Science" width="100%"></p>
+</div>
 </div>
 
 
@@ -343,6 +368,7 @@
 <ul class="list-unstyled">
 <li>
 <a href="https://github.com/jpcompartir" class="external-link">Jack Penzer</a> <br><small class="roles"> Author, maintainer </small>   </li>
+<li>Claude AI <br><small class="roles"> Author </small>   </li>
 </ul>
 </div>
 
@@ -353,7 +379,7 @@
 
 
     <footer><div class="pkgdown-footer-left">
-  <p>Developed by <a href="https://github.com/jpcompartir" class="external-link">Jack Penzer</a>.</p>
+  <p>Developed by <a href="https://github.com/jpcompartir" class="external-link">Jack Penzer</a>, Claude AI.</p>
 </div>
 
 <div class="pkgdown-footer-right">

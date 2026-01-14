@@ -126,6 +126,46 @@ Type-safe schema creation and validation for structured LLM outputs
 - [`validate_response`](https://jpcompartir.github.io/EndpointR/reference/validate_response.md)
   : Validate response data against schema
 
+## OpenAI Files API
+
+Functions for uploading and managing files on OpenAI’s Files API
+
+- [`oai_file_list()`](https://jpcompartir.github.io/EndpointR/reference/oai_file_list.md)
+  : List Files on the OpenAI Files API
+- [`oai_file_upload()`](https://jpcompartir.github.io/EndpointR/reference/oai_file_upload.md)
+  : Upload a file to the OpenAI Files API
+- [`oai_file_delete()`](https://jpcompartir.github.io/EndpointR/reference/oai_file_delete.md)
+  : Delete a File from the OpenAI Files API
+- [`oai_file_content()`](https://jpcompartir.github.io/EndpointR/reference/oai_file_content.md)
+  : Retrieve Content from a File on the OpenAI Files API
+
+## OpenAI Batch API
+
+Functions for managing batches on OpenAI’s Batch API
+
+- [`oai_batch_upload()`](https://jpcompartir.github.io/EndpointR/reference/oai_batch_upload.md)
+  : Prepare and upload a file to be uploaded to the OpenAI Batch API
+- [`oai_batch_start()`](https://jpcompartir.github.io/EndpointR/reference/oai_batch_start.md)
+  : Trigger a batch job to run on an uploaded file
+- [`oai_batch_status()`](https://jpcompartir.github.io/EndpointR/reference/oai_batch_status.md)
+  : Check the Status of a Batch Job on the OpenAI Batch API
+- [`oai_batch_list()`](https://jpcompartir.github.io/EndpointR/reference/oai_batch_list.md)
+  : List Batch Jobs on the OpenAI Batch API
+- [`oai_batch_cancel()`](https://jpcompartir.github.io/EndpointR/reference/oai_batch_cancel.md)
+  : Cancel a Running Batch Job on the OpenAI Batch API
+- [`oai_batch_build_embed_req()`](https://jpcompartir.github.io/EndpointR/reference/oai_batch_build_embed_req.md)
+  : Create a single OpenAI Batch API - Embedding request
+- [`oai_batch_prepare_embeddings()`](https://jpcompartir.github.io/EndpointR/reference/oai_batch_prepare_embeddings.md)
+  : Prepare a Data Frame for the OpenAI Batch API - Embeddings
+- [`oai_batch_parse_embeddings()`](https://jpcompartir.github.io/EndpointR/reference/oai_batch_parse_embeddings.md)
+  : Parse an Embeddings Batch Job into a Data Frame
+- [`oai_batch_build_completions_req()`](https://jpcompartir.github.io/EndpointR/reference/oai_batch_build_completions_req.md)
+  : Create a Single OpenAI Batch API - Chat Completions Request
+- [`oai_batch_prepare_completions()`](https://jpcompartir.github.io/EndpointR/reference/oai_batch_prepare_completions.md)
+  : Prepare a Data Frame for the OpenAI Batch API - Chat Completions
+- [`oai_batch_parse_completions()`](https://jpcompartir.github.io/EndpointR/reference/oai_batch_parse_completions.md)
+  : Parse a Completions Batch Job into a Data Frame
+
 ## Schema Builders
 
 Helper functions for creating different types of JSON schema properties

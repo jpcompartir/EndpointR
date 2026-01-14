@@ -14,3 +14,5 @@
   Providers](https://jpcompartir.github.io/EndpointR/articles/llm_providers.md):
 - [Structured Outputs - JSON
   Schema](https://jpcompartir.github.io/EndpointR/articles/structured_outputs_json_schema.md):
+- [Synchronous vs Asynchronous/Batch
+  APIs](https://jpcompartir.github.io/EndpointR/articles/sync_async.md):

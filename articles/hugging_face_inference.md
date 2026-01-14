@@ -392,7 +392,7 @@ embedding_result |> count(.error)
 # View any failures (column names match your original data frame)
 failures <- embedding_result |>
   filter(.error == TRUE) |>
-  select(id, .error_message)
+  select(id, .error_msg)
 
 # Extract just the embeddings for successful rows
 embeddings_only <- embedding_result |>
@@ -441,7 +441,7 @@ The result includes:
   preserved)
 - Classification labels (e.g., POSITIVE, NEGATIVE)
 - Confidence scores
-- Error tracking columns (`.error`, `.error_message`)
+- Error tracking columns (`.error`, `.error_msg`)
 - Chunk tracking (`.chunk`)
 
 > **NOTE**: Classification labels are model and task specific. Check the

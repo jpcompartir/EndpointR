@@ -291,15 +291,24 @@ Completions API [¹](#fn1)
 
 - Read the [EndpointR API
   Keys](https://jpcompartir.github.io/EndpointR/articles/api_keys.md)
-  vignette for information on which API keys you need for wach endpoint
+  vignette for information on which API keys you need for each endpoint
   we support, and how to securely import those API keys into your
   .Renvironfile.
 
-------------------------------------------------------------------------
+# Batch Jobs
+
+- Read the [EndpointR
+  vignette](https://jpcompartir.github.io/EndpointR/articles/sync_async.md)
+  on Synchronous vs Asynchronous APIs
+
+## [²](#fn2): Content pending implementation for Anthropic Messages API, Gemini
 
 ![SAMY Data Science](reference/figures/samy_banner.png)
 
 ------------------------------------------------------------------------
 
 1.  Content pending implementation for Anthroic Messages API, Gemini
+    API, and OpenAI Responses API
+
+2.  Content pending implementation for Anthroic Messages API, Gemini
     API, and OpenAI Responses API
