@@ -39,6 +39,32 @@ oai_file_list <- function(purpose = c("batch", "fine-tune", "assistants", "visio
 
 }
 
+oai_file_upload <- function(file, purpose = c("batch", "fine-tune", "assistants", "vision", "user_data", "evals"), key_name = "OPENAI_API_KEY", endpoint_url = "https://api.openai.com/v1/files") {
+ 
+  api_key <- get_api_key(key_name)
+  purpose <- match.arg(purpose)
+  stopifnot("`file` must be a file object" = is.character(file) && file.exists(file))
+
+  resp <- httr2::request(base_url = endpoint_url) |> 
+    httr2::req_auth_bearer_token(api_key) |> 
+    httr2::req_body_multipart(file = curl::form_file(file), purpose = purpose) |> # use `req_body_multipart` instead of `req_body_file` to send 'purpose' with file
+    httr2::req_error(is_error = ~ FALSE) |>  # let errors from providers surface rather than be caught by httr2. v.helpful for developing prompts/schemas and debugging APIs
+    httr2::req_perform()
+
+  result <- httr2::resp_body_json(resp)
+
+  if(httr2::resp_status(resp) >= 400) {
+    error_msg <- result$error$message %||% "Unknown error"
+    cli::cli_abort(c(
+      "Failed to upload file to OpenAI Files API",
+      "x" = error_msg
+    ))
+  }
+
+  return(result)
+}
+
+
 #' Delete a File from the OpenAI Files API
 #'
 #' Permanently deletes a file from the OpenAI Files API. This action cannot

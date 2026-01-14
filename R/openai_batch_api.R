@@ -231,8 +231,9 @@ oai_batch_prepare_completions <- function(df, text_var, id_var, model = "gpt-4o-
 #' 
 #' 
 #' @param jsonl_rows Rows of valid JSON, output of an oai_batch_prepare* function
-#' @param key_name Name of the environment variable containing your API key
 #' @param purpose File purpose tag, e.g. 'batch', 'fine-tune'
+#' @param key_name Name of the environment variable containing your API key
+#' @param endpoint_url OpenAI API endpoint URL (default: OpenAI's Files API V1)
 #'
 #' @returns Metadata for an upload to the OpenAI Files API
 #'
@@ -245,36 +246,27 @@ oai_batch_prepare_completions <- function(df, text_var, id_var, model = "gpt-4o-
 #'   text = c("Hello world", "Goodbye world")
 #' )
 #' jsonl_content <- oai_batch_prepare_embeddings(df, text_var = text, id_var = id)
-#' file_info <- oai_batch_file_upload(jsonl_content)
+#' file_info <- oai_batch_upload(jsonl_content)
 #' file_info$id # Use this ID to create a batch job
 #' }
-oai_batch_file_upload <- function(jsonl_rows, key_name = "OPENAI_API_KEY", purpose = "batch") {
+oai_batch_upload <- function(jsonl_rows, purpose = c("batch", "fine-tune", "assistants", "vision", "user_data", "evals"), key_name = "OPENAI_API_KEY", endpoint_url = "https://api.openai.com/v1/files") {
     
-api_key <- get_api_key(key_name)
+  purpose <- match.arg(purpose)
 
-.tmp <- tempfile(fileext = ".jsonl")
-on.exit(unlink(.tmp)) # if session crashes we drop the file from mem safely
-writeLines(jsonl_rows, .tmp) # send the content to the temp file for uploading to OAI
-# question here is whether to also save this somewhere by force...
-# once OAI have the file it's backed up for 30 days.
+  .tmp <- tempfile(fileext = ".jsonl")
+  on.exit(unlink(.tmp)) # if session crashes we drop the file from mem safely
+  writeLines(jsonl_rows, .tmp) # send the content to the temp file for uploading to OAI
+  # question here is whether to also save this somewhere by force...
+  # once OAI have the file it's backed up for 30 days.
 
-resp <- httr2::request(base_url = "https://api.openai.com/v1/files") |>
-httr2::req_auth_bearer_token(api_key) |>
-httr2::req_body_multipart(file = curl::form_file(.tmp),
-purpose = purpose) |>
-httr2::req_error(is_error = ~ FALSE) |>
-httr2::req_perform()
+  result <- oai_file_upload(
+    file = .tmp,
+    purpose = purpose,
+    key_name = key_name,
+    endpoint_url = endpoint_url
+  )
 
-result <- httr2::resp_body_json(resp)
-
-if (httr2::resp_status(resp) >= 400) {
-    error_msg <- result$error$message %||% "Unknown error"
-    cli::cli_abort(c(
-      "Failed to upload file to OpenAI Files API",
-      "x" = error_msg
-    ))
-  }
-    
+      
   return(result)
 }
         
@@ -287,25 +279,25 @@ if (httr2::resp_status(resp) >= 400) {
 #' 
 #' Batch Job Ids start with "batch_", you'll receive a warning if you try to check batch status on a Files API file (the Files/Batch API set up is a lil bit clumsy for me)
 #' 
-#' @param file_id File ID returned by oai_batch_file_upload()
+#' @param file_id File ID returned by oai_batch_upload()
 #' @param endpoint The API endpoint path, e.g. /v1/embeddings
 #' @param completion_window Time window for batch completion (OpenAI guarantees 24h only)
 #' @param metadata Optional list of metadata to tag the batch with
-#' @inheritParams oai_batch_file_upload
+#' @inheritParams oai_batch_upload
 #'
 #' @returns Metadata about an OpenAI Batch Job Including the batch ID
 #'
 #' @export
 #' @examples
 #' \dontrun{
-#' # After uploading a file with oai_batch_file_upload()
-#' batch_job <- oai_batch_create(
+#' # After uploading a file with oai_batch_upload()
+#' batch_job <- oai_batch_start(
 #'   file_id = "file-abc123",
 #'   endpoint = "/v1/embeddings"
 #' )
 #' batch_job$id # Use this to check status later
 #' }
-oai_batch_create <- function(file_id, endpoint = c("/v1/embeddings", "/v1/chat/completions"), completion_window = "24h", metadata = NULL, key_name = "OPENAI_API_KEY") {
+oai_batch_start <- function(file_id, endpoint = c("/v1/embeddings", "/v1/chat/completions"), completion_window = "24h", metadata = NULL, key_name = "OPENAI_API_KEY") {
   
   endpoint <- match.arg(endpoint)
   api_key <- get_api_key(key_name)
@@ -330,8 +322,8 @@ oai_batch_create <- function(file_id, endpoint = c("/v1/embeddings", "/v1/chat/c
           
 #' Check the Status of a Batch Job on the OpenAI Batch API
 #'
-#' @param batch_id Batch identifier (starts with 'batch_'), returned by oai_batch_create()
-#' @inheritParams oai_batch_file_upload
+#' @param batch_id Batch identifier (starts with 'batch_'), returned by oai_batch_start()
+#' @inheritParams oai_batch_upload
 #'
 #' @returns Metadata about an OpenAI Batch API Job, including status, error_file_id, output_file_id, input_file_id etc.
 #'
@@ -359,7 +351,7 @@ oai_batch_status <- function(batch_id, key_name = "OPENAI_API_KEY") {
 #'
 #' @param limit Maximum number of batch jobs to return
 #' @param after Cursor for pagination; batch ID to start after
-#' @inheritParams oai_batch_file_upload
+#' @inheritParams oai_batch_upload
 #'
 #' @returns A list containing batch job metadata and pagination information
 #'
@@ -396,7 +388,7 @@ oai_batch_list <- function(limit = 20L, after = NULL, key_name = "OPENAI_API_KEY
 #' requests, but requests already being processed may still complete.
 #'
 #' @inheritParams oai_batch_status
-#' @inheritParams oai_batch_file_upload
+#' @inheritParams oai_batch_upload
 #'
 #' @returns Metadata about the cancelled batch job
 #'

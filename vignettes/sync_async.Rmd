@@ -20,7 +20,7 @@ library(EndpointR)
 
 # Quickstart
 
-The Batch API workflow follows three stages: **prepare**, **submit**, and **retrieve**. Below are complete examples for embeddings and completions.
+The OpenAI Batch API workflow follows three stages: **prepare**, **submit**, and **retrieve**. Below are complete examples for embeddings and completions.
 
 ## Batch Embeddings
 
@@ -50,7 +50,7 @@ file_info$id
 #> "file-abc123..."
 
 # 4. Trigger the batch job
-batch_job <- oai_batch_create(
+batch_job <- oai_batch_start(
  file_id = file_info$id,
  endpoint = "/v1/embeddings"
 )
@@ -102,7 +102,7 @@ jsonl_content <- oai_batch_prepare_completions(
 
 # 3. Upload and trigger batch job
 file_info <- oai_batch_file_upload(jsonl_content)
-batch_job <- oai_batch_create(
+batch_job <- oai_batch_start(
  file_id = file_info$id,
  endpoint = "/v1/chat/completions"
 )
@@ -165,7 +165,7 @@ jsonl_content <- oai_batch_prepare_completions(
 
 # 4. Upload and trigger batch job
 file_info <- oai_batch_file_upload(jsonl_content)
-batch_job <- oai_batch_create(
+batch_job <- oai_batch_start(
  file_id = file_info$id,
  endpoint = "/v1/chat/completions"
 )

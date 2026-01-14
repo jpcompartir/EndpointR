@@ -7,7 +7,7 @@
 oai_batch_cancel(batch_id, key_name = "OPENAI_API_KEY")
 }
 \arguments{
-\item{batch_id}{Batch identifier (starts with 'batch_'), returned by oai_batch_create()}
+\item{batch_id}{Batch identifier (starts with 'batch_'), returned by oai_batch_start()}
 
 \item{key_name}{Name of the environment variable containing your API key}
 }

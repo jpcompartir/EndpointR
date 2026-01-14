@@ -91,7 +91,7 @@ xx <- test_df |>
     y
   )
 
-oai_batch_file_upload(
+oai_batch_upload(
   xx
 )
 
@@ -123,9 +123,9 @@ embedding_rows <- test_df |>
     y
   )
 
-embedding_file <- oai_batch_file_upload(embedding_rows)
+embedding_file <- oai_batch_upload(embedding_rows)
 
-embedding_batch <- oai_batch_create(embedding_file$id,
+embedding_batch <- oai_batch_start(embedding_file$id,
                  endpoint = "/v1/embeddings")
 
 batch_jobs <- oai_batch_list()
@@ -151,9 +151,9 @@ embedding_rows_id_string <- test_df |>
     y
   )
 
-embedding_file_id_string <- oai_batch_file_upload(embedding_rows_id_string)
+embedding_file_id_string <- oai_batch_upload(embedding_rows_id_string)
 
-embedding_batch_id_string <- oai_batch_create(embedding_file_id_string$id,
+embedding_batch_id_string <- oai_batch_start(embedding_file_id_string$id,
                  endpoint = "/v1/embeddings")
 
 embedding_batch_metadata <- oai_batch_status(
@@ -180,12 +180,12 @@ ld_embed_rows <- test_df |>
     dimensions = 324
   )
 
-ld_file <- oai_batch_file_upload(
+ld_file <- oai_batch_upload(
   jsonl_rows = ld_embed_rows,
   purpose = "batch"
 )
 
-ld_batch_job <- oai_batch_create(ld_file$id, endpoint = "/v1/embeddings")
+ld_batch_job <- oai_batch_start(ld_file$id, endpoint = "/v1/embeddings")
 
 oai_batch_status(ld_batch_job$id)[["status"]]
 ld_results <- oai_file_content(oai_batch_status(ld_batch_job$id)[["output_file_id"]])
@@ -225,14 +225,14 @@ completions_req <- oai_batch_build_completions_req(
   id = "id_1"
 )
 
-completions_file <- oai_batch_file_upload(
+completions_file <- oai_batch_upload(
   completions_req
 )
 ```
 
 Do need to remember to fill in endpoint = "/v1/chat/completions" here instead of default arg for embeddings
 ```{r}
-completions_batch <- oai_batch_create(
+completions_batch <- oai_batch_start(
   completions_file$id,
   endpoint = "/v1/chat/completions"
 )
@@ -263,6 +263,8 @@ joke_schema <- create_json_schema(
   )
 )
 
+joke_schema
+
 completions_req_w_schema <- oai_batch_build_completions_req(
   input = "Tell me a joke about my country, the United Kingdom",
   id = "id_1",
@@ -270,13 +272,54 @@ completions_req_w_schema <- oai_batch_build_completions_req(
   temperature = 1
 )
 
-.file <- oai_batch_file_upload(
+.file <- oai_batch_upload(
   completions_req_w_schema
 )
 
-.batch <- oai_batch_create(.file$id, endpoint = "/v1/chat/completions")
+.batch <- oai_batch_start(.file$id, endpoint = "/v1/chat/completions")
 
 oai_batch_status(.batch$id)[["status"]]
+
+oai_batch_status(.batch$id)[["output_file_id"]] |> 
+  oai_file_content()
+oai_batch_status(.batch$id)[[""]]
+```
+
+To deal with a batch output that had strutured outputs, we need to first parse the batch, and then use the same approach we use elsewhere in Endpoint  - may work on this as it still feels quite clunky
+```{r}
+.content <- oai_batch_status(.batch$id)[["output_file_id"]] |> 
+  oai_file_content()
+
+parsed_batch <- oai_batch_parse_completions(.content) # custom_id, content, .error, .error_msg
+
+parsed_batch |>
+    dplyr::mutate(
+      parsed = purrr::map(content, 
+      \(x) safely_from_json(x))
+    ) |>
+    tidyr::unnest_wider(parsed)
 ```
 
 
+# Files API
+
+Write the generic oai_file_upload func and then call that it in oai_batch_upload
+Rename oai_batch_file_upload --> oai_batch_upload(?)
+
+```{r}
+tmp <- tempfile(fileext = ".jsonl")
+writeLines("Hello!", tmp)
+readLines(tmp)
+file.path(tmp)
+
+test_upload <- oai_file_upload(
+  file = tmp,
+  purpose = "user_data"
+) # file must be a file object
+
+file(tmp)
+```
+
+```{r}
+
+```

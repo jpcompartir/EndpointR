@@ -136,8 +136,8 @@ reference:
 - title: "OpenAI Batch API"
   desc: "Functions for managing batches on OpenAI's Batch API"
   contents:
-  - oai_batch_file_upload
-  - oai_batch_create
+  - oai_batch_upload
+  - oai_batch_start
   - oai_batch_status
   - oai_batch_list
   - oai_batch_cancel

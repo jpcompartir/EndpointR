@@ -13,8 +13,8 @@ Adds support for OpenAI's asynchronous Batch API, offering 50% cost savings and 
 
 **Job management:**
 
--   `oai_batch_file_upload()` - Upload prepared JSONL to OpenAI Files API
--   `oai_batch_create()` - Trigger a batch job on an uploaded file
+-   `oai_batch_upload()` - Upload prepared JSONL to OpenAI Files API
+-   `oai_batch_start()` - Trigger a batch job on an uploaded file
 -   `oai_batch_status()` - Check the status of a running batch job
 -   `oai_batch_list()` - List all batch jobs associated with your API key
 -   `oai_batch_cancel()` - Cancel an in-progress batch job
