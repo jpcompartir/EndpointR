@@ -21,18 +21,24 @@ get_api_key <- function(key_name) {
 
   stopifnot("`key_name` should be a string" = is.character(key_name)) # add && API_KEY check here?
 
-  renviron_path <- path.expand("~/.Renviron")
-  if(!file.exists(renviron_path)){
-    cli::cli_abort("{.file {renviron_path}} not found, please create one.")
-  }
-
   if(!endsWith(key_name, "API_KEY")){
     cli::cli_abort("{.val {key_name}} is an invalid name. API keys must end with 'API_KEY'")
   }
 
+  # Check if the environment variable is already set (e.g., in CI or via withr::with_envvar)
   api_key <- Sys.getenv(key_name)
 
   if(identical(api_key, "")) {
+    # Only check for .Renviron if the environment variable is not set
+    renviron_path <- path.expand("~/.Renviron")
+    if(!file.exists(renviron_path)){
+      cli::cli_abort(c(
+        "{.val {key_name}} was not found in environment variables",
+        "i" = "{.file {renviron_path}} not found either",
+        "i" = "Please set with {.code set_api_key({key_name})}, and restart your R session for changes to take effect."
+      ))
+    }
+
     cli::cli_abort("{.val {key_name}} was not found, please set with {.code set_api_key({key_name})}, and restart your R session for changes to take effect.")
   }
 

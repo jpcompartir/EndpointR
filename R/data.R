@@ -28,7 +28,7 @@
 #'   \item{text}{Character; the original text that was embedded}
 #'   \item{category}{Character; category classification of the text}
 #'   \item{.error}{Logical; whether the embedding process failed}
-#'   \item{.error_msg}{Character; error message if embedding failed (NA if successful)}
+#'   \item{.error_message}{Character; error message if embedding failed (NA if successful)}
 #' \item{V1}{Numeric; embedding vector dimensions}
 #' \item{V2}{Numeric; embedding vector dimensions}
 #' \item{V3}{Numeric; embedding vector dimensions}
@@ -815,7 +815,7 @@
 #'   \item{NEGATIVE}{Numeric; probability score for negative sentiment (0-1)}
 #'   \item{POSITIVE}{Numeric; probability score for positive sentiment (0-1)}
 #'   \item{.error}{Logical; whether the classification process failed}
-#'   \item{.error_msg}{Character; error message if classification failed (NA if successful)}
+#'   \item{.error_message}{Character; error message if classification failed (NA if successful)}
 #' }
 #' @source Generated using Hugging Face sentiment classification model via EndpointR functions
 "df_sentiment_classification_example"

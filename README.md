@@ -3,6 +3,9 @@
 
 # EndpointR
 
+[![R-CMD-check](https://github.com/jpcompartir/EndpointR/actions/workflows/R-CMD-check.yaml/badge.svg)](https://github.com/jpcompartir/EndpointR/actions/workflows/R-CMD-check.yaml)
+[![pkgdown](https://github.com/jpcompartir/EndpointR/actions/workflows/pkgdown.yaml/badge.svg)](https://github.com/jpcompartir/EndpointR/actions/workflows/pkgdown.yaml)
+
 EndpointR is a ‘batteries included’, open-source R package for
 connecting to various Application Programming Interfaces
 (<a href="https://en.wikipedia.org/wiki/API" target="_blank">APIs</a>)
@@ -297,4 +300,9 @@ information on common workflows with the OpenAI Chat Completions API
   vs Asynchronous APIs
 
 [^1]: Content pending implementation for Anthropic Messages API, Gemini
+------------------------------------------------------------------------
+
+<img src="man/figures/samy_banner.png" alt="SAMY Data Science" width="100%"/>
+
+[^1]: Content pending implementation for Anthroic Messages API, Gemini
     API, and OpenAI Responses API
