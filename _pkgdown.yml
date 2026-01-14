@@ -66,14 +66,9 @@ navbar:
       - text: Advanced Topics
       - text: Improving Performance
         href: articles/improving_performance.html
-    news:
-      text: Changelog
-      href: news/index.html
+      - text: Synchronous vs Asynchronous (Batch) APIs
+        href: articles/sync_async.html
 
-footer:
-  structure:
-    left: developed_by
-    right: built_with
 
 reference:
 - title: "Getting Started"
@@ -149,6 +144,30 @@ reference:
   - json_dump
   - validate_response
 
+- title: "OpenAI Files API"
+  desc: "Functions for uploading and managing files on OpenAI's Files API"
+  contents:
+  - oai_file_list
+  - oai_file_upload
+  - oai_file_delete
+  - oai_file_content
+
+- title: "OpenAI Batch API"
+  desc: "Functions for managing batches on OpenAI's Batch API"
+  contents:
+  - oai_batch_upload
+  - oai_batch_start
+  - oai_batch_status
+  - oai_batch_list
+  - oai_batch_cancel
+  - oai_batch_build_embed_req
+  - oai_batch_prepare_embeddings
+  - oai_batch_parse_embeddings
+  - oai_batch_build_completions_req
+  - oai_batch_prepare_completions
+  - oai_batch_parse_completions
+  
+
 - title: "Schema Builders"
   desc: "Helper functions for creating different types of JSON schema properties"
   contents:
@@ -184,6 +203,8 @@ reference:
 authors:
   Jack Penzer:
     href: https://github.com/jpcompartir
+  Claude:
+    href: https://claude.ai
 
 repo:
   url:
@@ -195,6 +216,10 @@ development:
 
 news:
   releases:
+  - text: "Version 0.2.1"
+    href: news/index.html#endpointr-021
+  - text: "Version 0.2.0"
+    href: news/index.html#endpointr-020
   - text: "Version 0.2"
     href: news/index.html#endpointr-012
   - text: "Version 0.1.2"

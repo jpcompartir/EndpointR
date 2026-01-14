@@ -18,5 +18,10 @@ Useful links:
 \author{
 \strong{Maintainer}: Jack Penzer \email{Jack.penzer@sharecreative.com}
 
+Authors:
+\itemize{
+  \item Claude AI
+}
+
 }
 \keyword{internal}
