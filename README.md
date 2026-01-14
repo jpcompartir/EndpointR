@@ -291,5 +291,10 @@ information on common workflows with the OpenAI Chat Completions API
   information on which API keys you need for wach endpoint we support,
   and how to securely import those API keys into your .Renvironfile.
 
+# Batch Jobs
+
+- Read the [EndpointR vignette](articles/sync_async.html) on Synchronous
+  vs Asynchronous APIs
+
 [^1]: Content pending implementation for Anthropic Messages API, Gemini
     API, and OpenAI Responses API

@@ -1,8 +1,10 @@
 Package: EndpointR
 Title: Connects to various Machine Learning inference providers
 Version: 0.2.1
-Authors@R: 
-    person("Jack", "Penzer", , "Jack.penzer@sharecreative.com", role = c("aut", "cre"))
+Authors@R: c(
+    person("Jack", "Penzer", , "Jack.penzer@sharecreative.com", role = c("aut", "cre")),
+    person("Claude", "AI", role = "aut")
+    )
 Description: EndpointR is a 'batteries included', open-source R package for connecting to various APIs for Machine Learning model predictions. EndpointR is built for company-specific use cases, so may not be useful to a wide audience.
 License: MIT + file LICENSE
 Encoding: UTF-8
