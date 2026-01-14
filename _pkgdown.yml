@@ -130,6 +130,7 @@ reference:
   desc: "Functions for uploading and managing files on OpenAI's Files API"
   contents:
   - oai_file_list
+  - oai_file_upload
   - oai_file_delete
   - oai_file_content
 

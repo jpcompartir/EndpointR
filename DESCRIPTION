@@ -35,7 +35,8 @@ Imports:
     tibble,
     S7,
     jsonvalidate,
-    arrow
+    arrow,
+    curl
 VignetteBuilder: knitr
 Depends: 
     R (>= 3.5)

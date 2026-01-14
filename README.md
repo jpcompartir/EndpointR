@@ -288,7 +288,7 @@ information on common workflows with the OpenAI Chat Completions API
   and encrypting them.
 
 - Read the [EndpointR API Keys](articles/api_keys.html) vignette for
-  information on which API keys you need for wach endpoint we support,
+  information on which API keys you need for each endpoint we support,
   and how to securely import those API keys into your .Renvironfile.
 
 # Batch Jobs
