@@ -60,7 +60,7 @@ It is **paramount** that we handle our API keys securely. You need to avoid the 
 -   Uploading API keys to web services (GitHub, etc.)
 -   Sharing API keys with other people
 -   Including unencrypted API keys in your code (scripts, R/Quarto/markdown files, .ipynb etc.)
--   Unencypted API keys appearing in your .Rhistory file (**especially** if this file is being uploaded anywhere)
+-   Unencrypted API keys appearing in your .Rhistory file (**especially** if this file is being uploaded anywhere)
 
 If you suspect you may have done one - or any number - of these things, go directly to where you got your key, invalidate the old one and generate a new one. If the key was given to you, go directly to the person and tell them that your key has been compromised and they will invalidate it for you, and provide you a new one.
 
@@ -85,3 +85,39 @@ For each endpoint that EndpointR provides access to, you will need the correct e
 |  |  |  |
 
 : API Key Lookup Table
+
+# Encrypting Your API Keys
+
+To avoid exposing your API keys in plain text it's sensible to encrypt them. The basic flow is to:
+
+1. Create an encryption key
+2. Store this key securely, somewhere separate to where your other API keys are stored
+3. Use this encryption key to encrypt your other API keys. Use R's input tool or a package like {askpass} to avoid inputting the key in your R Session
+4. Decrypt your API keys whenever you need them, using your encryption key
+
+Here's an example in code where we make use of httr2's `secret_make_key`, `secret_encrypt` and `secret_decrypt` functions to achieve this.
+
+First we make an encryption key, remembering not to print it to the console/view its contents in our session
+
+```{r}
+SUPER_SECRET_ENCRYPTION_DEVICE <- httr2::secret_make_key() # store this separately to your API keys, but still somewhere you can retrieve/access it from.
+```
+
+Then we take some information that we want to encrypt, and input it with askpass:
+```{r, eval=FALSE}
+info <- askpass::askpass()
+encrypted_info <- httr2::secret_encrypt(info, SUPER_SECRET_ENCRYPTION_DEVICE)
+encrypted_info
+```
+
+```{r, echo=FALSE}
+info <- "What's the worst that could happen?"
+encrypted_info <- httr2::secret_encrypt(info, SUPER_SECRET_ENCRYPTION_DEVICE)
+encrypted_info
+```
+
+Now our secret is encrypted, we decrypt it to get the original information back.
+
+```{r}
+httr2::secret_decrypt(encrypted_info, SUPER_SECRET_ENCRYPTION_DEVICE)
+```
