@@ -68,7 +68,7 @@ avoid the following things:
 - Sharing API keys with other people
 - Including unencrypted API keys in your code (scripts,
   R/Quarto/markdown files, .ipynb etc.)
-- Unencypted API keys appearing in your .Rhistory file (**especially**
+- Unencrypted API keys appearing in your .Rhistory file (**especially**
   if this file is being uploaded anywhere)
 
 If you suspect you may have done one - or any number - of these things,
@@ -101,3 +101,47 @@ file](https://docs.posit.co/ide/user/ide/guide/environments/r/managing-r.html#re
 |                            |                                                                           |                      |
 
 API Key Lookup Table
+
+## Encrypting Your API Keys
+
+To avoid exposing your API keys in plain text it’s sensible to encrypt
+them. The basic flow is to:
+
+1.  Create an encryption key
+2.  Store this key securely, somewhere separate to where your other API
+    keys are stored
+3.  Use this encryption key to encrypt your other API keys. Use R’s
+    input tool or a package like {askpass} to avoid inputting the key in
+    your R Session
+4.  Decrypt your API keys whenever you need them, using your encryption
+    key
+
+Here’s an example in code where we make use of httr2’s
+`secret_make_key`, `secret_encrypt` and `secret_decrypt` functions to
+achieve this.
+
+First we make an encryption key, remembering not to print it to the
+console/view its contents in our session
+
+``` r
+SUPER_SECRET_ENCRYPTION_DEVICE <- httr2::secret_make_key() # store this separately to your API keys, but still somewhere you can retrieve/access it from.
+```
+
+Then we take some information that we want to encrypt, and input it with
+askpass:
+
+``` r
+info <- askpass::askpass()
+encrypted_info <- httr2::secret_encrypt(info, SUPER_SECRET_ENCRYPTION_DEVICE)
+encrypted_info
+```
+
+    #> [1] "GaYCB3u0FJCwXnFdmej-XodpBvgH-7GOprJP_fyGvnQqxxmEdKdQeJBI7WVgWxvs2RgT"
+
+Now our secret is encrypted, we decrypt it to get the original
+information back.
+
+``` r
+httr2::secret_decrypt(encrypted_info, SUPER_SECRET_ENCRYPTION_DEVICE)
+#> [1] "What's the worst that could happen?"
+```

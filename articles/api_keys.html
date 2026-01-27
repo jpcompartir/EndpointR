@@ -156,7 +156,7 @@ securely. You need to avoid the following things:</p>
 <li>Sharing API keys with other people</li>
 <li>Including unencrypted API keys in your code (scripts,
 R/Quarto/markdown files, .ipynb etc.)</li>
-<li>Unencypted API keys appearing in your .Rhistory file
+<li>Unencrypted API keys appearing in your .Rhistory file
 (<strong>especially</strong> if this file is being uploaded
 anywhere)</li>
 </ul>
@@ -220,6 +220,41 @@ outputs</td>
 </tr>
 </tbody>
 </table>
+</div>
+<div class="section level2">
+<h2 id="encrypting-your-api-keys">Encrypting Your API Keys<a class="anchor" aria-label="anchor" href="#encrypting-your-api-keys"></a>
+</h2>
+<p>To avoid exposing your API keys in plain text it’s sensible to
+encrypt them. The basic flow is to:</p>
+<ol style="list-style-type: decimal">
+<li>Create an encryption key</li>
+<li>Store this key securely, somewhere separate to where your other API
+keys are stored</li>
+<li>Use this encryption key to encrypt your other API keys. Use R’s
+input tool or a package like {askpass} to avoid inputting the key in
+your R Session</li>
+<li>Decrypt your API keys whenever you need them, using your encryption
+key</li>
+</ol>
+<p>Here’s an example in code where we make use of httr2’s
+<code>secret_make_key</code>, <code>secret_encrypt</code> and
+<code>secret_decrypt</code> functions to achieve this.</p>
+<p>First we make an encryption key, remembering not to print it to the
+console/view its contents in our session</p>
+<div class="sourceCode" id="cb4"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">SUPER_SECRET_ENCRYPTION_DEVICE</span> <span class="op">&lt;-</span> <span class="fu">httr2</span><span class="fu">::</span><span class="fu"><a href="https://httr2.r-lib.org/reference/secrets.html" class="external-link">secret_make_key</a></span><span class="op">(</span><span class="op">)</span> <span class="co"># store this separately to your API keys, but still somewhere you can retrieve/access it from.</span></span></code></pre></div>
+<p>Then we take some information that we want to encrypt, and input it
+with askpass:</p>
+<div class="sourceCode" id="cb5"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">info</span> <span class="op">&lt;-</span> <span class="fu">askpass</span><span class="fu">::</span><span class="fu"><a href="https://r-lib.r-universe.dev/askpass/reference/askpass.html" class="external-link">askpass</a></span><span class="op">(</span><span class="op">)</span></span>
+<span><span class="va">encrypted_info</span> <span class="op">&lt;-</span> <span class="fu">httr2</span><span class="fu">::</span><span class="fu"><a href="https://httr2.r-lib.org/reference/secrets.html" class="external-link">secret_encrypt</a></span><span class="op">(</span><span class="va">info</span>, <span class="va">SUPER_SECRET_ENCRYPTION_DEVICE</span><span class="op">)</span></span>
+<span><span class="va">encrypted_info</span></span></code></pre></div>
+<pre><code><span><span class="co">#&gt; [1] "GaYCB3u0FJCwXnFdmej-XodpBvgH-7GOprJP_fyGvnQqxxmEdKdQeJBI7WVgWxvs2RgT"</span></span></code></pre>
+<p>Now our secret is encrypted, we decrypt it to get the original
+information back.</p>
+<div class="sourceCode" id="cb7"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="fu">httr2</span><span class="fu">::</span><span class="fu"><a href="https://httr2.r-lib.org/reference/secrets.html" class="external-link">secret_decrypt</a></span><span class="op">(</span><span class="va">encrypted_info</span>, <span class="va">SUPER_SECRET_ENCRYPTION_DEVICE</span><span class="op">)</span></span>
+<span><span class="co">#&gt; [1] "What's the worst that could happen?"</span></span></code></pre></div>
 </div>
   </main><aside class="col-md-3"><nav id="toc" aria-label="Table of contents"><h2>On this page</h2>
     </nav></aside>
