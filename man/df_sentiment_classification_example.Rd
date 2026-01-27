@@ -13,7 +13,7 @@ A data frame with 3 rows and 7 variables:
 \item{NEGATIVE}{Numeric; probability score for negative sentiment (0-1)}
 \item{POSITIVE}{Numeric; probability score for positive sentiment (0-1)}
 \item{.error}{Logical; whether the classification process failed}
-\item{.error_message}{Character; error message if classification failed (NA if successful)}
+\item{.error_msg}{Character; error message if classification failed (NA if successful)}
 }
 }
 \source{
