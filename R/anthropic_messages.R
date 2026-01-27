@@ -236,7 +236,8 @@ ant_complete_text <- function(text,
     max_tokens = max_tokens,
     endpoint_url = endpoint_url,
     max_retries = max_retries,
-    timeout = timeout
+    timeout = timeout,
+    system_prompt = system_prompt
   )
 
   tryCatch({
@@ -278,6 +279,7 @@ ant_complete_text <- function(text,
 
   return(content)
 }
+
 # ant_complete_text ----
 
 # ant_complete_chunks ----
