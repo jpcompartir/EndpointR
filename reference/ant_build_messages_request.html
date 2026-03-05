@@ -11,7 +11,7 @@ for structured outputs. When using structured outputs you must select the correc
 
     <a class="navbar-brand me-2" href="../index.html">EndpointR</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="Released version">0.2.1</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="Released version">0.2.2</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -43,6 +43,7 @@ for structured outputs. When using structured outputs you must select the correc
 <li class="nav-item dropdown">
   <button class="nav-link dropdown-toggle" type="button" id="dropdown-news" data-bs-toggle="dropdown" aria-expanded="false" aria-haspopup="true">News</button>
   <ul class="dropdown-menu" aria-labelledby="dropdown-news"><li><h6 class="dropdown-header" data-toc-skip>Releases</h6></li>
+    <li><a class="dropdown-item" href="../news/index.html#endpointr-022">Version 0.2.2</a></li>
     <li><a class="dropdown-item" href="../news/index.html#endpointr-021">Version 0.2.1</a></li>
     <li><a class="dropdown-item" href="../news/index.html#endpointr-020">Version 0.2.0</a></li>
     <li><a class="dropdown-item" href="../news/index.html#endpointr-012">Version 0.2</a></li>
@@ -120,7 +121,9 @@ for structured outputs. When using structured outputs you must select the correc
 
 
 <dt id="arg-system-prompt">system_prompt<a class="anchor" aria-label="anchor" href="#arg-system-prompt"></a></dt>
-<dd><p>Optional system prompt</p></dd>
+<dd><p>Optional system prompt. When provided, prompt caching
+is automatically enabled via <code>cache_control</code>, reducing costs for repeated
+requests sharing the same system prompt.</p></dd>
 
 
 <dt id="arg-key-name">key_name<a class="anchor" aria-label="anchor" href="#arg-key-name"></a></dt>
@@ -147,12 +150,11 @@ for structured outputs. When using structured outputs you must select the correc
     <h2 id="details">Details<a class="anchor" aria-label="anchor" href="#details"></a></h2>
     <p>This function creates the HTTP request but does not execute it. For
 structured outputs, you must use a supported model (Claude Sonnet 4.5
-or Opus 4.1) and the request will automatically include the required
-beta header.</p>
+or Opus 4.1).</p>
 <p>The <code>schema</code> parameter accepts either:</p><ul><li><p>A <code>json_schema</code> S7 object created with <code><a href="create_json_schema.html">create_json_schema()</a></code></p></li>
-<li><p>A raw list in Anthropic's <code>output_format</code> structure</p></li>
-</ul><p>Unlike OpenAI, Anthropic uses <code>output_format</code> (not <code>response_format</code>)
-and the schema structure differs slightly.</p>
+<li><p>A raw list in Anthropic's <code>output_config</code> structure</p></li>
+</ul><p>Anthropic uses <code>output_config</code> with a nested <code>format</code> field for structured
+outputs. This is now GA and requires no beta header.</p>
     </div>
     <div class="section level2">
     <h2 id="see-also">See also<a class="anchor" aria-label="anchor" href="#see-also"></a></h2>
@@ -191,7 +193,7 @@ and the schema structure differs slightly.</p>
 
 
     <footer><div class="pkgdown-footer-left">
-  <p>Developed by <a href="https://github.com/jpcompartir" class="external-link">Jack Penzer</a>, Claude AI.</p>
+  <p>Developed by <a href="https://github.com/jpcompartir" class="external-link">Jack Penzer</a>, Ben Jessup, Claude AI.</p>
 </div>
 
 <div class="pkgdown-footer-right">

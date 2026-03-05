@@ -1,6 +1,6 @@
-# Convert json_schema S7 object to Anthropic output_format structure
+# Convert json_schema S7 object to Anthropic output_config structure
 
-Convert json_schema S7 object to Anthropic output_format structure
+Convert json_schema S7 object to Anthropic output_config structure
 
 ## Usage
 

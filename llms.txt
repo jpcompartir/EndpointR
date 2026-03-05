@@ -393,6 +393,22 @@ Functions for working with Anthropic’s Messages API
 - [`ant_complete_df()`](https://jpcompartir.github.io/EndpointR/reference/ant_complete_df.md)
   : Process a data frame through Anthropic's Messages API
 
+## Anthropic Batches
+
+Functions for creating and managing batches of requests to Anthropic’s
+Batch Messages API
+
+- [`ant_batch_cancel()`](https://jpcompartir.github.io/EndpointR/reference/ant_batch_cancel.md)
+  : Cancel an Anthropic Message Batch
+- [`ant_batch_create()`](https://jpcompartir.github.io/EndpointR/reference/ant_batch_create.md)
+  : Create an Anthropic Message Batch
+- [`ant_batch_list()`](https://jpcompartir.github.io/EndpointR/reference/ant_batch_list.md)
+  : List Anthropic Message Batches
+- [`ant_batch_results()`](https://jpcompartir.github.io/EndpointR/reference/ant_batch_results.md)
+  : Retrieve Results from a Completed Anthropic Message Batch
+- [`ant_batch_status()`](https://jpcompartir.github.io/EndpointR/reference/ant_batch_status.md)
+  : Check the Status of an Anthropic Message Batch
+
 ## OpenAI Completions
 
 Functions for working with OpenAI’s APIs including structured outputs

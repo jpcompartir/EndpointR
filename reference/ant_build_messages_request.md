@@ -52,7 +52,9 @@ ant_build_messages_request(
 
 - system_prompt:
 
-  Optional system prompt
+  Optional system prompt. When provided, prompt caching is automatically
+  enabled via `cache_control`, reducing costs for repeated requests
+  sharing the same system prompt.
 
 - key_name:
 
@@ -78,18 +80,17 @@ An httr2 request object
 
 This function creates the HTTP request but does not execute it. For
 structured outputs, you must use a supported model (Claude Sonnet 4.5 or
-Opus 4.1) and the request will automatically include the required beta
-header.
+Opus 4.1).
 
 The `schema` parameter accepts either:
 
 - A `json_schema` S7 object created with
   [`create_json_schema()`](https://jpcompartir.github.io/EndpointR/reference/create_json_schema.md)
 
-- A raw list in Anthropic's `output_format` structure
+- A raw list in Anthropic's `output_config` structure
 
-Unlike OpenAI, Anthropic uses `output_format` (not `response_format`)
-and the schema structure differs slightly.
+Anthropic uses `output_config` with a nested `format` field for
+structured outputs. This is now GA and requires no beta header.
 
 ## See also
 

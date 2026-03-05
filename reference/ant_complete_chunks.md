@@ -46,7 +46,9 @@ ant_complete_chunks(
 
 - system_prompt:
 
-  Optional system prompt (applied to all requests)
+  Optional system prompt (applied to all requests). Prompt caching is
+  enabled automatically, reducing costs when the same system prompt is
+  shared across many requests.
 
 - output_dir:
 

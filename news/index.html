@@ -7,7 +7,7 @@
 
     <a class="navbar-brand me-2" href="../index.html">EndpointR</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="Released version">0.2.1</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="Released version">0.2.2</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -39,6 +39,7 @@
 <li class="active nav-item dropdown">
   <button class="nav-link dropdown-toggle" type="button" id="dropdown-news" data-bs-toggle="dropdown" aria-expanded="false" aria-haspopup="true">News</button>
   <ul class="dropdown-menu" aria-labelledby="dropdown-news"><li><h6 class="dropdown-header" data-toc-skip>Releases</h6></li>
+    <li><a class="dropdown-item" href="../news/index.html#endpointr-022">Version 0.2.2</a></li>
     <li><a class="dropdown-item" href="../news/index.html#endpointr-021">Version 0.2.1</a></li>
     <li><a class="dropdown-item" href="../news/index.html#endpointr-020">Version 0.2.0</a></li>
     <li><a class="dropdown-item" href="../news/index.html#endpointr-012">Version 0.2</a></li>
@@ -63,6 +64,26 @@
       <small>Source: <a href="https://github.com/jpcompartir/EndpointR/tree/main/NEWS.md" class="external-link"><code>NEWS.md</code></a></small>
     </div>
 
+    <div class="section level2">
+<h2 class="pkg-version" data-toc-text="0.2.2" id="endpointr-022">EndpointR 0.2.2<a class="anchor" aria-label="anchor" href="#endpointr-022"></a></h2>
+<div class="section level3">
+<h3 id="anthropic-messages-api-0-2-2">Anthropic Messages API<a class="anchor" aria-label="anchor" href="#anthropic-messages-api-0-2-2"></a></h3>
+<ul><li>
+<code><a href="../reference/ant_build_messages_request.html">ant_build_messages_request()</a></code> now automatically enables prompt caching when a <code>system_prompt</code> is provided, structuring it as a content block with <code>cache_control</code>. This benefits <code><a href="../reference/ant_complete_chunks.html">ant_complete_chunks()</a></code> and <code><a href="../reference/ant_complete_df.html">ant_complete_df()</a></code> where many requests share the same system prompt — cached reads cost 90% less than uncached.</li>
+<li>Structured outputs is out of BETA and is now generally available, so the header is removed, and <code>output_form</code> –&gt; <code>output_config</code> in the body of the request following <a href="https://platform.claude.com/docs/en/build-with-claude/structured-outputs" class="external-link">Anthropic Docs on Structured Outputs</a>
+</li>
+</ul></div>
+<div class="section level3">
+<h3 id="anthropic-batch-api-0-2-2">Anthropic Batch API<a class="anchor" aria-label="anchor" href="#anthropic-batch-api-0-2-2"></a></h3>
+<p>Functions for dealing with Anthropic Bathches API, works differently ot the OpenAI API - as we send requests not files.</p>
+<ul><li><code><a href="../reference/ant_batch_create.html">ant_batch_create()</a></code></li>
+<li><code><a href="../reference/ant_batch_status.html">ant_batch_status()</a></code></li>
+<li><code><a href="../reference/ant_batch_results.html">ant_batch_results()</a></code></li>
+<li><code><a href="../reference/ant_batch_list.html">ant_batch_list()</a></code></li>
+<li><code><a href="../reference/ant_batch_cancel.html">ant_batch_cancel()</a></code></li>
+</ul><p>See the <a href="articles/sync_async.html#anthropic-message-batches-api">Sync Async Vignette</a> for more details</p>
+</div>
+</div>
     <div class="section level2">
 <h2 class="pkg-version" data-toc-text="0.2.1" id="endpointr-021">EndpointR 0.2.1<a class="anchor" aria-label="anchor" href="#endpointr-021"></a></h2>
 <div class="section level3">
@@ -160,7 +181,7 @@
 
 
     <footer><div class="pkgdown-footer-left">
-  <p>Developed by <a href="https://github.com/jpcompartir" class="external-link">Jack Penzer</a>, Claude AI.</p>
+  <p>Developed by <a href="https://github.com/jpcompartir" class="external-link">Jack Penzer</a>, Ben Jessup, Claude AI.</p>
 </div>
 
 <div class="pkgdown-footer-right">
