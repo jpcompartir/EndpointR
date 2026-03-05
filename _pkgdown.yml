@@ -222,6 +222,8 @@ development:
 
 news:
   releases:
+  - text: "Version 0.2.2"
+    href: news/index.html#endpointr-022
   - text: "Version 0.2.1"
     href: news/index.html#endpointr-021
   - text: "Version 0.2.0"
