@@ -31,7 +31,9 @@ ant_build_messages_request(
 
 \item{schema}{Optional JSON schema for structured output (json_schema object or list)}
 
-\item{system_prompt}{Optional system prompt}
+\item{system_prompt}{Optional system prompt. When provided, prompt caching
+is automatically enabled via \code{cache_control}, reducing costs for repeated
+requests sharing the same system prompt.}
 
 \item{key_name}{Environment variable name for API key}
 
@@ -52,17 +54,16 @@ for structured outputs. When using structured outputs you must select the correc
 \details{
 This function creates the HTTP request but does not execute it. For
 structured outputs, you must use a supported model (Claude Sonnet 4.5
-or Opus 4.1) and the request will automatically include the required
-beta header.
+or Opus 4.1).
 
 The \code{schema} parameter accepts either:
 \itemize{
 \item A \code{json_schema} S7 object created with \code{create_json_schema()}
-\item A raw list in Anthropic's \code{output_format} structure
+\item A raw list in Anthropic's \code{output_config} structure
 }
 
-Unlike OpenAI, Anthropic uses \code{output_format} (not \code{response_format})
-and the schema structure differs slightly.
+Anthropic uses \code{output_config} with a nested \code{format} field for structured
+outputs. This is now GA and requires no beta header.
 }
 \examples{
 \dontrun{
