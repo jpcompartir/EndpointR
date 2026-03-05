@@ -117,6 +117,12 @@ reference:
   - ant_complete_chunks
   - ant_complete_df
 
+- title: "Anthropic Batches"
+  desc: "Functions for creating and managing batches of requests to Anthropic's Batch Messages API"
+  contents:
+  - contains("ant_batch")
+
+
 - title: "OpenAI Completions"
   desc: "Functions for working with OpenAI's APIs including structured outputs"
   contents:
