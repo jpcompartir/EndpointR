@@ -38,6 +38,12 @@ test_that("ant_build_messages accepts a system_prompt and the request is formatt
   req_w_sys <- ant_build_messages_request(message, system_prompt = "Talk about all things Peter Pan only")
 
   expect_true(!is.null(req_w_sys$body$data$system))
+
+  # system prompt should be structured as content block with cache_control for prompt caching
+  sys_block <- req_w_sys$body$data$system[[1]]
+  expect_equal(sys_block$type, "text")
+  expect_equal(sys_block$text, "Talk about all things Peter Pan only")
+  expect_equal(sys_block$cache_control, list(type = "ephemeral"))
 })
 
 test_that("ant_build_messages_request accepts schemas and formats properly with .ant_format_schema", {
@@ -56,11 +62,10 @@ test_that("ant_build_messages_request accepts schemas and formats properly with 
     model = "claude-sonnet-4-5")
 
 
-  schema_data <- req_schema$body$data$output_format
-  expect_equal(schema_data$type, "json_schema")
+  schema_data <- req_schema$body$data$output_config
+  expect_equal(schema_data$format$type, "json_schema")
 
-  expect_equal(names(schema_data$schema$properties), "sentiment")
-  expect_equal(req_schema$headers$`anthropic-beta`, "structured-outputs-2025-11-13")
+  expect_equal(names(schema_data$format$schema$properties), "sentiment")
 
 
 })
@@ -135,7 +140,7 @@ test_that("ant_complete_text takes a single text and returns the response", {
 })
 
 
-test_that("ant_complete_text handles a schema appropriately", {
+test_that("ant_complete_text handles a schema and a system prompt appropriately", {
 
   test_url <- server$url("/test_ant_sentiment")
 

@@ -1,6 +1,6 @@
 Package: EndpointR
 Title: Connects to various Machine Learning inference providers
-Version: 0.2.1
+Version: 0.2.2
 Authors@R: c(
     person("Jack", "Penzer", , "Jack.penzer@sharecreative.com", role = c("aut", "cre")),
     person("Claude", "AI", role = "aut")
