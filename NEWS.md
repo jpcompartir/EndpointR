@@ -15,6 +15,7 @@ Functions for dealing with Anthropic Bathches API, works differently ot the Open
 - `ant_batch_results()`
 - `ant_batch_list()`
 - `ant_batch_cancel()`
+- 
 
 See the [Sync Async Vignette](articles/sync_async.html#anthropic-message-batches-api) for more details
 
