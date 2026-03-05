@@ -4,6 +4,7 @@
 
 ## Anthropic Messages API
 -   `ant_build_messages_request()` now automatically enables prompt caching when a `system_prompt` is provided, structuring it as a content block with `cache_control`. This benefits `ant_complete_chunks()` and `ant_complete_df()` where many requests share the same system prompt — cached reads cost 90% less than uncached.
+- Structured outputs is out of BETA and is now generally available, so the header is removed, and `output_form` --> `output_config` in the body of the request following [Anthropic Docs on Structured Outputs](https://platform.claude.com/docs/en/build-with-claude/structured-outputs)
 
 ## Anthropic Batch API
 
