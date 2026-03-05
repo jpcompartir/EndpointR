@@ -1,3 +1,22 @@
+# EndpointR (dev)
+
+# EndpointR 0.2.2
+
+## Anthropic Messages API
+-   `ant_build_messages_request()` now automatically enables prompt caching when a `system_prompt` is provided, structuring it as a content block with `cache_control`. This benefits `ant_complete_chunks()` and `ant_complete_df()` where many requests share the same system prompt — cached reads cost 90% less than uncached.
+
+## Anthropic Batch API
+
+Functions for dealing with Anthropic Bathches API, works differently ot the OpenAI API - as we send requests not files.
+
+- `ant_batch_create()` 
+- `ant_batch_status()` 
+- `ant_batch_results()`
+- `ant_batch_list()`
+- `ant_batch_cancel()`
+
+See the [Sync Async Vignette](articles/sync_async.html#anthropic-message-batches-api) for more details
+
 # EndpointR 0.2.1
 
 ## OpenAI Batch API
