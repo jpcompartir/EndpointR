@@ -1,8 +1,9 @@
 Package: EndpointR
 Title: Connects to various Machine Learning inference providers
-Version: 0.2.1
+Version: 0.2.2
 Authors@R: c(
-    person("Jack", "Penzer", , "Jack.penzer@sharecreative.com", role = c("aut", "cre")),
+    person("Jack", "Penzer", , "jack.penzer@samy.com", role = c("aut", "cre")),
+    person("Ben", "Jessup", , "ben.jessup@samy.com", role = "aut"),
     person("Claude", "AI", role = "aut")
     )
 Description: EndpointR is a 'batteries included', open-source R package for connecting to various APIs for Machine Learning model predictions. EndpointR is built for company-specific use cases, so may not be useful to a wide audience.

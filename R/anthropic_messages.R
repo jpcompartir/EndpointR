@@ -1,6 +1,5 @@
 # constants ----
 .ANT_API_VERSION <- "2023-06-01"
-.ANT_STRUCTURED_OUTPUTS_BETA <- "structured-outputs-2025-11-13"
 .ANT_MESSAGES_ENDPOINT <- "https://api.anthropic.com/v1/messages"
 .ANT_DEFAULT_MODEL <- "claude-haiku-4-5"
 
@@ -16,15 +15,14 @@
 #' @details
 #' This function creates the HTTP request but does not execute it. For
 #' structured outputs, you must use a supported model (Claude Sonnet 4.5
-#' or Opus 4.1) and the request will automatically include the required
-#' beta header.
+#' or Opus 4.1).
 #'
 #' The `schema` parameter accepts either:
 #' - A `json_schema` S7 object created with `create_json_schema()`
-#' - A raw list in Anthropic's `output_format` structure
+#' - A raw list in Anthropic's `output_config` structure
 #'
-#' Unlike OpenAI, Anthropic uses `output_format` (not `response_format`)
-#' and the schema structure differs slightly.
+#' Anthropic uses `output_config` with a nested `format` field for structured
+#' outputs. This is now GA and requires no beta header.
 #'
 #' @param input Text input to send to the model
 #' @param endpointr_id An id that will persist through to response
@@ -32,7 +30,9 @@
 #' @param temperature Sampling temperature (0-2), higher values = more randomness
 #' @param max_tokens Maximum tokens in response
 #' @param schema Optional JSON schema for structured output (json_schema object or list)
-#' @param system_prompt Optional system prompt
+#' @param system_prompt Optional system prompt. When provided, prompt caching
+#'   is automatically enabled via `cache_control`, reducing costs for repeated
+#'   requests sharing the same system prompt.
 #' @param key_name Environment variable name for API key
 #' @param endpoint_url Anthropic API endpoint URL
 #' @param timeout Request timeout in seconds
@@ -87,8 +87,6 @@ ant_build_messages_request <- function(
     "temperature must be numeric between 0 and 1" = is.numeric(temperature) && temperature >= 0 && temperature <= 1, # diff to OAI API
     "max_tokens must be a positive integer" = is.numeric(max_tokens) && max_tokens > 0)
 
-  use_structured_outputs <- FALSE  # flag for later control flow
-
   api_key <- get_api_key(key_name)
 
   messages <- list(
@@ -109,18 +107,22 @@ ant_build_messages_request <- function(
       cli::cli_abort("{.arg system_prompt} must be a {.cls character} of length 1, e.g. 'This is a valid system prompt'")
     }
 
-    body$system <- system_prompt
+    body$system <- list(
+      list(
+        type = "text",
+        text = system_prompt,
+        cache_control = list(type = "ephemeral")
+      )
+    )
   }
 
-  #
   if(!is.null(schema)) {
-    use_structured_outputs <- TRUE
     if (inherits(schema, "EndpointR::json_schema")) {
-      body$output_format <- .ant_format_schema(schema)
+      body$output_config <- .ant_format_schema(schema)
     } else if (is.list(schema)) {
-      body$output_format <- schema
+      body$output_config <- schema
     } else {
-      cli::cli_abort("{.arg chema} must be an EndpointR json_schema object or a list")
+      cli::cli_abort("{.arg schema} must be an EndpointR json_schema object or a list")
     }
   }
 
@@ -141,12 +143,6 @@ ant_build_messages_request <- function(
       retry_on_failure = TRUE
     ) |>
     httr2::req_body_json(body)
-
-  # if we did use structured outputs then we need to add the anthropic-beta header (this will be patched at some point I expect)
-
-  if (use_structured_outputs) {
-    request <- httr2::req_headers(request, "anthropic-beta" = .ANT_STRUCTURED_OUTPUTS_BETA)
-  }
 
   if (!is.null(endpointr_id)) {
     request <- httr2::req_headers(request, endpointr_id = endpointr_id)
@@ -307,7 +303,9 @@ ant_complete_text <- function(text,
 #' @param ids Vector of unique identifiers (same length as texts)
 #' @param chunk_size Number of texts per chunk before writing to disk
 #' @param model Anthropic model to use
-#' @param system_prompt Optional system prompt (applied to all requests)
+#' @param system_prompt Optional system prompt (applied to all requests).
+#'   Prompt caching is enabled automatically, reducing costs when the same
+#'   system prompt is shared across many requests.
 #' @param output_dir Directory for parquet chunks ("auto" generates timestamped dir)
 #' @param schema Optional JSON schema for structured output
 #' @param concurrent_requests Number of concurrent requests
@@ -642,18 +640,19 @@ ant_complete_df <- function(df,
 }
 
 
-#' Convert json_schema S7 object to Anthropic output_format structure
+#' Convert json_schema S7 object to Anthropic output_config structure
 #' @keywords internal
 .ant_format_schema <- function(schema) {
   if (!inherits(schema, "EndpointR::json_schema")) {
     cli::cli_abort("schema must be a json_schema object")
   }
 
-  # Anthropic uses output_format with type "json_schema"
-  # The schema goes directly in the "schema" field (not nested like OpenAI)
+  # Anthropic uses output_config with a nested format field (GA, no beta header needed)
   list(
-    type = "json_schema",
-    schema = schema@schema
+    format = list(
+      type = "json_schema",
+      schema = schema@schema
+    )
   )
 }
 

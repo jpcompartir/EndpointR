@@ -31,7 +31,9 @@ ant_complete_chunks(
 
 \item{model}{Anthropic model to use}
 
-\item{system_prompt}{Optional system prompt (applied to all requests)}
+\item{system_prompt}{Optional system prompt (applied to all requests).
+Prompt caching is enabled automatically, reducing costs when the same
+system prompt is shared across many requests.}
 
 \item{output_dir}{Directory for parquet chunks ("auto" generates timestamped dir)}
 

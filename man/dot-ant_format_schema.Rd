@@ -2,11 +2,11 @@
 % Please edit documentation in R/anthropic_messages.R
 \name{.ant_format_schema}
 \alias{.ant_format_schema}
-\title{Convert json_schema S7 object to Anthropic output_format structure}
+\title{Convert json_schema S7 object to Anthropic output_config structure}
 \usage{
 .ant_format_schema(schema)
 }
 \description{
-Convert json_schema S7 object to Anthropic output_format structure
+Convert json_schema S7 object to Anthropic output_config structure
 }
 \keyword{internal}
