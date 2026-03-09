@@ -393,6 +393,20 @@ withr::local_envvar(HF_TEST_API_KEY = "fake-key")
     send(jsonl_content)
 })
 
+# Returns a 400 error with curly braces in the message (triggers cli parsing bug)
+.app$post("/test_ant_batch_create_error_with_braces", function(req, res) {
+  response_data <- list(
+    type = "error",
+    error = list(type = "invalid_request_error"),
+    message = "Invalid value at position {1,64}: expected string"
+  )
+
+  res$
+    set_status(400L)$
+    set_header("Content-Type", "application/json")$
+    send(jsonlite::toJSON(response_data, auto_unbox = TRUE))
+})
+
 server <- webfakes::local_app_process(.app)
 
 
