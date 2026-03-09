@@ -13,8 +13,10 @@ Useful links:
 
 ## Author
 
-**Maintainer**: Jack Penzer <Jack.penzer@sharecreative.com>
+**Maintainer**: Jack Penzer <jack.penzer@samy.com>
 
 Authors:
+
+- Ben Jessup <ben.jessup@samy.com>
 
 - Claude AI

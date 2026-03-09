@@ -23,7 +23,7 @@
 
     <a class="navbar-brand me-2" href="../index.html">EndpointR</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="Released version">0.2.2</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="Released version">0.2.3</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -250,7 +250,7 @@ with askpass:</p>
 <code class="sourceCode R"><span><span class="va">info</span> <span class="op">&lt;-</span> <span class="fu">askpass</span><span class="fu">::</span><span class="fu"><a href="https://r-lib.r-universe.dev/askpass/reference/askpass.html" class="external-link">askpass</a></span><span class="op">(</span><span class="op">)</span></span>
 <span><span class="va">encrypted_info</span> <span class="op">&lt;-</span> <span class="fu">httr2</span><span class="fu">::</span><span class="fu"><a href="https://httr2.r-lib.org/reference/secrets.html" class="external-link">secret_encrypt</a></span><span class="op">(</span><span class="va">info</span>, <span class="va">SUPER_SECRET_ENCRYPTION_DEVICE</span><span class="op">)</span></span>
 <span><span class="va">encrypted_info</span></span></code></pre></div>
-<pre><code><span><span class="co">#&gt; [1] "xt6U0Hv9rLHNApc_4-CEPOgi7Q7vWjKNEp2pAILTgpVtmO6Gn0NnIgKoPfqT_kmL9gqv"</span></span></code></pre>
+<pre><code><span><span class="co">#&gt; [1] "Ks_2K_Aqz8DsAxiJfMSrEuc8vVOf7fGc4lf_4dqSqXEpc1Ji3jdMxIjyMOTQmpvv_ePi"</span></span></code></pre>
 <p>Now our secret is encrypted, we decrypt it to get the original
 information back.</p>
 <div class="sourceCode" id="cb7"><pre class="downlit sourceCode r">

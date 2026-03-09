@@ -14,13 +14,13 @@ Source:
 [`DESCRIPTION`](https://github.com/jpcompartir/EndpointR/tree/main/DESCRIPTION)
 
 Penzer J, Jessup B, AI C (2026). *EndpointR: Connects to various Machine
-Learning inference providers*. R package version 0.2.2,
+Learning inference providers*. R package version 0.2.3,
 <https://jpcompartir.github.io/EndpointR/>.
 
     @Manual{,
       title = {EndpointR: Connects to various Machine Learning inference providers},
       author = {Jack Penzer and Ben Jessup and Claude AI},
       year = {2026},
-      note = {R package version 0.2.2},
+      note = {R package version 0.2.3},
       url = {https://jpcompartir.github.io/EndpointR/},
     }
