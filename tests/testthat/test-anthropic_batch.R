@@ -30,6 +30,33 @@ test_that("ant_batch_create validates inputs", {
     ),
     "batch cannot exceed 100,000 requests"
   )
+
+  # too long
+  expect_error(
+    ant_batch_create(
+      texts = c("a", "b"),
+      custom_ids = c("short_id", strrep("x", 65))
+    ),
+    "1-64 characters"
+  )
+
+  # invalid characters (colons)
+  expect_error(
+    ant_batch_create(
+      texts = c("a"),
+      custom_ids = c("BLUESKY_did:plc:abc123")
+    ),
+    "letters, numbers, hyphens, and underscores"
+  )
+
+  # mix of too long and invalid chars
+  expect_error(
+    ant_batch_create(
+      texts = c("a", "b", "c"),
+      custom_ids = c("ok", strrep("a", 100), "has:colons")
+    ),
+    "2 ids do not meet"
+  )
 })
 
 test_that("ant_batch_status validates batch_id", {
@@ -208,6 +235,19 @@ test_that("ant_batch_results parses JSONL correctly into expected tibble", {
   expect_true(is.na(errored$content))
   expect_true(errored$.error)
   expect_equal(errored$.error_msg, "Invalid request")
+})
+
+test_that("ant_batch_create error messages with curly braces don't crash cli", {
+  withr::local_envvar(ANTHROPIC_API_KEY = "test-key")
+
+  expect_error(
+    ant_batch_create(
+      texts = c("Hello", "World"),
+      custom_ids = c("t1", "t2"),
+      endpoint_url = server$url("/test_ant_batch_create_error_with_braces")
+    ),
+    "Batch creation failed"
+  )
 })
 
 test_that("ant_batch_results errors when batch not ended", {
