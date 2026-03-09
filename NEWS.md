@@ -23,7 +23,7 @@ Functions for dealing with Anthropic Bathches API, works differently ot the Open
 - `ant_batch_list()`
 - `ant_batch_cancel()`
 
-See the [Sync Async Vignette](articles/sync_async.html#anthropic-message-batches-api) for more details
+See the [Sync Async Vignette](https://jpcompartir.github.io/EndpointR/articles/sync_async.html#anthropic-message-batches-api) for more details
 
 # EndpointR 0.2.1
 
