@@ -66,6 +66,17 @@ ant_batch_create <- function(
     "batch cannot exceed 100,000 requests" = length(texts) <= 100000
   )
 
+  bad_ids <- !grepl("^[a-zA-Z0-9_-]{1,64}$", custom_ids)
+  if (any(bad_ids)) {
+    n_bad <- sum(bad_ids)
+    examples <- utils::head(custom_ids[bad_ids], 3)
+    cli::cli_abort(c(
+      "{.arg custom_ids} must be 1-64 characters using only letters, numbers, hyphens, and underscores",
+      "i" = "{n_bad} id{?s} {?does/do} not meet this requirement",
+      "i" = "Example{?s}: {.val {examples}}"
+    ))
+  }
+
   if (!is.null(system_prompt)) {
     if (!rlang::is_scalar_character(system_prompt)) {
       cli::cli_abort("{.arg system_prompt} must be a {.cls character} of length 1")
@@ -131,7 +142,7 @@ ant_batch_create <- function(
     error_msg <- .extract_api_error(response)
     cli::cli_abort(c(
       "Batch creation failed",
-      "x" = error_msg
+      "x" = "{error_msg}"
     ))
   }
 
@@ -181,7 +192,7 @@ ant_batch_status <- function(
     error_msg <- .extract_api_error(response)
     cli::cli_abort(c(
       "Failed to retrieve batch status",
-      "x" = error_msg
+      "x" = "{error_msg}"
     ))
   }
 
@@ -252,7 +263,7 @@ ant_batch_results <- function(
     error_msg <- .extract_api_error(response)
     cli::cli_abort(c(
       "Failed to retrieve batch results",
-      "x" = error_msg
+      "x" = "{error_msg}"
     ))
   }
 
@@ -379,7 +390,7 @@ ant_batch_list <- function(
     error_msg <- .extract_api_error(response)
     cli::cli_abort(c(
       "Failed to list batches",
-      "x" = error_msg
+      "x" = "{error_msg}"
     ))
   }
 
@@ -428,7 +439,7 @@ ant_batch_cancel <- function(
     error_msg <- .extract_api_error(response)
     cli::cli_abort(c(
       "Failed to cancel batch",
-      "x" = error_msg
+      "x" = "{error_msg}"
     ))
   }
 

@@ -1,5 +1,12 @@
 # EndpointR (dev)
 
+# EndpointR 0.2.3
+
+- Bug fix with error message handling, previously passing in raw `error_msg` to cli:: functions, which then interpret as glue, so try to handle '{ }' when they appear in the error messages. Fix is to passing "{error_msg}" already string interpolated. Fix added to OpenAI integrations as well as Anthropic Batch Implementation
+- Tests added, and request creation for Ant batches now checks against the RegEx Anthropic provide
+
+
+
 # EndpointR 0.2.2
 
 ## Anthropic Messages API
@@ -17,7 +24,7 @@ Functions for dealing with Anthropic Bathches API, works differently ot the Open
 - `ant_batch_cancel()`
 - 
 
-See the [Sync Async Vignette](articles/sync_async.html#anthropic-message-batches-api) for more details
+See the [Sync Async Vignette](https://jpcompartir.github.io/EndpointR/articles/sync_async.html#anthropic-message-batches-api) for more details
 
 # EndpointR 0.2.1
 
