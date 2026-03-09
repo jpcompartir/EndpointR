@@ -16,10 +16,11 @@ Useful links:
 
 }
 \author{
-\strong{Maintainer}: Jack Penzer \email{Jack.penzer@sharecreative.com}
+\strong{Maintainer}: Jack Penzer \email{jack.penzer@samy.com}
 
 Authors:
 \itemize{
+  \item Ben Jessup \email{ben.jessup@samy.com}
   \item Claude AI
 }
 

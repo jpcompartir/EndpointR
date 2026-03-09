@@ -79,7 +79,7 @@ oai_file_upload <- function(file, purpose = c("batch", "fine-tune", "assistants"
     error_msg <- result$error$message %||% "Unknown error"
     cli::cli_abort(c(
       "Failed to upload file to OpenAI Files API",
-      "x" = error_msg
+      "x" = "{error_msg}"
     ))
   }
 

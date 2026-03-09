@@ -250,7 +250,7 @@ ant_complete_text <- function(text,
     error_msg <- .extract_api_error(response)
     cli::cli_abort(c(
       "API request failed",
-      "x" = error_msg
+      "x" = "{error_msg}"
     ))
   }
 
