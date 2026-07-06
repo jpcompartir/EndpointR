@@ -1,5 +1,25 @@
 # EndpointR (dev)
 
+# EndpointR 0.2.4
+
+## Overwrite protection for chunked outputs
+
+The chunk-writing functions no longer silently overwrite existing outputs. All of `ant_complete_chunks()`/`ant_complete_df()`, `oai_complete_chunks()`/`oai_complete_df()`, `oai_embed_chunks()`/`oai_embed_df()`, `hf_embed_chunks()`/`hf_embed_df()` and `hf_classify_chunks()`/`hf_classify_df()` gain an `overwrite` argument:
+
+- When `overwrite = FALSE` (the default), the functions abort if `output_dir` already contains `.parquet` chunk files or a `metadata.json`, rather than clobbering previous results.
+- When `overwrite = TRUE`, the existing chunk and metadata files are deleted before writing, so the directory only ever holds one run's outputs - stale chunks from a previous run can no longer mix with new results. Other files in the directory are left untouched.
+- Alternatively, use `output_dir = "auto"` to write to a fresh timestamped directory.
+
+Note: if you previously relied on re-running into the same `output_dir`, you will now need to pass `overwrite = TRUE`.
+
+## Documentation
+
+- New "OpenAI- and Anthropic-Compatible Providers" section in the [Connecting to Major Model Providers vignette](https://jpcompartir.github.io/EndpointR/articles/llm_providers.html) (plus a README pointer), showing how to reach DeepSeek, Gemini, Groq, OpenRouter, Ollama and similar providers by changing `endpoint_url` and `key_name`.
+
+## Bug fixes
+
+- Fixed a test that wrote a stray file (`Hello!`) into the package's test directory instead of a temporary file.
+
 # EndpointR 0.2.3
 
 - Bug fix with error message handling, previously passing in raw `error_msg` to cli:: functions, which then interpret as glue, so try to handle '{ }' when they appear in the error messages. Fix is to passing "{error_msg}" already string interpolated. Fix added to OpenAI integrations as well as Anthropic Batch Implementation
