@@ -16,6 +16,22 @@ Note: if you previously relied on re-running into the same `output_dir`, you wil
 
 - New "OpenAI- and Anthropic-Compatible Providers" section in the [Connecting to Major Model Providers vignette](https://jpcompartir.github.io/EndpointR/articles/llm_providers.html) (plus a README pointer), showing how to reach DeepSeek, Gemini, Groq, OpenRouter, Ollama and similar providers by changing `endpoint_url` and `key_name`.
 
+## API currency fixes
+
+Both provider integrations have been brought up to date with mid-2026 API changes:
+
+**Anthropic**
+
+- `temperature` is now included in requests only when non-NULL, and is dropped with a warning on models that reject sampling parameters (Claude Opus 4.7+, Sonnet 5, Fable 5) - previously these models returned a 400 error. The default remains `0` for models that support it, including the default `claude-haiku-4-5`.
+- New `effort` argument on `ant_build_messages_request()`, `ant_complete_text()`, `ant_complete_chunks()` and `ant_complete_df()`, sent as `output_config$effort` ("low", "medium", "high", "xhigh" or "max"). Supported on Claude Opus 4.5+, Sonnet 4.6+ and Fable 5; not supported on Haiku models.
+
+**OpenAI**
+
+- Request bodies now send `max_completion_tokens` instead of the deprecated `max_tokens`, which reasoning models (o-series, GPT-5 family) reject. The R-level argument is still called `max_tokens`.
+- `temperature` now defaults to `NULL` and is only included in the request when set explicitly - reasoning models only accept the default temperature. If you relied on the previous `temperature = 0` default, pass it explicitly.
+- The default completions model is now `gpt-5.4-nano` (was `gpt-4.1-nano`), OpenAI's current cheapest small model.
+- The `"assistants"` purpose has been removed from `oai_file_upload()`, `oai_file_list()` and `oai_batch_upload()` - the OpenAI Assistants API shuts down on 2026-08-26.
+
 ## Bug fixes
 
 - Fixed a test that wrote a stray file (`Hello!`) into the package's test directory instead of a temporary file.

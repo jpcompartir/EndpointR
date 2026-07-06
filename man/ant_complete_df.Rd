@@ -20,7 +20,8 @@ ant_complete_df(
   temperature = 0,
   max_tokens = 1024L,
   key_name = "ANTHROPIC_API_KEY",
-  endpoint_url = .ANT_MESSAGES_ENDPOINT
+  endpoint_url = .ANT_MESSAGES_ENDPOINT,
+  effort = NULL
 )
 }
 \arguments{
@@ -48,13 +49,15 @@ ant_complete_df(
 
 \item{timeout}{Request timeout in seconds}
 
-\item{temperature}{Sampling temperature}
+\item{temperature}{Sampling temperature (0-1), included in the request only when non-NULL. Dropped with a warning on models that reject sampling parameters (Claude Opus 4.7+, Sonnet 5, Fable 5).}
 
 \item{max_tokens}{Maximum tokens per response}
 
 \item{key_name}{Environment variable name for API key}
 
 \item{endpoint_url}{Anthropic API endpoint URL}
+
+\item{effort}{Optional reasoning effort, one of "low", "medium", "high", "xhigh", "max". Supported on Claude Opus 4.5+, Sonnet 4.6+ and Fable 5; not supported on Haiku models.}
 }
 \value{
 A tibble with results

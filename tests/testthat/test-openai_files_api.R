@@ -13,3 +13,13 @@ test_that("oai_file_upload errors when given inappropriate inputs", {
   )
   
 })
+
+test_that("oai_file_upload no longer accepts the retired 'assistants' purpose", {
+  .tmp <- tempfile()
+  writeLines("Hello!", .tmp)
+
+  expect_error(
+    oai_file_upload(.tmp, purpose = "assistants"),
+    "should be one of"
+  )
+})

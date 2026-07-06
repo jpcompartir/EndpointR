@@ -59,7 +59,7 @@ text = "The weather has been absolutely fantastic this summer. I wish it could b
 oai_complete_text(
   text = text,
   system_prompt = sentiment_system_prompt,
-  model = "gpt-4.1-nano"
+  model = "gpt-5.4-nano"
 )
 ```
 
@@ -242,7 +242,7 @@ host: api.openai.com
 user-agent: EndpointR
 
 {
-  "model": "gpt-4.1-nano",
+  "model": "gpt-5.4-nano",
   "messages": [
     {
       "role": "system",
@@ -253,12 +253,11 @@ user-agent: EndpointR
       "content": "Oh man, I'm getting to the end of my limit with this thing. WHY DOESN'T IT JUST WORK?!?"
     }
   ],
-  "temperature": 0,
-  "max_tokens": 500
+  "max_completion_tokens": 500
 }
 ```
 
-EndpointR (via {httr2}) handles the HTTP mechanics: authentication, request headers, and endpoint configuration. It then constructs the JSON payload with your specified model, system prompt, and user message, whilst setting sensible defaults for temperature [^3] and max_tokens [^4].
+EndpointR (via {httr2}) handles the HTTP mechanics: authentication, request headers, and endpoint configuration. It then constructs the JSON payload with your specified model, system prompt, and user message, whilst setting a sensible default for max_tokens [^4] (sent as `max_completion_tokens`). Temperature [^3] is only included when you set it explicitly - reasoning models such as the GPT-5 family reject non-default values.
 
 [^3]: lower values = less random output, max value is 2
 
@@ -793,5 +792,5 @@ Compatible does not mean identical - a few things to watch out for:
 -   **Structured outputs vary.** The `schema` argument sends OpenAI's `response_format` with `json_schema` (or Anthropic's `output_config`), which not every provider supports. DeepSeek, for example, only supports the looser `json_object` mode, not `json_schema`. Check the provider's docs before relying on schemas.
 -   **Batch APIs are not portable.** The `oai_batch_*` and `ant_batch_*` functions target OpenAI's and Anthropic's own batch infrastructure - don't point them at a compatible provider unless its documentation explicitly supports it.
 -   **Embeddings availability differs.** Gemini serves embeddings through its OpenAI-compatible layer; DeepSeek doesn't offer an embeddings endpoint at all.
--   **Parameter handling differs at the margins.** For example, Groq converts `temperature = 0` (EndpointR's default) to a very small positive value, and rejects some OpenAI-only fields.
+-   **Parameter handling differs at the margins.** For example, Groq converts an explicit `temperature = 0` to a very small positive value, and rejects some OpenAI-only fields.
 -   **The Hugging Face functions are different.** `hf_embed_*` and `hf_classify_*` send Hugging Face Inference payloads, not OpenAI-format ones - use them for HF Inference Endpoints only.

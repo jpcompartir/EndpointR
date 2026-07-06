@@ -232,7 +232,8 @@ oai_batch_prepare_completions <- function(df, text_var, id_var, model = "gpt-4o-
 #' 
 #' @param jsonl_rows Rows of valid JSON, output of an oai_batch_prepare* function
 #' @param purpose The intended purpose of the uploaded file. Must be one of
-#'   "batch", "fine-tune", "assistants", "vision", "user_data", or "evals".
+#'   "batch", "fine-tune", "vision", "user_data", or "evals". ("assistants"
+#'   was removed - the OpenAI Assistants API shuts down on 2026-08-26.)
 #' @param key_name Name of the environment variable containing your API key
 #' @param endpoint_url OpenAI API endpoint URL (default: OpenAI's Files API V1)
 #'
@@ -250,7 +251,7 @@ oai_batch_prepare_completions <- function(df, text_var, id_var, model = "gpt-4o-
 #' file_info <- oai_batch_upload(jsonl_content)
 #' file_info$id # Use this ID to create a batch job
 #' }
-oai_batch_upload <- function(jsonl_rows, purpose = c("batch", "fine-tune", "assistants", "vision", "user_data", "evals"), key_name = "OPENAI_API_KEY", endpoint_url = "https://api.openai.com/v1/files") {
+oai_batch_upload <- function(jsonl_rows, purpose = c("batch", "fine-tune", "vision", "user_data", "evals"), key_name = "OPENAI_API_KEY", endpoint_url = "https://api.openai.com/v1/files") {
     
   purpose <- match.arg(purpose)
 

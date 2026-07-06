@@ -7,8 +7,8 @@
 oai_build_completions_request_list(
   inputs,
   endpointr_ids = NULL,
-  model = "gpt-4.1-nano",
-  temperature = 0,
+  model = .OAI_DEFAULT_MODEL,
+  temperature = NULL,
   max_tokens = 500L,
   schema = NULL,
   system_prompt = NULL,
@@ -25,9 +25,9 @@ oai_build_completions_request_list(
 
 \item{model}{OpenAI model to use}
 
-\item{temperature}{Sampling temperature}
+\item{temperature}{Sampling temperature (0-2), included in the request only when non-NULL. The default NULL omits it, which reasoning models (the GPT-5 family, o-series) require - they only accept the default temperature.}
 
-\item{max_tokens}{Maximum tokens per response}
+\item{max_tokens}{Maximum tokens per response, sent as OpenAI's \code{max_completion_tokens} (\code{max_tokens} is deprecated and rejected by reasoning models)}
 
 \item{schema}{Optional JSON schema for structured output}
 

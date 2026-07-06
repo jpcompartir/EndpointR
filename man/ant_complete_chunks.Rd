@@ -20,7 +20,8 @@ ant_complete_chunks(
   timeout = 30L,
   key_name = "ANTHROPIC_API_KEY",
   endpoint_url = .ANT_MESSAGES_ENDPOINT,
-  id_col_name = "id"
+  id_col_name = "id",
+  effort = NULL
 )
 }
 \arguments{
@@ -44,7 +45,7 @@ system prompt is shared across many requests.}
 
 \item{concurrent_requests}{Number of concurrent requests}
 
-\item{temperature}{Sampling temperature}
+\item{temperature}{Sampling temperature (0-1), included in the request only when non-NULL. Dropped with a warning on models that reject sampling parameters (Claude Opus 4.7+, Sonnet 5, Fable 5).}
 
 \item{max_tokens}{Maximum tokens per response}
 
@@ -57,6 +58,8 @@ system prompt is shared across many requests.}
 \item{endpoint_url}{Anthropic API endpoint URL}
 
 \item{id_col_name}{Name for ID column in output}
+
+\item{effort}{Optional reasoning effort, one of "low", "medium", "high", "xhigh", "max". Supported on Claude Opus 4.5+, Sonnet 4.6+ and Fable 5; not supported on Haiku models.}
 }
 \value{
 A tibble with all results

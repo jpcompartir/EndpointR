@@ -28,9 +28,14 @@ test_that("oai_build_completions_request validates inputs and generates valid re
   # str(req)
   expect_equal(req$options$timeout_ms, 20000) # 20s
   expect_equal(req$method, "POST")
-  expect_equal(req$body$data$model, "gpt-4.1-nano")
+  expect_equal(req$body$data$model, "gpt-5.4-nano")
   expect_equal(req$body$data$messages[[1]][["content"]], "test")
 
+  # temperature omitted by default (reasoning models reject non-default values),
+  # and the body uses max_completion_tokens (max_tokens is deprecated)
+  expect_false("temperature" %in% names(req$body$data))
+  expect_false("max_tokens" %in% names(req$body$data))
+  expect_equal(req$body$data$max_completion_tokens, 500)
 
   req_gptxx <- oai_build_completions_request(input = "test2",
                                              model = "GPTXX", # invalid model obvs but does thea rg work is the Q
@@ -42,8 +47,8 @@ test_that("oai_build_completions_request validates inputs and generates valid re
   expect_equal(req_gptxx$options$timeout_ms, 10000)
   expect_equal(req_gptxx$body$data$messages[[1]][["content"]], "test2")
   expect_equal(req_gptxx$policies$retry_max_tries, 10)
-  expect_equal(req_gptxx$body$data$temperature, 1)
-  expect_equal(req_gptxx$body$data$max_tokens, 20)
+  expect_equal(req_gptxx$body$data$temperature, 1) # explicit temperature is still sent
+  expect_equal(req_gptxx$body$data$max_completion_tokens, 20)
 })
 
 test_that("oai_build_completions_request takes a json_schema and adds it to the response body, and accepts a list as a schema", {

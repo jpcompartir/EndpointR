@@ -2,6 +2,10 @@
 .ANT_API_VERSION <- "2023-06-01"
 .ANT_MESSAGES_ENDPOINT <- "https://api.anthropic.com/v1/messages"
 .ANT_DEFAULT_MODEL <- "claude-haiku-4-5"
+# models that reject sampling parameters (temperature/top_p/top_k) with a 400:
+# Claude Opus 4.7+, Sonnet 5, Fable 5, Mythos 5. Add new families as Anthropic releases them.
+.ANT_NO_SAMPLING_REGEX <- "fable|mythos|opus-4-[789]|sonnet-5"
+.ANT_EFFORT_LEVELS <- c("low", "medium", "high", "xhigh", "max")
 
 # ant_build_messages_request ----
 #' Build an Anthropic Messages API request
@@ -27,7 +31,7 @@
 #' @param input Text input to send to the model
 #' @param endpointr_id An id that will persist through to response
 #' @param model Anthropic model to use (default: "claude-haiku-4.5")
-#' @param temperature Sampling temperature (0-2), higher values = more randomness
+#' @param temperature Sampling temperature (0-1), included in the request only when non-NULL. Dropped with a warning on models that reject sampling parameters (Claude Opus 4.7+, Sonnet 5, Fable 5).
 #' @param max_tokens Maximum tokens in response
 #' @param schema Optional JSON schema for structured output (json_schema object or list)
 #' @param system_prompt Optional system prompt. When provided, prompt caching
@@ -37,6 +41,7 @@
 #' @param endpoint_url Anthropic API endpoint URL
 #' @param timeout Request timeout in seconds
 #' @param max_retries Maximum number of retry attempts for failed requests
+#' @param effort Optional reasoning effort, one of "low", "medium", "high", "xhigh", "max". Sent as `output_config$effort`. Supported on Claude Opus 4.5+, Sonnet 4.6+ and Fable 5; not supported on Haiku models.
 #'
 #' @return An httr2 request object
 #' @export
@@ -77,17 +82,28 @@ ant_build_messages_request <- function(
   key_name = "ANTHROPIC_API_KEY",
   endpoint_url = .ANT_MESSAGES_ENDPOINT,
   timeout = 30L,
-  max_retries = 5L
+  max_retries = 5L,
+  effort = NULL
   ) {
   # can't use `base_request()` from core.R because Anthropic use different auth (x-api-key) so we add as a header
 
   stopifnot(
     "input must be a non-empty character string" = is.character(input) && length(input) == 1 && nchar(input) > 0,
     "model must be a character string" = is.character(model) && length(model) == 1,
-    "temperature must be numeric between 0 and 1" = is.numeric(temperature) && temperature >= 0 && temperature <= 1, # diff to OAI API
+    "temperature must be numeric between 0 and 1" = is.null(temperature) || (is.numeric(temperature) && temperature >= 0 && temperature <= 1), # diff to OAI API
     "max_tokens must be a positive integer" = is.numeric(max_tokens) && max_tokens > 0)
 
   api_key <- get_api_key(key_name)
+
+  # Claude Opus 4.7+, Sonnet 5 and Fable 5 reject sampling parameters with a 400
+  if (!is.null(temperature) && grepl(.ANT_NO_SAMPLING_REGEX, model)) {
+    cli::cli_warn(
+      "{.arg temperature} is not supported by {.val {model}} and has been dropped from the request.",
+      .frequency = "once",
+      .frequency_id = "ant_sampling_drop"
+    )
+    temperature <- NULL
+  }
 
   messages <- list(
     list(role = "user", content = input)
@@ -96,9 +112,12 @@ ant_build_messages_request <- function(
   body <- list(
     model = model,
     messages = messages,
-    max_tokens = as.integer(max_tokens),
-    temperature = temperature
+    max_tokens = as.integer(max_tokens)
   )
+
+  if (!is.null(temperature)) {
+    body$temperature <- temperature
+  }
 
   # Anthropic API takes system_prompt as its own parameter, different to OAI where we concatenate
 
@@ -124,6 +143,12 @@ ant_build_messages_request <- function(
     } else {
       cli::cli_abort("{.arg schema} must be an EndpointR json_schema object or a list")
     }
+  }
+
+  # effort lives in output_config alongside any structured output format
+  if (!is.null(effort)) {
+    effort <- rlang::arg_match(effort, .ANT_EFFORT_LEVELS)
+    body$output_config$effort <- effort
   }
 
   # build the request with headers, auth, timeout, retries, backoff (incl. system prompt if applicable)
@@ -165,13 +190,14 @@ ant_build_messages_request <- function(
 #' @param model Anthropic model to use (default: "claude-sonnet-4-5-20250929")
 #' @param system_prompt Optional system prompt
 #' @param schema Optional JSON schema for structured output
-#' @param temperature Sampling temperature (0-1)
+#' @param temperature Sampling temperature (0-1), included in the request only when non-NULL. Dropped with a warning on models that reject sampling parameters (Claude Opus 4.7+, Sonnet 5, Fable 5).
 #' @param max_tokens Maximum tokens in response
 #' @param key_name Environment variable name for API key
 #' @param endpoint_url Anthropic API endpoint URL
 #' @param max_retries Maximum retry attempts
 #' @param timeout Request timeout in seconds
 #' @param tidy Whether to parse structured output (default: TRUE)
+#' @param effort Optional reasoning effort, one of "low", "medium", "high", "xhigh", "max". Supported on Claude Opus 4.5+, Sonnet 4.6+ and Fable 5; not supported on Haiku models.
 #'
 #' @return Character string with the model's response, or parsed JSON if schema provided
 #' @export
@@ -209,7 +235,8 @@ ant_complete_text <- function(text,
                               endpoint_url = .ANT_MESSAGES_ENDPOINT,
                               max_retries = 5L,
                               timeout = 30L,
-                              tidy = TRUE) {
+                              tidy = TRUE,
+                              effort = NULL) {
 
   # surface errors quickly here, before building any request
   if (!rlang::is_scalar_character(text)) {
@@ -233,7 +260,8 @@ ant_complete_text <- function(text,
     endpoint_url = endpoint_url,
     max_retries = max_retries,
     timeout = timeout,
-    system_prompt = system_prompt
+    system_prompt = system_prompt,
+    effort = effort
   )
 
   tryCatch({
@@ -308,13 +336,14 @@ ant_complete_text <- function(text,
 #' @param overwrite If `FALSE` (default), errors when `output_dir` already contains chunk (`.parquet`) or `metadata.json` files. Set to `TRUE` to delete them and write fresh outputs; other files are left untouched.
 #' @param schema Optional JSON schema for structured output
 #' @param concurrent_requests Number of concurrent requests
-#' @param temperature Sampling temperature
+#' @param temperature Sampling temperature (0-1), included in the request only when non-NULL. Dropped with a warning on models that reject sampling parameters (Claude Opus 4.7+, Sonnet 5, Fable 5).
 #' @param max_tokens Maximum tokens per response
 #' @param max_retries Maximum retry attempts per request
 #' @param timeout Request timeout in seconds
 #' @param key_name Environment variable name for API key
 #' @param endpoint_url Anthropic API endpoint URL
 #' @param id_col_name Name for ID column in output
+#' @param effort Optional reasoning effort, one of "low", "medium", "high", "xhigh", "max". Supported on Claude Opus 4.5+, Sonnet 4.6+ and Fable 5; not supported on Haiku models.
 #'
 #' @return A tibble with all results
 #' @export
@@ -333,7 +362,8 @@ ant_complete_chunks <- function(texts,
                                 timeout = 30L,
                                 key_name = "ANTHROPIC_API_KEY",
                                 endpoint_url = .ANT_MESSAGES_ENDPOINT,
-                                id_col_name = "id") {
+                                id_col_name = "id",
+                                effort = NULL) {
 
   stopifnot(
     "texts must be a vector" = is.vector(texts),
@@ -417,7 +447,8 @@ ant_complete_chunks <- function(texts,
         key_name = key_name,
         endpoint_url = endpoint_url,
         max_retries = max_retries,
-        timeout = timeout
+        timeout = timeout,
+        effort = effort
       )
     )
 
@@ -550,10 +581,11 @@ ant_complete_chunks <- function(texts,
 #' @param concurrent_requests Number of concurrent requests
 #' @param max_retries Maximum retry attempts
 #' @param timeout Request timeout in seconds
-#' @param temperature Sampling temperature
+#' @param temperature Sampling temperature (0-1), included in the request only when non-NULL. Dropped with a warning on models that reject sampling parameters (Claude Opus 4.7+, Sonnet 5, Fable 5).
 #' @param max_tokens Maximum tokens per response
 #' @param key_name Environment variable name for API key
 #' @param endpoint_url Anthropic API endpoint URL
+#' @param effort Optional reasoning effort, one of "low", "medium", "high", "xhigh", "max". Supported on Claude Opus 4.5+, Sonnet 4.6+ and Fable 5; not supported on Haiku models.
 #'
 #' @return A tibble with results
 #' @export
@@ -573,7 +605,8 @@ ant_complete_df <- function(df,
                             temperature = 0,
                             max_tokens = 1024L,
                             key_name = "ANTHROPIC_API_KEY",
-                            endpoint_url = .ANT_MESSAGES_ENDPOINT) {
+                            endpoint_url = .ANT_MESSAGES_ENDPOINT,
+                            effort = NULL) {
 
   text_sym <- rlang::ensym(text_var)
   id_sym <- rlang::ensym(id_var)
@@ -611,7 +644,8 @@ ant_complete_df <- function(df,
     endpoint_url = endpoint_url,
     output_dir = output_dir,
     overwrite = overwrite,
-    id_col_name = id_col_name
+    id_col_name = id_col_name,
+    effort = effort
   )
 
   results <- dplyr::rename(results, !!id_sym := !!rlang::sym(id_col_name))

@@ -8,7 +8,7 @@ oai_complete_df(
   df,
   text_var,
   id_var,
-  model = "gpt-4.1-nano",
+  model = .OAI_DEFAULT_MODEL,
   output_dir = "auto",
   overwrite = FALSE,
   system_prompt = NULL,
@@ -17,7 +17,7 @@ oai_complete_df(
   concurrent_requests = 1L,
   max_retries = 5L,
   timeout = 30,
-  temperature = 0,
+  temperature = NULL,
   max_tokens = 500L,
   key_name = "OPENAI_API_KEY",
   endpoint_url = "https://api.openai.com/v1/chat/completions"
@@ -30,7 +30,7 @@ oai_complete_df(
 
 \item{id_var}{Column name (unquoted) for unique row identifiers}
 
-\item{model}{OpenAI model to use (default: "gpt-4.1-nano")}
+\item{model}{OpenAI model to use (default: "gpt-5.4-nano")}
 
 \item{output_dir}{Path to directory for the .parquet chunks. "auto" generates a timestamped directory name. If NULL, uses a temporary directory.}
 
@@ -48,9 +48,9 @@ oai_complete_df(
 
 \item{timeout}{Request timeout in seconds (default: 30)}
 
-\item{temperature}{Sampling temperature (0-2), lower = more deterministic (default: 0)}
+\item{temperature}{Sampling temperature (0-2), included in the request only when non-NULL. The default NULL omits it, which reasoning models (the GPT-5 family, o-series) require - they only accept the default temperature.}
 
-\item{max_tokens}{Maximum tokens per response (default: 500)}
+\item{max_tokens}{Maximum tokens per response (default: 500), sent as OpenAI's \code{max_completion_tokens} (\code{max_tokens} is deprecated and rejected by reasoning models)}
 
 \item{key_name}{Name of environment variable containing the API key (default: OPENAI_API_KEY)}
 
