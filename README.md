@@ -225,6 +225,31 @@ df_output_w_schema |>
   tidyr::unnest_wider(content)
 ```
 
+## OpenAI- and Anthropic-Compatible Providers (DeepSeek, Gemini, Groq, …)
+
+Every request-building function takes an `endpoint_url` and a
+`key_name`, so providers with OpenAI- or Anthropic-compatible APIs work
+without any extra code - store the provider’s key with `set_api_key()`
+and point the functions at its endpoint. For example, DeepSeek via the
+OpenAI-compatible functions:
+
+``` r
+set_api_key("DEEPSEEK_API_KEY")
+
+oai_complete_text(
+  text = "Briefly explain the difference between a list and an atomic vector in R.",
+  model = "deepseek-v4-flash",
+  endpoint_url = "https://api.deepseek.com/chat/completions",
+  key_name = "DEEPSEEK_API_KEY"
+)
+```
+
+See the [Connecting to Major Model Providers
+vignette](https://jpcompartir.github.io/EndpointR/articles/llm_providers.html)
+for Gemini, Groq, OpenRouter and Ollama examples, plus the caveats
+(structured output support, batch APIs, and embeddings availability vary
+by provider).
+
 # Working with Output Files
 
 ## Reading Results from Disk
@@ -298,11 +323,13 @@ information on common workflows with the OpenAI Chat Completions API
 
 - Read the [EndpointR vignette](articles/sync_async.html) on Synchronous
   vs Asynchronous APIs
+- Read the [EndpointR API Keys](articles/api_keys.html) vignette for
+  information on which API keys you need for wach endpoint we support,
+  and how to securely import those API keys into your .Renvironfile.
 
-[^1]: Content pending implementation for Anthropic Messages API, Gemini
 ------------------------------------------------------------------------
 
 <img src="man/figures/samy_banner.png" alt="SAMY Data Science" width="100%"/>
 
-[^1]: Content pending implementation for Anthroic Messages API, Gemini
+[^1]: Content pending implementation for Anthropic Messages API, Gemini
     API, and OpenAI Responses API
