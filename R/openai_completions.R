@@ -338,6 +338,7 @@ oai_complete_text <- function(text,
 #' @param model OpenAI model to use (default: "gpt-4.1-nano")
 #' @param system_prompt Optional system prompt applied to all requests
 #' @param output_dir Path to directory for the .parquet chunks. "auto" generates a timestamped directory name. If NULL, uses a temporary directory.
+#' @param overwrite If `FALSE` (default), errors when `output_dir` already contains chunk (`.parquet`) or `metadata.json` files. Set to `TRUE` to delete them and write fresh outputs; other files are left untouched.
 #' @param schema Optional JSON schema for structured output (json_schema object or list)
 #' @param concurrent_requests Integer; number of concurrent requests (default: 5)
 #' @param temperature Sampling temperature (0-2), lower = more deterministic (default: 0)
@@ -394,6 +395,7 @@ oai_complete_chunks <- function(texts,
                                model = "gpt-4.1-nano",
                                system_prompt = NULL,
                                output_dir = "auto",
+                               overwrite = FALSE,
                                schema = NULL,
                                concurrent_requests = 5L,
                                temperature = 0L,
@@ -413,6 +415,7 @@ oai_complete_chunks <- function(texts,
   )
 
   output_dir <- .handle_output_directory(output_dir, base_dir_name = "oai_completions_batch")
+  .check_existing_output(output_dir, overwrite = overwrite)
 
   if (!dir.exists(output_dir)) {
     dir.create(output_dir, recursive = TRUE)
@@ -675,6 +678,7 @@ oai_complete_df <- function(df,
                             id_var,
                             model = "gpt-4.1-nano",
                             output_dir = "auto",
+                            overwrite = FALSE,
                             system_prompt = NULL,
                             schema = NULL,
                             chunk_size = 1000,
@@ -722,6 +726,7 @@ oai_complete_df <- function(df,
     key_name = key_name,
     endpoint_url = endpoint_url,
     output_dir = output_dir,
+    overwrite = overwrite,
     id_col_name = id_col_name
   )
 

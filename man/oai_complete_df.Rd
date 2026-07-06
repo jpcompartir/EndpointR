@@ -10,6 +10,7 @@ oai_complete_df(
   id_var,
   model = "gpt-4.1-nano",
   output_dir = "auto",
+  overwrite = FALSE,
   system_prompt = NULL,
   schema = NULL,
   chunk_size = 1000,
@@ -32,6 +33,8 @@ oai_complete_df(
 \item{model}{OpenAI model to use (default: "gpt-4.1-nano")}
 
 \item{output_dir}{Path to directory for the .parquet chunks. "auto" generates a timestamped directory name. If NULL, uses a temporary directory.}
+
+\item{overwrite}{If \code{FALSE} (default), errors when \code{output_dir} already contains chunk (\code{.parquet}) or \code{metadata.json} files. Set to \code{TRUE} to delete them and write fresh outputs; other files are left untouched.}
 
 \item{system_prompt}{Optional system prompt applied to all requests}
 

@@ -5,7 +5,7 @@ test_that("oai_file_upload errors when given inappropriate inputs", {
   )
 
   .tmp <- tempfile()
-  writeLines(.tmp, "Hello!")
+  writeLines("Hello!", .tmp)
 
   expect_error(
     oai_file_upload(.tmp, purpose = "life"),

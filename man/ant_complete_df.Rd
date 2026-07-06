@@ -10,6 +10,7 @@ ant_complete_df(
   id_var,
   model = "claude-haiku-4-5",
   output_dir = "auto",
+  overwrite = FALSE,
   system_prompt = NULL,
   schema = NULL,
   chunk_size = 5000L,
@@ -32,6 +33,8 @@ ant_complete_df(
 \item{model}{Anthropic model to use}
 
 \item{output_dir}{Directory for parquet chunks}
+
+\item{overwrite}{If \code{FALSE} (default), errors when \code{output_dir} already contains chunk (\code{.parquet}) or \code{metadata.json} files. Set to \code{TRUE} to delete them and write fresh outputs; other files are left untouched.}
 
 \item{system_prompt}{Optional system prompt}
 
@@ -68,8 +71,6 @@ writes results to disk to minimise memory usage and possibility of data loss.
 Results are written as parquet files in the specified output directory,
 along with a metadata.json file containing processing parameters.
 
-When using the \verb{output_dir =} argument, be careful that you select
-a new directory if you do not wish to overwrite existing chunks.
-If there is already a \code{chunks_001.parquet} file in the directory,
-it will be overwritten.
+When using a custom \code{output_dir}, existing chunk files are protected
+by default. Set \code{overwrite = TRUE} to replace them.
 }

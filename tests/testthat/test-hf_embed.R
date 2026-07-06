@@ -111,7 +111,8 @@ test_that("hf_embed_chunks replaces hf_embed_batch", {
     key_name = "HF_TEST_API_KEY",
     chunk_size = 1,
     concurrent_requests =1,
-    output_dir = temp_dir
+    output_dir = temp_dir,
+    overwrite = TRUE # second run into the same directory
   )) |> suppressMessages()
 
   expect_setequal(unique(chunk_1$`.chunk`), 1:6)

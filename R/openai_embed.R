@@ -525,6 +525,7 @@ oai_embed_batch <- function(texts,
 #' @param model OpenAI embedding model to use (default: "text-embedding-3-small")
 #' @param dimensions Number of embedding dimensions (default: 1536 for text-embedding-3-small)
 #' @param output_dir Path to directory for the .parquet chunks. "auto" generates a timestamped directory name. If NULL, uses a temporary directory.
+#' @param overwrite If `FALSE` (default), errors when `output_dir` already contains chunk (`.parquet`) or `metadata.json` files. Set to `TRUE` to delete them and write fresh outputs; other files are left untouched.
 #' @param chunk_size Number of texts to process in each chunk before writing to disk (default: 5000)
 #' @param concurrent_requests Number of concurrent requests (default: 5)
 #' @param max_retries Maximum retry attempts per failed request (default: 5)
@@ -566,6 +567,7 @@ oai_embed_chunks <- function(texts,
                              model = "text-embedding-3-small",
                              dimensions = 1536,
                              output_dir = "auto",
+                             overwrite = FALSE,
                              chunk_size = 5000L,
                              concurrent_requests = 5L,
                              max_retries = 5L,
@@ -583,6 +585,7 @@ oai_embed_chunks <- function(texts,
   )
 
   output_dir <- .handle_output_directory(output_dir, base_dir_name = "oai_embeddings_batch")
+  .check_existing_output(output_dir, overwrite = overwrite)
 
   if (!dir.exists(output_dir)) {
     dir.create(output_dir, recursive = TRUE)
@@ -782,6 +785,7 @@ oai_embed_chunks <- function(texts,
 #' @param dimensions Number of embedding dimensions (default: 1536)
 #' @param key_name Name of environment variable containing the API key
 #' @param output_dir Path to directory for the .parquet chunks. "auto" generates a timestamped directory name. If NULL, uses a temporary directory.
+#' @param overwrite If `FALSE` (default), errors when `output_dir` already contains chunk (`.parquet`) or `metadata.json` files. Set to `TRUE` to delete them and write fresh outputs; other files are left untouched.
 #' @param chunk_size Number of texts to process in each chunk before writing to disk (default: 5000)
 #' @param concurrent_requests Number of concurrent requests (default: 1)
 #' @param max_retries Maximum retry attempts per request (default: 5)
@@ -837,6 +841,7 @@ oai_embed_df <- function(df,
                          dimensions = 1536,
                          key_name = "OPENAI_API_KEY",
                          output_dir = "auto",
+                         overwrite = FALSE,
                          chunk_size = 5000L,
                          concurrent_requests = 1L,
                          max_retries = 5L,
@@ -872,6 +877,7 @@ oai_embed_df <- function(df,
     model = model,
     dimensions = dimensions,
     output_dir = output_dir,
+    overwrite = overwrite,
     chunk_size = chunk_size,
     concurrent_requests = concurrent_requests,
     max_retries = max_retries,

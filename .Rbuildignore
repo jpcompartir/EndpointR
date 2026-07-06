@@ -12,3 +12,4 @@ todos\.qmd
 ^pkgdown$
 ^\.github$
 ^test_dir/
+^\.claude$

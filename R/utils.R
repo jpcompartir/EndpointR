@@ -283,6 +283,45 @@ extract_field <- function(api_response, field_name) {
   return(x)
 }
 
+#' Check for existing output files in a directory
+#'
+#' @param output_dir Path to the output directory.
+#' @param overwrite If `FALSE` (default), errors when the directory already
+#'   contains `.parquet` or `metadata.json` files. If `TRUE`, deletes those
+#'   files before returning, so the directory only ever holds one run's
+#'   outputs - stale chunks from a previous run cannot mix with new ones.
+#'   Other files in the directory are left untouched.
+#' @keywords internal
+.check_existing_output <- function(output_dir, overwrite = FALSE) {
+  if (!dir.exists(output_dir)) return(invisible(NULL))
+
+  existing_chunks <- list.files(output_dir, pattern = "\\.parquet$")
+  existing_meta <- file.exists(file.path(output_dir, "metadata.json"))
+  n_existing <- length(existing_chunks) + as.integer(existing_meta)
+
+  if (n_existing == 0L) return(invisible(NULL))
+
+  n_chunks <- length(existing_chunks)
+  found <- c(
+    if (n_chunks > 0L) paste0(n_chunks, " chunk file", if (n_chunks != 1L) "s"),
+    if (existing_meta) "a metadata.json file"
+  )
+  found <- paste(found, collapse = " and ")
+
+  if (!overwrite) {
+    cli::cli_abort(c(
+      "Directory {.path {output_dir}} already contains {found}.",
+      "i" = "Use {.code overwrite = TRUE} to replace existing files.",
+      "i" = "Or use {.code output_dir = 'auto'} to generate a unique directory name."
+    ))
+  }
+
+  unlink(file.path(output_dir, existing_chunks))
+  if (existing_meta) unlink(file.path(output_dir, "metadata.json"))
+  cli::cli_inform("Overwriting: removed {found} from {.path {output_dir}}.")
+
+  invisible(NULL)
+}
 
 parse_oai_date <- function(date_string) {
   parsed_date <- as.POSIXct(date_string, format = "%a, %d %b %Y %H:%M:%S", tz = "GMT")

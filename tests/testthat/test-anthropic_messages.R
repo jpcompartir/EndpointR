@@ -207,7 +207,8 @@ test_that("ant_complete_chunks processes chunks correctly", {
         key_name = "ANTHROPIC_API_KEY",
         chunk_size = 1,
         concurrent_requests = 1,
-        output_dir = temp_dir
+        output_dir = temp_dir,
+        overwrite = TRUE # second run into the same directory
       )) |> suppressMessages()
     }
   )

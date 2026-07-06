@@ -11,6 +11,7 @@ hf_classify_chunks(
   max_length = 512L,
   tidy_func = tidy_classification_response,
   output_dir = "auto",
+  overwrite = FALSE,
   chunk_size = 5000L,
   concurrent_requests = 5L,
   max_retries = 5L,
@@ -33,6 +34,8 @@ hf_classify_chunks(
 \code{tidy_classification_response}}
 
 \item{output_dir}{Path to directory for the .parquet chunks}
+
+\item{overwrite}{If \code{FALSE} (default), errors when \code{output_dir} already contains chunk (\code{.parquet}) or \code{metadata.json} files. Set to \code{TRUE} to delete them and write fresh outputs; other files are left untouched.}
 
 \item{chunk_size}{Number of texts to process in each chunk before writing to disk (default: 5000)}
 

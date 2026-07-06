@@ -12,6 +12,7 @@ oai_embed_df(
   dimensions = 1536,
   key_name = "OPENAI_API_KEY",
   output_dir = "auto",
+  overwrite = FALSE,
   chunk_size = 5000L,
   concurrent_requests = 1L,
   max_retries = 5L,
@@ -34,6 +35,8 @@ oai_embed_df(
 \item{key_name}{Name of environment variable containing the API key}
 
 \item{output_dir}{Path to directory for the .parquet chunks. "auto" generates a timestamped directory name. If NULL, uses a temporary directory.}
+
+\item{overwrite}{If \code{FALSE} (default), errors when \code{output_dir} already contains chunk (\code{.parquet}) or \code{metadata.json} files. Set to \code{TRUE} to delete them and write fresh outputs; other files are left untouched.}
 
 \item{chunk_size}{Number of texts to process in each chunk before writing to disk (default: 5000)}
 

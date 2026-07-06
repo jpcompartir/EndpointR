@@ -11,6 +11,7 @@ oai_complete_chunks(
   model = "gpt-4.1-nano",
   system_prompt = NULL,
   output_dir = "auto",
+  overwrite = FALSE,
   schema = NULL,
   concurrent_requests = 5L,
   temperature = 0L,
@@ -34,6 +35,8 @@ oai_complete_chunks(
 \item{system_prompt}{Optional system prompt applied to all requests}
 
 \item{output_dir}{Path to directory for the .parquet chunks. "auto" generates a timestamped directory name. If NULL, uses a temporary directory.}
+
+\item{overwrite}{If \code{FALSE} (default), errors when \code{output_dir} already contains chunk (\code{.parquet}) or \code{metadata.json} files. Set to \code{TRUE} to delete them and write fresh outputs; other files are left untouched.}
 
 \item{schema}{Optional JSON schema for structured output (json_schema object or list)}
 

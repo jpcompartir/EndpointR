@@ -11,6 +11,7 @@ hf_embed_df(
   endpoint_url,
   key_name,
   output_dir = "auto",
+  overwrite = FALSE,
   chunk_size = 5000L,
   concurrent_requests = 1L,
   max_retries = 5L,
@@ -30,6 +31,8 @@ hf_embed_df(
 \item{key_name}{Name of the environment variable containing the API key}
 
 \item{output_dir}{Path to directory for the .parquet chunks}
+
+\item{overwrite}{If \code{FALSE} (default), errors when \code{output_dir} already contains chunk (\code{.parquet}) or \code{metadata.json} files. Set to \code{TRUE} to delete them and write fresh outputs; other files are left untouched.}
 
 \item{chunk_size}{The size of each chunk that will be processed and then written to a file.}
 

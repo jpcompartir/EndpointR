@@ -294,10 +294,8 @@ ant_complete_text <- function(text,
 #' Results are written as parquet files in the specified output directory,
 #' along with a metadata.json file containing processing parameters.
 #'
-#' When using the `output_dir =` argument, be careful that you select
-#' a new directory if you do not wish to overwrite existing chunks.
-#' If there is already a `chunks_001.parquet` file in the directory,
-#' it will be overwritten.
+#' When using a custom `output_dir`, existing chunk files are protected
+#' by default. Set `overwrite = TRUE` to replace them.
 #'
 #' @param texts Character vector of texts to process
 #' @param ids Vector of unique identifiers (same length as texts)
@@ -307,6 +305,7 @@ ant_complete_text <- function(text,
 #'   Prompt caching is enabled automatically, reducing costs when the same
 #'   system prompt is shared across many requests.
 #' @param output_dir Directory for parquet chunks ("auto" generates timestamped dir)
+#' @param overwrite If `FALSE` (default), errors when `output_dir` already contains chunk (`.parquet`) or `metadata.json` files. Set to `TRUE` to delete them and write fresh outputs; other files are left untouched.
 #' @param schema Optional JSON schema for structured output
 #' @param concurrent_requests Number of concurrent requests
 #' @param temperature Sampling temperature
@@ -325,6 +324,7 @@ ant_complete_chunks <- function(texts,
                                 model = "claude-haiku-4-5",
                                 system_prompt = NULL,
                                 output_dir = "auto",
+                                overwrite = FALSE,
                                 schema = NULL,
                                 concurrent_requests = 5L,
                                 temperature = 0,
@@ -343,6 +343,7 @@ ant_complete_chunks <- function(texts,
   )
 
   output_dir <- .handle_output_directory(output_dir, base_dir_name = "ant_messages_chunks")
+  .check_existing_output(output_dir, overwrite = overwrite)
 
   if (!dir.exists(output_dir)) {
     dir.create(output_dir, recursive = TRUE)
@@ -534,16 +535,15 @@ ant_complete_chunks <- function(texts,
 #' Results are written as parquet files in the specified output directory,
 #' along with a metadata.json file containing processing parameters.
 #'
-#' When using the `output_dir =` argument, be careful that you select
-#' a new directory if you do not wish to overwrite existing chunks.
-#' If there is already a `chunks_001.parquet` file in the directory,
-#' it will be overwritten.
+#' When using a custom `output_dir`, existing chunk files are protected
+#' by default. Set `overwrite = TRUE` to replace them.
 #'
 #' @param df Data frame containing text to process
 #' @param text_var Column name (unquoted) containing text inputs
 #' @param id_var Column name (unquoted) for unique row identifiers
 #' @param model Anthropic model to use
 #' @param output_dir Directory for parquet chunks
+#' @param overwrite If `FALSE` (default), errors when `output_dir` already contains chunk (`.parquet`) or `metadata.json` files. Set to `TRUE` to delete them and write fresh outputs; other files are left untouched.
 #' @param system_prompt Optional system prompt
 #' @param schema Optional JSON schema for structured output
 #' @param chunk_size Number of texts per chunk
@@ -563,6 +563,7 @@ ant_complete_df <- function(df,
                             id_var,
                             model = "claude-haiku-4-5",
                             output_dir = "auto",
+                            overwrite = FALSE,
                             system_prompt = NULL,
                             schema = NULL,
                             chunk_size = 5000L,
@@ -609,6 +610,7 @@ ant_complete_df <- function(df,
     key_name = key_name,
     endpoint_url = endpoint_url,
     output_dir = output_dir,
+    overwrite = overwrite,
     id_col_name = id_col_name
   )
 

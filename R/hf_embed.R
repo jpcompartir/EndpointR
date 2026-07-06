@@ -248,6 +248,7 @@ hf_embed_batch <- function(texts,
 #' @param ids Vector of unique identifiers corresponding to each text (same length as texts)
 #' @param endpoint_url Hugging Face Embedding Endpoint
 #' @param output_dir Path to directory for the .parquet chunks
+#' @param overwrite If `FALSE` (default), errors when `output_dir` already contains chunk (`.parquet`) or `metadata.json` files. Set to `TRUE` to delete them and write fresh outputs; other files are left untouched.
 #' @param chunk_size Number of texts to process in each chunk before writing to disk (default: 5000)
 #' @param concurrent_requests Number of concurrent requests (default: 5)
 #' @param max_retries Maximum retry attempts per failed request (default: 5)
@@ -268,6 +269,7 @@ hf_embed_chunks <- function(texts,
                             ids,
                             endpoint_url,
                             output_dir = "auto",
+                            overwrite = FALSE,
                             chunk_size = 5000L,
                             concurrent_requests = 5L,
                             max_retries = 5L,
@@ -286,6 +288,7 @@ hf_embed_chunks <- function(texts,
   # output_file = .handle_output_filename(output_file, base_file_name = "hf_embeddings_batch")
 
   output_dir <- .handle_output_directory(output_dir, base_dir_name = "hf_embeddings_batch")
+  .check_existing_output(output_dir, overwrite = overwrite)
 
   if (!dir.exists(output_dir)) {
     dir.create(output_dir, recursive = TRUE)
@@ -461,6 +464,7 @@ hf_embed_chunks <- function(texts,
 #' @param endpoint_url The URL of the Hugging Face Inference API endpoint
 #' @param key_name Name of the environment variable containing the API key
 #' @param output_dir Path to directory for the .parquet chunks
+#' @param overwrite If `FALSE` (default), errors when `output_dir` already contains chunk (`.parquet`) or `metadata.json` files. Set to `TRUE` to delete them and write fresh outputs; other files are left untouched.
 #' @param chunk_size The size of each chunk that will be processed and then written to a file.
 #' @param concurrent_requests Number of requests to send at once. Some APIs do not allow for multiple requests.
 #' @param max_retries Maximum number of retry attempts for failed requests.
@@ -503,6 +507,7 @@ hf_embed_df <- function(df,
                         endpoint_url,
                         key_name,
                         output_dir = "auto",
+                        overwrite = FALSE,
                         chunk_size = 5000L,
                         concurrent_requests = 1L,
                         max_retries = 5L,
@@ -544,6 +549,7 @@ hf_embed_df <- function(df,
     max_retries = max_retries,
     timeout = timeout,
     output_dir = output_dir,
+    overwrite = overwrite,
     id_col_name = id_col_name
   )
 

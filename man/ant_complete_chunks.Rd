@@ -11,6 +11,7 @@ ant_complete_chunks(
   model = "claude-haiku-4-5",
   system_prompt = NULL,
   output_dir = "auto",
+  overwrite = FALSE,
   schema = NULL,
   concurrent_requests = 5L,
   temperature = 0,
@@ -36,6 +37,8 @@ Prompt caching is enabled automatically, reducing costs when the same
 system prompt is shared across many requests.}
 
 \item{output_dir}{Directory for parquet chunks ("auto" generates timestamped dir)}
+
+\item{overwrite}{If \code{FALSE} (default), errors when \code{output_dir} already contains chunk (\code{.parquet}) or \code{metadata.json} files. Set to \code{TRUE} to delete them and write fresh outputs; other files are left untouched.}
 
 \item{schema}{Optional JSON schema for structured output}
 
@@ -71,8 +74,6 @@ writes results to disk to minimise memory usage and possibility of data loss.
 Results are written as parquet files in the specified output directory,
 along with a metadata.json file containing processing parameters.
 
-When using the \verb{output_dir =} argument, be careful that you select
-a new directory if you do not wish to overwrite existing chunks.
-If there is already a \code{chunks_001.parquet} file in the directory,
-it will be overwritten.
+When using a custom \code{output_dir}, existing chunk files are protected
+by default. Set \code{overwrite = TRUE} to replace them.
 }
