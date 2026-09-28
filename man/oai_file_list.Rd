@@ -5,13 +5,14 @@
 \title{List Files on the OpenAI Files API}
 \usage{
 oai_file_list(
-  purpose = c("batch", "fine-tune", "assistants", "vision", "user_data", "evals"),
+  purpose = c("batch", "fine-tune", "vision", "user_data", "evals"),
   key_name = "OPENAI_API_KEY"
 )
 }
 \arguments{
 \item{purpose}{The intended purpose of the uploaded file. Must be one of
-"batch", "fine-tune", "assistants", "vision", "user_data", or "evals".}
+"batch", "fine-tune", "vision", "user_data", or "evals". ("assistants"
+was removed - the OpenAI Assistants API shuts down on 2026-08-26.)}
 
 \item{key_name}{Name of the environment variable containing your API key}
 }

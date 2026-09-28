@@ -59,7 +59,7 @@ text = "The weather has been absolutely fantastic this summer. I wish it could b
 oai_complete_text(
   text = text,
   system_prompt = sentiment_system_prompt,
-  model = "gpt-4.1-nano"
+  model = "gpt-5.4-nano"
 )
 ```
 
@@ -242,7 +242,7 @@ host: api.openai.com
 user-agent: EndpointR
 
 {
-  "model": "gpt-4.1-nano",
+  "model": "gpt-5.4-nano",
   "messages": [
     {
       "role": "system",
@@ -253,12 +253,11 @@ user-agent: EndpointR
       "content": "Oh man, I'm getting to the end of my limit with this thing. WHY DOESN'T IT JUST WORK?!?"
     }
   ],
-  "temperature": 0,
-  "max_tokens": 500
+  "max_completion_tokens": 500
 }
 ```
 
-EndpointR (via {httr2}) handles the HTTP mechanics: authentication, request headers, and endpoint configuration. It then constructs the JSON payload with your specified model, system prompt, and user message, whilst setting sensible defaults for temperature [^3] and max_tokens [^4].
+EndpointR (via {httr2}) handles the HTTP mechanics: authentication, request headers, and endpoint configuration. It then constructs the JSON payload with your specified model, system prompt, and user message, whilst setting a sensible default for max_tokens [^4] (sent as `max_completion_tokens`). Temperature [^3] is only included when you set it explicitly - reasoning models such as the GPT-5 family reject non-default values.
 
 [^3]: lower values = less random output, max value is 2
 
@@ -673,4 +672,125 @@ This approach minimises memory usage and prevents data loss if processing is int
 
 # Google
 
-TBC
+TBC - a native Gemini integration is in progress. In the meantime, Gemini models can be used today through Google's OpenAI-compatible endpoint - see the next section.
+
+# OpenAI- and Anthropic-Compatible Providers
+
+Many model providers expose APIs which are compatible with OpenAI's Chat Completions API, or with Anthropic's Messages API. Because every EndpointR request-building function accepts an `endpoint_url` and a `key_name`, you can point EndpointR at these providers without writing any new code:
+
+1.  Store the provider's API key under a name of your choosing with `set_api_key()`, e.g. `set_api_key("DEEPSEEK_API_KEY")`
+2.  Pass the provider's endpoint URL to `endpoint_url` - this is the *full* URL of the chat completions (or messages) route, not just the base URL
+3.  Pass your chosen key name to `key_name`, and set `model` to a model the provider serves
+
+The OpenAI-flavoured functions (`oai_complete_*`, `oai_embed_*`) send a Bearer token in the `Authorization` header, which is what OpenAI-compatible providers expect. The Anthropic-flavoured functions (`ant_complete_*`) send `x-api-key` and `anthropic-version` headers, which is what Anthropic-compatible providers expect.
+
+## DeepSeek via the Chat Completions API
+
+DeepSeek's API is OpenAI-compatible, so the `oai_complete_*` functions work directly:
+
+```{r}
+set_api_key("DEEPSEEK_API_KEY") # one-time setup, then restart R
+
+deepseek_url <- "https://api.deepseek.com/chat/completions"
+
+oai_complete_text(
+  text = "Briefly explain the difference between a list and an atomic vector in R.",
+  model = "deepseek-v4-flash",
+  endpoint_url = deepseek_url,
+  key_name = "DEEPSEEK_API_KEY"
+)
+```
+
+The same applies to the data frame and chunk-based functions:
+
+```{r}
+reviews <- tibble::tibble(
+  id = 1:3,
+  text = c(
+    "Great product, would buy again!",
+    "Terrible experience, broke after a week.",
+    "Does what it says on the tin."
+  )
+)
+
+deepseek_results <- oai_complete_df(
+  df = reviews,
+  text_var = text,
+  id_var = id,
+  model = "deepseek-v4-flash",
+  system_prompt = "Classify the sentiment of the text as positive, negative, or neutral. Respond with the label only.",
+  endpoint_url = deepseek_url,
+  key_name = "DEEPSEEK_API_KEY"
+)
+```
+
+> **Information:** DeepSeek's older `deepseek-chat` and `deepseek-reasoner` model names are deprecated as of July 2026, and map to the non-thinking and thinking modes of `deepseek-v4-flash` respectively. Check the [DeepSeek API docs](https://api-docs.deepseek.com/) for current model names.
+
+## DeepSeek via the Messages API
+
+DeepSeek also serves an Anthropic-compatible endpoint, so the `ant_complete_*` functions work too - point them at DeepSeek's Anthropic-format messages route:
+
+```{r}
+ant_complete_text(
+  text = "Briefly explain the difference between a list and an atomic vector in R.",
+  model = "deepseek-v4-pro",
+  endpoint_url = "https://api.deepseek.com/anthropic/v1/messages",
+  key_name = "DEEPSEEK_API_KEY"
+)
+```
+
+DeepSeek ignores the `anthropic-version` header and the `cache_control` fields EndpointR sends for prompt caching - both are harmless, but note you won't get Anthropic-style prompt-caching discounts. See [DeepSeek's Anthropic API guide](https://api-docs.deepseek.com/guides/anthropic_api) for the full list of supported and ignored fields.
+
+## Google Gemini via the Chat Completions API
+
+Google exposes an OpenAI-compatible layer for the Gemini API, covering both chat completions and embeddings. Get an API key from [Google AI Studio](https://aistudio.google.com/), then:
+
+```{r}
+set_api_key("GEMINI_API_KEY")
+
+oai_complete_text(
+  text = "Briefly explain the difference between a list and an atomic vector in R.",
+  model = "gemini-3.5-flash",
+  endpoint_url = "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions",
+  key_name = "GEMINI_API_KEY"
+)
+```
+
+Embeddings work the same way with the `oai_embed_*` functions:
+
+```{r}
+oai_embed_text(
+  text = "Convert this text to embeddings",
+  model = "gemini-embedding-001",
+  endpoint_url = "https://generativelanguage.googleapis.com/v1beta/openai/embeddings",
+  key_name = "GEMINI_API_KEY"
+)
+```
+
+Google describes this compatibility layer as beta: OpenAI parameters it doesn't recognise are silently ignored. See the [Gemini OpenAI-compatibility docs](https://ai.google.dev/gemini-api/docs/openai) for details.
+
+## Other Compatible Providers
+
+The same pattern works for any provider advertising OpenAI (or Anthropic) API compatibility. Some verified examples:
+
+| Provider | Compatible with | Chat completions `endpoint_url` |
+|---|---|---|
+| DeepSeek | OpenAI + Anthropic | `https://api.deepseek.com/chat/completions` |
+| Google Gemini | OpenAI | `https://generativelanguage.googleapis.com/v1beta/openai/chat/completions` |
+| Groq | OpenAI | `https://api.groq.com/openai/v1/chat/completions` |
+| OpenRouter | OpenAI | `https://openrouter.ai/api/v1/chat/completions` |
+| Ollama (local) | OpenAI | `http://localhost:11434/v1/chat/completions` |
+
+Others (Mistral, xAI, Together AI, vLLM, LM Studio, etc.) follow the same pattern - check the provider's documentation for the exact URL, and remember EndpointR needs the full route (ending `/chat/completions`), not the base URL you would give an OpenAI SDK.
+
+For local servers like Ollama that don't require authentication, `get_api_key()` still expects the environment variable to exist - store a placeholder, e.g. `set_api_key("OLLAMA_API_KEY")` with any non-empty value.
+
+## Caveats
+
+Compatible does not mean identical - a few things to watch out for:
+
+-   **Structured outputs vary.** The `schema` argument sends OpenAI's `response_format` with `json_schema` (or Anthropic's `output_config`), which not every provider supports. DeepSeek, for example, only supports the looser `json_object` mode, not `json_schema`. Check the provider's docs before relying on schemas.
+-   **Batch APIs are not portable.** The `oai_batch_*` and `ant_batch_*` functions target OpenAI's and Anthropic's own batch infrastructure - don't point them at a compatible provider unless its documentation explicitly supports it.
+-   **Embeddings availability differs.** Gemini serves embeddings through its OpenAI-compatible layer; DeepSeek doesn't offer an embeddings endpoint at all.
+-   **Parameter handling differs at the margins.** For example, Groq converts an explicit `temperature = 0` to a very small positive value, and rejects some OpenAI-only fields.
+-   **The Hugging Face functions are different.** `hf_embed_*` and `hf_classify_*` send Hugging Face Inference payloads, not OpenAI-format ones - use them for HF Inference Endpoints only.

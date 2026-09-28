@@ -11,6 +11,7 @@ ant_complete_chunks(
   model = "claude-haiku-4-5",
   system_prompt = NULL,
   output_dir = "auto",
+  overwrite = FALSE,
   schema = NULL,
   concurrent_requests = 5L,
   temperature = 0,
@@ -19,7 +20,8 @@ ant_complete_chunks(
   timeout = 30L,
   key_name = "ANTHROPIC_API_KEY",
   endpoint_url = .ANT_MESSAGES_ENDPOINT,
-  id_col_name = "id"
+  id_col_name = "id",
+  effort = NULL
 )
 }
 \arguments{
@@ -37,11 +39,13 @@ system prompt is shared across many requests.}
 
 \item{output_dir}{Directory for parquet chunks ("auto" generates timestamped dir)}
 
+\item{overwrite}{If \code{FALSE} (default), errors when \code{output_dir} already contains chunk (\code{.parquet}) or \code{metadata.json} files. Set to \code{TRUE} to delete them and write fresh outputs; other files are left untouched.}
+
 \item{schema}{Optional JSON schema for structured output}
 
 \item{concurrent_requests}{Number of concurrent requests}
 
-\item{temperature}{Sampling temperature}
+\item{temperature}{Sampling temperature (0-1), included in the request only when non-NULL. Dropped with a warning on models that reject sampling parameters (Claude Opus 4.7+, Sonnet 5, Fable 5).}
 
 \item{max_tokens}{Maximum tokens per response}
 
@@ -54,6 +58,8 @@ system prompt is shared across many requests.}
 \item{endpoint_url}{Anthropic API endpoint URL}
 
 \item{id_col_name}{Name for ID column in output}
+
+\item{effort}{Optional reasoning effort, one of "low", "medium", "high", "xhigh", "max". Supported on Claude Opus 4.5+, Sonnet 4.6+ and Fable 5; not supported on Haiku models.}
 }
 \value{
 A tibble with all results
@@ -71,8 +77,6 @@ writes results to disk to minimise memory usage and possibility of data loss.
 Results are written as parquet files in the specified output directory,
 along with a metadata.json file containing processing parameters.
 
-When using the \verb{output_dir =} argument, be careful that you select
-a new directory if you do not wish to overwrite existing chunks.
-If there is already a \code{chunks_001.parquet} file in the directory,
-it will be overwritten.
+When using a custom \code{output_dir}, existing chunk files are protected
+by default. Set \code{overwrite = TRUE} to replace them.
 }

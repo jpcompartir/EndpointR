@@ -1,3 +1,6 @@
+# constants ----
+.OAI_DEFAULT_MODEL <- "gpt-5.4-nano"
+
 # oai_build_completions_request docs ----
 #' Build an OpenAI API Chat Completions request
 #'
@@ -23,9 +26,9 @@
 #'
 #' @param input Text input to send to the model
 #' @param endpointr_id An id that will persist through to response
-#' @param model OpenAI model to use (default: "gpt-4.1-nano")
-#' @param temperature Sampling temperature (0-2), higher values = more randomness
-#' @param max_tokens Maximum tokens in response
+#' @param model OpenAI model to use (default: "gpt-5.4-nano")
+#' @param temperature Sampling temperature (0-2), included in the request only when non-NULL. The default NULL omits it, which reasoning models (the GPT-5 family, o-series) require - they only accept the default temperature.
+#' @param max_tokens Maximum tokens in the response, sent as OpenAI's `max_completion_tokens` (`max_tokens` is deprecated and rejected by reasoning models)
 #' @param schema Optional JSON schema for structured output (json_schema object or list)
 #' @param system_prompt Optional system prompt
 #' @param key_name Environment variable name for API key
@@ -40,8 +43,8 @@
 oai_build_completions_request <- function(
     input,
     endpointr_id = NULL,
-    model = "gpt-4.1-nano",
-    temperature = 0,
+    model = .OAI_DEFAULT_MODEL,
+    temperature = NULL,
     max_tokens = 500L,
     schema = NULL,
     system_prompt = NULL,
@@ -53,7 +56,7 @@ oai_build_completions_request <- function(
   stopifnot(
     "input must be a non-empty character string" = is.character(input) && length(input) == 1 && nchar(input) > 0,
     "model must be a character string" = is.character(model) && length(model) == 1,
-    "temperature must be numeric between 0 and 2" = is.numeric(temperature) && temperature >= 0 && temperature <= 2,
+    "temperature must be numeric between 0 and 2" = is.null(temperature) || (is.numeric(temperature) && temperature >= 0 && temperature <= 2),
     "max_tokens must be a positive integer" = is.numeric(max_tokens) && max_tokens > 0
   )
 
@@ -81,9 +84,12 @@ oai_build_completions_request <- function(
   body <- list(
     model = model,
     messages = messages,
-    temperature = temperature,
-    max_tokens = max_tokens
+    max_completion_tokens = max_tokens # max_tokens is deprecated; reasoning models reject it
   )
+
+  if (!is.null(temperature)) {
+    body$temperature <- temperature
+  }
 
   if (!is.null(schema)) {
     if (inherits(schema, "EndpointR::json_schema")){
@@ -115,8 +121,8 @@ oai_build_completions_request <- function(
 #' @param inputs Character vector of text inputs
 #' @param endpointr_ids A vector of IDs which will persist through to responses
 #' @param model OpenAI model to use
-#' @param temperature Sampling temperature
-#' @param max_tokens Maximum tokens per response
+#' @param temperature Sampling temperature (0-2), included in the request only when non-NULL. The default NULL omits it, which reasoning models (the GPT-5 family, o-series) require - they only accept the default temperature.
+#' @param max_tokens Maximum tokens per response, sent as OpenAI's `max_completion_tokens` (`max_tokens` is deprecated and rejected by reasoning models)
 #' @param schema Optional JSON schema for structured output
 #' @param system_prompt Optional system prompt
 #' @param max_retries Integer; maximum retry attempts (default: 5)
@@ -130,8 +136,8 @@ oai_build_completions_request <- function(
 oai_build_completions_request_list <- function(
     inputs,
     endpointr_ids = NULL,
-    model = "gpt-4.1-nano",
-    temperature = 0,
+    model = .OAI_DEFAULT_MODEL,
+    temperature = NULL,
     max_tokens = 500L,
     schema = NULL,
     system_prompt = NULL,
@@ -185,11 +191,11 @@ oai_build_completions_request_list <- function(
 #' response processing, with optional structured output support.
 #'
 #' @param text Character string to send to the model
-#' @param model OpenAI model to use (default: "gpt-4.1-nano")
+#' @param model OpenAI model to use (default: "gpt-5.4-nano")
 #' @param system_prompt Optional system prompt to guide the model's behaviour
 #' @param schema Optional JSON schema for structured output (json_schema object or list)
-#' @param temperature Sampling temperature (0-2), lower = more deterministic (default: 0)
-#' @param max_tokens Maximum tokens in response (default: 500)
+#' @param temperature Sampling temperature (0-2), included in the request only when non-NULL. The default NULL omits it, which reasoning models (the GPT-5 family, o-series) require - they only accept the default temperature.
+#' @param max_tokens Maximum tokens in the response (default: 500), sent as OpenAI's `max_completion_tokens` (`max_tokens` is deprecated and rejected by reasoning models)
 #' @param key_name Environment variable name for API key (default: "OPENAI_API_KEY")
 #' @param endpoint_url OpenAI API endpoint URL
 #' @param max_retries Maximum retry attempts for failed requests (default: 5)
@@ -232,10 +238,10 @@ oai_build_completions_request_list <- function(
 #' }
 # oai_complete_text docs ----
 oai_complete_text <- function(text,
-                              model = "gpt-4.1-nano",
+                              model = .OAI_DEFAULT_MODEL,
                               system_prompt = NULL,
                               schema = NULL,
-                              temperature = 0,
+                              temperature = NULL,
                               max_tokens = 500L,
                               key_name = "OPENAI_API_KEY",
                               endpoint_url = "https://api.openai.com/v1/chat/completions",
@@ -335,13 +341,14 @@ oai_complete_text <- function(text,
 #' @param texts Character vector of texts to process
 #' @param ids Vector of unique identifiers corresponding to each text (same length as texts)
 #' @param chunk_size Number of texts to process in each batch (default: 5000)
-#' @param model OpenAI model to use (default: "gpt-4.1-nano")
+#' @param model OpenAI model to use (default: "gpt-5.4-nano")
 #' @param system_prompt Optional system prompt applied to all requests
 #' @param output_dir Path to directory for the .parquet chunks. "auto" generates a timestamped directory name. If NULL, uses a temporary directory.
+#' @param overwrite If `FALSE` (default), errors when `output_dir` already contains chunk (`.parquet`) or `metadata.json` files. Set to `TRUE` to delete them and write fresh outputs; other files are left untouched.
 #' @param schema Optional JSON schema for structured output (json_schema object or list)
 #' @param concurrent_requests Integer; number of concurrent requests (default: 5)
-#' @param temperature Sampling temperature (0-2), lower = more deterministic (default: 0)
-#' @param max_tokens Maximum tokens per response (default: 500)
+#' @param temperature Sampling temperature (0-2), included in the request only when non-NULL. The default NULL omits it, which reasoning models (the GPT-5 family, o-series) require - they only accept the default temperature.
+#' @param max_tokens Maximum tokens per response (default: 500), sent as OpenAI's `max_completion_tokens` (`max_tokens` is deprecated and rejected by reasoning models)
 #' @param max_retries Maximum retry attempts per failed request (default: 5)
 #' @param timeout Request timeout in seconds (default: 30)
 #' @param key_name Name of environment variable containing the API key (default: OPENAI_API_KEY)
@@ -362,7 +369,7 @@ oai_complete_text <- function(text,
 #' result <- oai_complete_chunks(
 #'   texts = my_texts,
 #'   ids = my_ids,
-#'   model = "gpt-4.1-nano"
+#'   model = "gpt-5.4-nano"
 #' )
 #'
 #' # large-scale processing with custom output directory:
@@ -391,12 +398,13 @@ oai_complete_text <- function(text,
 oai_complete_chunks <- function(texts,
                                ids,
                                chunk_size = 5000L,
-                               model = "gpt-4.1-nano",
+                               model = .OAI_DEFAULT_MODEL,
                                system_prompt = NULL,
                                output_dir = "auto",
+                               overwrite = FALSE,
                                schema = NULL,
                                concurrent_requests = 5L,
-                               temperature = 0L,
+                               temperature = NULL,
                                max_tokens = 500L,
                                max_retries = 5L,
                                timeout = 30L,
@@ -413,6 +421,7 @@ oai_complete_chunks <- function(texts,
   )
 
   output_dir <- .handle_output_directory(output_dir, base_dir_name = "oai_completions_batch")
+  .check_existing_output(output_dir, overwrite = overwrite)
 
   if (!dir.exists(output_dir)) {
     dir.create(output_dir, recursive = TRUE)
@@ -673,15 +682,16 @@ oai_complete_chunks <- function(texts,
 oai_complete_df <- function(df,
                             text_var,
                             id_var,
-                            model = "gpt-4.1-nano",
+                            model = .OAI_DEFAULT_MODEL,
                             output_dir = "auto",
+                            overwrite = FALSE,
                             system_prompt = NULL,
                             schema = NULL,
                             chunk_size = 1000,
                             concurrent_requests = 1L,
                             max_retries = 5L,
                             timeout = 30,
-                            temperature = 0,
+                            temperature = NULL,
                             max_tokens = 500L,
                             key_name = "OPENAI_API_KEY",
                             endpoint_url = "https://api.openai.com/v1/chat/completions") {
@@ -722,6 +732,7 @@ oai_complete_df <- function(df,
     key_name = key_name,
     endpoint_url = endpoint_url,
     output_dir = output_dir,
+    overwrite = overwrite,
     id_col_name = id_col_name
   )
 

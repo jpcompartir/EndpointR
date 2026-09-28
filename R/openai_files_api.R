@@ -4,7 +4,8 @@
 #' filtered by purpose. Files are retained for 30 days after upload.
 #'
 #' @param purpose The intended purpose of the uploaded file. Must be one of
-#'   "batch", "fine-tune", "assistants", "vision", "user_data", or "evals".
+#'   "batch", "fine-tune", "vision", "user_data", or "evals". ("assistants"
+#'   was removed - the OpenAI Assistants API shuts down on 2026-08-26.)
 #' @param key_name Name of the environment variable containing your API key
 #'
 #' @returns A list containing file metadata and pagination information. Each
@@ -25,7 +26,7 @@
 #' # Access file IDs
 #' file_ids <- purrr::map_chr(batch_files$data, "id")
 #' }
-oai_file_list <- function(purpose = c("batch", "fine-tune", "assistants", "vision", "user_data", "evals"), key_name = "OPENAI_API_KEY") {
+oai_file_list <- function(purpose = c("batch", "fine-tune", "vision", "user_data", "evals"), key_name = "OPENAI_API_KEY") {
 
   purpose <- match.arg(purpose)
   api_key <- get_api_key(key_name)
@@ -44,7 +45,8 @@ oai_file_list <- function(purpose = c("batch", "fine-tune", "assistants", "visio
 #'
 #' @param file File object you wish to upload
 #' @param purpose The intended purpose of the uploaded file. Must be one of
-#'   "batch", "fine-tune", "assistants", "vision", "user_data", or "evals".
+#'   "batch", "fine-tune", "vision", "user_data", or "evals". ("assistants"
+#'   was removed - the OpenAI Assistants API shuts down on 2026-08-26.)
 #' @param key_name Name of the environment variable containing your API key
 #' @param endpoint_url OpenAI API endpoint URL (default: OpenAI's Files API V1)
 #'
@@ -61,7 +63,7 @@ oai_file_list <- function(purpose = c("batch", "fine-tune", "assistants", "visio
 #' )
 #' 
 #' }
-oai_file_upload <- function(file, purpose = c("batch", "fine-tune", "assistants", "vision", "user_data", "evals"), key_name = "OPENAI_API_KEY", endpoint_url = "https://api.openai.com/v1/files") {
+oai_file_upload <- function(file, purpose = c("batch", "fine-tune", "vision", "user_data", "evals"), key_name = "OPENAI_API_KEY", endpoint_url = "https://api.openai.com/v1/files") {
  
   api_key <- get_api_key(key_name)
   purpose <- match.arg(purpose)

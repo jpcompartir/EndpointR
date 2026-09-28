@@ -8,12 +8,13 @@ oai_complete_chunks(
   texts,
   ids,
   chunk_size = 5000L,
-  model = "gpt-4.1-nano",
+  model = .OAI_DEFAULT_MODEL,
   system_prompt = NULL,
   output_dir = "auto",
+  overwrite = FALSE,
   schema = NULL,
   concurrent_requests = 5L,
-  temperature = 0L,
+  temperature = NULL,
   max_tokens = 500L,
   max_retries = 5L,
   timeout = 30L,
@@ -29,19 +30,21 @@ oai_complete_chunks(
 
 \item{chunk_size}{Number of texts to process in each batch (default: 5000)}
 
-\item{model}{OpenAI model to use (default: "gpt-4.1-nano")}
+\item{model}{OpenAI model to use (default: "gpt-5.4-nano")}
 
 \item{system_prompt}{Optional system prompt applied to all requests}
 
 \item{output_dir}{Path to directory for the .parquet chunks. "auto" generates a timestamped directory name. If NULL, uses a temporary directory.}
 
+\item{overwrite}{If \code{FALSE} (default), errors when \code{output_dir} already contains chunk (\code{.parquet}) or \code{metadata.json} files. Set to \code{TRUE} to delete them and write fresh outputs; other files are left untouched.}
+
 \item{schema}{Optional JSON schema for structured output (json_schema object or list)}
 
 \item{concurrent_requests}{Integer; number of concurrent requests (default: 5)}
 
-\item{temperature}{Sampling temperature (0-2), lower = more deterministic (default: 0)}
+\item{temperature}{Sampling temperature (0-2), included in the request only when non-NULL. The default NULL omits it, which reasoning models (the GPT-5 family, o-series) require - they only accept the default temperature.}
 
-\item{max_tokens}{Maximum tokens per response (default: 500)}
+\item{max_tokens}{Maximum tokens per response (default: 500), sent as OpenAI's \code{max_completion_tokens} (\code{max_tokens} is deprecated and rejected by reasoning models)}
 
 \item{max_retries}{Maximum retry attempts per failed request (default: 5)}
 
@@ -95,7 +98,7 @@ Avoid risk of data loss by setting a low-ish chunk_size (e.g. 5,000, 10,000). Ea
 result <- oai_complete_chunks(
   texts = my_texts,
   ids = my_ids,
-  model = "gpt-4.1-nano"
+  model = "gpt-5.4-nano"
 )
 
 # large-scale processing with custom output directory:

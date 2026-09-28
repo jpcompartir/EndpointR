@@ -207,7 +207,8 @@ test_that("ant_complete_chunks processes chunks correctly", {
         key_name = "ANTHROPIC_API_KEY",
         chunk_size = 1,
         concurrent_requests = 1,
-        output_dir = temp_dir
+        output_dir = temp_dir,
+        overwrite = TRUE # second run into the same directory
       )) |> suppressMessages()
     }
   )
@@ -403,3 +404,42 @@ test_that("ant_complete_df's input validation is working", {
 })
 
 
+
+test_that("ant_build_messages_request omits temperature when NULL and drops it on models without sampling support", {
+  # default: temperature still included for models that accept sampling (haiku)
+  req <- ant_build_messages_request("hello")
+  expect_equal(req$body$data$temperature, 0)
+
+  # NULL: omitted from the body entirely
+  req_null <- ant_build_messages_request("hello", temperature = NULL)
+  expect_false("temperature" %in% names(req_null$body$data))
+
+  # models that reject sampling params (Opus 4.7+, Sonnet 5, Fable 5): dropped with a warning
+  rlang::reset_warning_verbosity("ant_sampling_drop")
+  expect_warning(
+    req_s5 <- ant_build_messages_request("hello", model = "claude-sonnet-5"),
+    regexp = "temperature"
+  )
+  expect_false("temperature" %in% names(req_s5$body$data))
+})
+
+test_that("ant_build_messages_request adds effort to output_config", {
+  req <- ant_build_messages_request("hello", effort = "high")
+  expect_equal(req$body$data$output_config$effort, "high")
+
+  # merges with a schema-derived output_config rather than replacing it
+  test_schema <- create_json_schema(
+    name = "effort_test",
+    schema = schema_object(x = schema_string("a field"), required = list("x"))
+  )
+  req_both <- ant_build_messages_request("hello", schema = test_schema, effort = "low")
+  expect_equal(req_both$body$data$output_config$effort, "low")
+  expect_equal(req_both$body$data$output_config$format$type, "json_schema")
+
+  # invalid values rejected
+  expect_error(ant_build_messages_request("hello", effort = "extreme"), regexp = "effort")
+
+  # omitted by default
+  req_default <- ant_build_messages_request("hello")
+  expect_null(req_default$body$data$output_config$effort)
+})

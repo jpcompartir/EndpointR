@@ -385,6 +385,7 @@ hf_classify_batch <- function(texts,
 #' @param tidy_func Function to process API responses, defaults to
 #'   `tidy_classification_response`
 #' @param output_dir Path to directory for the .parquet chunks
+#' @param overwrite If `FALSE` (default), errors when `output_dir` already contains chunk (`.parquet`) or `metadata.json` files. Set to `TRUE` to delete them and write fresh outputs; other files are left untouched.
 #' @param chunk_size Number of texts to process in each chunk before writing to disk (default: 5000)
 #' @param concurrent_requests Integer; number of concurrent requests (default: 5)
 #' @param max_retries Integer; maximum retry attempts (default: 5)
@@ -416,6 +417,7 @@ hf_classify_chunks <- function(texts,
                                max_length = 512L,
                                tidy_func = tidy_classification_response,
                                output_dir = "auto",
+                               overwrite = FALSE,
                                chunk_size = 5000L,
                                concurrent_requests = 5L,
                                max_retries = 5L,
@@ -449,6 +451,7 @@ hf_classify_chunks <- function(texts,
 
   # Chunking set up and metadata ----
   output_dir <- .handle_output_directory(output_dir, base_dir_name = "hf_classify_chunk")
+  .check_existing_output(output_dir, overwrite = overwrite)
 
   if (!dir.exists(output_dir)) {
     dir.create(output_dir, recursive = TRUE)
@@ -646,6 +649,7 @@ hf_classify_chunks <- function(texts,
 #' @param key_name Name of environment variable containing the API key
 #' @param max_length The maximum number of tokens in the text variable. Beyond this cut-off everything is truncated.
 #' @param output_dir Path to directory for the .parquet chunks
+#' @param overwrite If `FALSE` (default), errors when `output_dir` already contains chunk (`.parquet`) or `metadata.json` files. Set to `TRUE` to delete them and write fresh outputs; other files are left untouched.
 #' @param tidy_func Function to process API responses, defaults to
 #'   `tidy_batch_classification_response`
 #' @param chunk_size Number of texts to process in each chunk before writing to disk (default: 5000)
@@ -681,6 +685,7 @@ hf_classify_df <- function(df,
                            key_name,
                            max_length = 512L,
                            output_dir = "auto",
+                           overwrite = FALSE,
                            tidy_func = tidy_classification_response,
                            chunk_size = 5000,
                            concurrent_requests = 1,
@@ -723,6 +728,7 @@ hf_classify_df <- function(df,
     timeout = timeout,
     key_name = key_name,
     output_dir = output_dir,
+    overwrite = overwrite,
     id_col_name = id_col_name,
     text_col_name = text_col_name
   )

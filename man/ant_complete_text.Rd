@@ -15,7 +15,8 @@ ant_complete_text(
   endpoint_url = .ANT_MESSAGES_ENDPOINT,
   max_retries = 5L,
   timeout = 30L,
-  tidy = TRUE
+  tidy = TRUE,
+  effort = NULL
 )
 }
 \arguments{
@@ -27,7 +28,7 @@ ant_complete_text(
 
 \item{schema}{Optional JSON schema for structured output}
 
-\item{temperature}{Sampling temperature (0-1)}
+\item{temperature}{Sampling temperature (0-1), included in the request only when non-NULL. Dropped with a warning on models that reject sampling parameters (Claude Opus 4.7+, Sonnet 5, Fable 5).}
 
 \item{max_tokens}{Maximum tokens in response}
 
@@ -40,6 +41,8 @@ ant_complete_text(
 \item{timeout}{Request timeout in seconds}
 
 \item{tidy}{Whether to parse structured output (default: TRUE)}
+
+\item{effort}{Optional reasoning effort, one of "low", "medium", "high", "xhigh", "max". Supported on Claude Opus 4.5+, Sonnet 4.6+ and Fable 5; not supported on Haiku models.}
 }
 \value{
 Character string with the model's response, or parsed JSON if schema provided

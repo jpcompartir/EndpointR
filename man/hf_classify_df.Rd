@@ -12,6 +12,7 @@ hf_classify_df(
   key_name,
   max_length = 512L,
   output_dir = "auto",
+  overwrite = FALSE,
   tidy_func = tidy_classification_response,
   chunk_size = 5000,
   concurrent_requests = 1,
@@ -33,6 +34,8 @@ hf_classify_df(
 \item{max_length}{The maximum number of tokens in the text variable. Beyond this cut-off everything is truncated.}
 
 \item{output_dir}{Path to directory for the .parquet chunks}
+
+\item{overwrite}{If \code{FALSE} (default), errors when \code{output_dir} already contains chunk (\code{.parquet}) or \code{metadata.json} files. Set to \code{TRUE} to delete them and write fresh outputs; other files are left untouched.}
 
 \item{tidy_func}{Function to process API responses, defaults to
 \code{tidy_batch_classification_response}}
