@@ -1,5 +1,3 @@
-# EndpointR (dev)
-
 # EndpointR 0.2.4
 
 ## Overwrite protection for chunked outputs
