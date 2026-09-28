@@ -14,6 +14,7 @@ oai_embed_chunks(
   model = "text-embedding-3-small",
   dimensions = 1536,
   output_dir = "auto",
+  overwrite = FALSE,
   chunk_size = 5000L,
   concurrent_requests = 5L,
   max_retries = 5L,
@@ -48,6 +49,12 @@ oai_embed_chunks(
 
   Path to directory for the .parquet chunks. "auto" generates a
   timestamped directory name. If NULL, uses a temporary directory.
+
+- overwrite:
+
+  If `FALSE` (default), errors when `output_dir` already contains chunk
+  (`.parquet`) or `metadata.json` files. Set to `TRUE` to delete them
+  and write fresh outputs; other files are left untouched.
 
 - chunk_size:
 

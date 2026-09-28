@@ -6,6 +6,7 @@ Hugging Face’s inference services.
 ## Setup
 
 ``` r
+
 library(EndpointR)
 library(dplyr)
 library(httr2)
@@ -28,6 +29,7 @@ Follow Hugging Face’s
 Hugging Face token, and then register it with EndpointR:
 
 ``` r
+
 set_api_key("HF_TEST_API_KEY")
 ```
 
@@ -108,6 +110,7 @@ and call the chunk functions internally.
 Use this decision tree:
 
 ``` r
+
 # Single text? Use _text functions
 if (n_texts == 1) {
   result <- hf_embed_text(text, endpoint_url, key_name)
@@ -165,6 +168,7 @@ functions is crucial for effective use.
 - Uses standard inference parameters: `truncation=TRUE` and `max_length`
 
 ``` r
+
 # Embeddings - NO max_length parameter
 hf_embed_df(
   df = my_data,
@@ -219,6 +223,7 @@ about them unless you’re debugging API issues. Check `metadata.json`
 Embed one piece of text:
 
 ``` r
+
 # inference api url for embeddings
 embed_url <- "https://router.huggingface.co/hf-inference/models/sentence-transformers/all-mpnet-base-v2/pipeline/feature-extraction"
 
@@ -240,6 +245,7 @@ column is an embedding dimension.
 Embed multiple texts at once using batching:
 
 ``` r
+
 texts <- c(
   "First text to embed",
   "Second text to embed",
@@ -282,6 +288,7 @@ write intermediate results to disk as `.parquet` files. This provides:
     used
 
 ``` r
+
 # Basic usage - auto-generates output directory
 embedding_result <- hf_embed_df(
   df = my_data,
@@ -335,6 +342,7 @@ my_embeddings_v1/
 If your R session crashes or you want to reload results later:
 
 ``` r
+
 # List all parquet files (excludes metadata.json automatically)
 parquet_files <- list.files("my_embeddings_v1",
                            pattern = "\\.parquet$",
@@ -356,6 +364,7 @@ successful <- results |> filter(.error == FALSE)
 The metadata file records everything about your processing job:
 
 ``` r
+
 metadata <- jsonlite::read_json("my_embeddings_v1/metadata.json")
 
 # Check which endpoint was used
@@ -387,6 +396,7 @@ This metadata is invaluable for:
 Always verify your results:
 
 ``` r
+
 embedding_result |> count(.error)
 
 # View any failures (column names match your original data frame)
@@ -409,6 +419,7 @@ text truncation.
 ### Single Text
 
 ``` r
+
 classify_url <- "https://router.huggingface.co/hf-inference/models/distilbert/distilbert-base-uncased-finetuned-sst-2-english"
 
 sentiment <- hf_classify_text(
@@ -421,6 +432,7 @@ sentiment <- hf_classify_text(
 ### Processing Data Frames
 
 ``` r
+
 classification_result <- hf_classify_df(
   df = my_data,
   text_var = text,
@@ -457,6 +469,7 @@ Many classification models use generic labels like `LABEL_0`, `LABEL_1`.
 You can rename these:
 
 ``` r
+
 # Create a mapping function
 labelid_2class <- function() {
   return(list(
@@ -488,6 +501,7 @@ endpoints.
 Find out the maximum token length for a model:
 
 ``` r
+
 # Get the model's max token length from Hugging Face
 max_tokens <- hf_get_model_max_length(
   model_name = "cardiffnlp/twitter-roberta-base-sentiment",
@@ -513,6 +527,7 @@ varying token limits (e.g., 512, 1024, 2048).
 Retrieve detailed information about your Dedicated Inference Endpoint:
 
 ``` r
+
 endpoint_info <- hf_get_endpoint_info(
   endpoint_url = "https://your-endpoint.endpoints.huggingface.cloud",
   key_name = "HF_API_KEY"
@@ -539,6 +554,7 @@ To use dedicated endpoints instead of the Inference API:
 3.  Replace the URL in any function:
 
 ``` r
+
 # just change this line
 dedicated_url <- "https://your-endpoint-name.endpoints.huggingface.cloud"
 
@@ -585,6 +601,7 @@ Without this, very long texts may cause “Payload too large” errors.
 - For very large datasets (\>100k rows), use `chunk_size = 1000-2500`
 
 ``` r
+
 # For very large datasets
 hf_embed_df(
   df = large_data,
@@ -620,6 +637,7 @@ hf_embed_df(
     - Using models with longer context windows
 
 ``` r
+
 # Get model's actual max length
 model_limit <- hf_get_model_max_length(
   model_name = "distilbert/distilbert-base-uncased-finetuned-sst-2-english",
@@ -644,6 +662,7 @@ hf_classify_df(
 Always check for errors and consider retrying failures:
 
 ``` r
+
 # Check results for errors
 results |> count(.error)
 
@@ -693,6 +712,7 @@ retry_results <- hf_embed_batch(
 - **Inference API**: Preprocess and truncate texts before sending
 
 ``` r
+
 # Preprocessing approach for Inference API
 my_data <- my_data |>
   mutate(text = substr(text, 1, 5000))  # Limit to ~5000 characters
@@ -703,6 +723,7 @@ my_data <- my_data |>
 - Reduce the `max_length` parameter
 
 ``` r
+
 hf_classify_df(
   df = my_data,
   text_var = text,
@@ -718,6 +739,7 @@ hf_classify_df(
 Classification takes longer than embeddings. Increase timeout if needed:
 
 ``` r
+
 hf_classify_df(
   df = my_data,
   text_var = text,
@@ -734,6 +756,7 @@ hf_classify_df(
 Dedicated endpoints take 20-30 seconds to wake up from idle:
 
 ``` r
+
 # Set higher max_retries to allow for cold start
 hf_embed_df(
   df = my_data,
@@ -754,6 +777,7 @@ once the endpoint is warm.
 Reduce `chunk_size`:
 
 ``` r
+
 # Instead of default 5000
 hf_embed_df(
   df = large_data,
@@ -774,6 +798,7 @@ hf_embed_df(
 - Increase delays between requests (handled automatically by retries)
 
 ``` r
+
 hf_embed_df(
   df = my_data,
   text_var = text,
@@ -822,15 +847,15 @@ Quick tips:
 
 ### Comparison of Inference API vs Dedicated Inference Endpoints
 
-| Feature                | Inference API                               | Dedicated Inference Endpoints          |
-|------------------------|---------------------------------------------|----------------------------------------|
-| **Accessibility**      | Public, shared service                      | Private, dedicated hardware            |
-| **Cost**               | Free (with paid tiers)                      | Paid service - rent specific hardware  |
-| **Hardware**           | Shared computing resources                  | Dedicated hardware allocation          |
-| **Wait Times**         | Variable, unknowable in advance             | Predictable, ~30s for cold start       |
-| **Production Ready**   | Not recommended for production              | Recommended for production use         |
-| **Use Case**           | Casual usage, testing, prototyping          | Production applications                |
-| **Scalability**        | Limited by shared resources                 | Scales with dedicated allocation       |
-| **Availability**       | Subject to shared infrastructure limits     | Guaranteed availability during rental  |
-| **Model Coverage**     | Commonly-used models, models selected by HF | Virtually all models on the Hub        |
-| **Truncation Control** | Limited (model-dependent)                   | Full control via environment variables |
+| Feature | Inference API | Dedicated Inference Endpoints |
+|----|----|----|
+| **Accessibility** | Public, shared service | Private, dedicated hardware |
+| **Cost** | Free (with paid tiers) | Paid service - rent specific hardware |
+| **Hardware** | Shared computing resources | Dedicated hardware allocation |
+| **Wait Times** | Variable, unknowable in advance | Predictable, ~30s for cold start |
+| **Production Ready** | Not recommended for production | Recommended for production use |
+| **Use Case** | Casual usage, testing, prototyping | Production applications |
+| **Scalability** | Limited by shared resources | Scales with dedicated allocation |
+| **Availability** | Subject to shared infrastructure limits | Guaranteed availability during rental |
+| **Model Coverage** | Commonly-used models, models selected by HF | Virtually all models on the Hub |
+| **Truncation Control** | Limited (model-dependent) | Full control via environment variables |

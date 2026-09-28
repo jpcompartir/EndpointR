@@ -22,6 +22,7 @@ either Hugging Face or OpenAI APIs.
 ## Setup
 
 ``` r
+
 library(EndpointR)
 library(dplyr)
 library(tibble)
@@ -41,14 +42,14 @@ sample_texts <- tibble(
 
 Before diving into code, let’s understand the key differences:
 
-| Feature                                       | Hugging Face                           | OpenAI                                |
-|-----------------------------------------------|----------------------------------------|---------------------------------------|
-| **Models**                                    | Many open-source models                | text-embedding-3-small/large, ada-002 |
-| **Dimensions**                                | Model-dependent (often 384, 768)       | Configurable (512-3072)               |
-| **Pricing**                                   | Free tier available, pay for dedicated | Pay per token                         |
-| **Rate Limits**                               | Varies by tier                         | Generous for most use cases           |
-| **Max Input**                                 | Model-dependent                        | 8,192 tokens per request              |
-| **Batching (multiple documents per request)** | Supported                              | Supported                             |
+| Feature | Hugging Face | OpenAI |
+|----|----|----|
+| **Models** | Many open-source models | text-embedding-3-small/large, ada-002 |
+| **Dimensions** | Model-dependent (often 384, 768) | Configurable (512-3072) |
+| **Pricing** | Free tier available, pay for dedicated | Pay per token |
+| **Rate Limits** | Varies by tier | Generous for most use cases |
+| **Max Input** | Model-dependent | 8,192 tokens per request |
+| **Batching (multiple documents per request)** | Supported | Supported |
 
 ## Hugging Face Embeddings
 
@@ -60,6 +61,7 @@ endpoint’s URL. Here we’ve chosen an endpoint for accessing embeddings
 from the `all-mpnet-base-v2` model.
 
 ``` r
+
 set_api_key("HF_TEST_API_KEY")
 
 embed_url <-  "https://router.huggingface.co/hf-inference/models/sentence-transformers/all-mpnet-base-v2/pipeline/feature-extraction"
@@ -70,6 +72,7 @@ embed_url <-  "https://router.huggingface.co/hf-inference/models/sentence-transf
 The simplest case - embed one piece of text:
 
 ``` r
+
 embedding <- hf_embed_text(
   text = "I want to understand the meaning of this sentence",
   endpoint_url = embed_url,
@@ -90,6 +93,7 @@ a `batch_size`, and the function takes care of batching our vector into
 as many batches as necessary.
 
 ``` r
+
 texts_to_embed <- c(
   "First document about machine learning",
   "Second document about deep learning",
@@ -117,6 +121,7 @@ The result includes: - `text`: your original text - `.error` and
 Most commonly, you’ll want to embed a column from a data frame:
 
 ``` r
+
 embedded_df <- hf_embed_df(
   df = sample_texts,
   text_var = text,      # column containing text
@@ -141,6 +146,7 @@ Get your API key from the [OpenAI](https://platform.openai.com/api-keys)
 website and set it:
 
 ``` r
+
 set_api_key("OPENAI_API_KEY")
 ```
 
@@ -149,6 +155,7 @@ set_api_key("OPENAI_API_KEY")
 OpenAI offers configurable embedding dimensions:
 
 ``` r
+
 # Default dimensions (1536 for text-embedding-3-small)
 embedding <- oai_embed_text(
   text = "I want to understand the meaning of this sentence"
@@ -171,6 +178,7 @@ OpenAI allows multiple texts in a single API call, which
 leverages.
 
 ``` r
+
 texts_to_embed <- c(
   "First document about machine learning",
   "Second document about deep learning",
@@ -198,6 +206,7 @@ batch_embeddings |>
 ### Data Frame Integration
 
 ``` r
+
 embedded_df <- oai_embed_df(
   df = sample_texts,
   text_var = text,
@@ -217,10 +226,11 @@ embedded_df |>
 
 ### OpenAI Limits
 
-OpenAI has a token limit of 8,192 per request. Since 1 token $\approx$ 4
-characters:
+OpenAI has a token limit of 8,192 per request. Since 1 token $`\approx`$
+4 characters:
 
 ``` r
+
 long_texts <- tibble(
   id = 1:3,
   text = c(
@@ -242,6 +252,7 @@ We can truncate our texts with the substr() function but in practice we
 would of course want to use a more intelligent splitting procedure.
 
 ``` r
+
 # truncation (data / information loss happens!)
 long_texts |>
   mutate(
@@ -267,6 +278,7 @@ This code chunk shows you how to chunk up your texts if you’re finding
 errors due to payload size:
 
 ``` r
+
 chunk_text <- function(text, max_chars = 2000) {
   if (nchar(text) <= max_chars) return(list(text))
   
@@ -287,6 +299,7 @@ send off your failures in another batch request, but beware you’ll need
 to handle the resulting data frames.
 
 ``` r
+
 results <- oai_embed_batch(texts = texts_to_embed)
 
 # Check overall success
@@ -328,6 +341,7 @@ if (any(results$.error)) {
 OpenAI: Reduce dimensions to save storage and computation
 
 ``` r
+
 compact_embeddings <- oai_embed_batch(
   texts = texts_to_embed,
   model = "text-embedding-3-small",
@@ -363,6 +377,7 @@ TODO: add code or not?
 4.  Add clusters to data frame
 
 ``` r
+
 embeddings_for_clustering <- hf_embed_df(
   df = sample_texts,
   text_var = text,
@@ -392,6 +407,7 @@ clustered_texts <- sample_texts |>
 Use fewer concurrent_requests if you’re running into rate limit issues.
 
 ``` r
+
 results <- hf_embed_batch(
   texts = large_text_collection,
   batch_size = 3,
@@ -417,6 +433,7 @@ responses begin timing out.
 
 ``` r
 
+
 results <- oai_embed_batch(
   texts = texts_to_embed,
   timeout = 60, 
@@ -429,6 +446,7 @@ results <- oai_embed_batch(
 Process in chunks for very large datasets
 
 ``` r
+
 
 library(purrr)
 

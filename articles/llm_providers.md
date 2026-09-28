@@ -1,6 +1,7 @@
 # Connecting to Major Model Providers
 
 ``` r
+
 library(EndpointR)
 library(httr2)
 library(purrr)
@@ -39,6 +40,7 @@ To get a completion for a single text we can use the
 function:
 
 ``` r
+
 set_api_key("OPENAI_API_KEY")
 
 sentiment_system_prompt = "Analyse the sentiment of the given text."
@@ -48,7 +50,7 @@ text = "The weather has been absolutely fantastic this summer. I wish it could b
 oai_complete_text(
   text = text,
   system_prompt = sentiment_system_prompt,
-  model = "gpt-4.1-nano"
+  model = "gpt-5.4-nano"
 )
 ```
 
@@ -63,6 +65,7 @@ We can input a data frame directly into the
 function:
 
 ``` r
+
 review_df <- data.frame(
   id = 1:5,
   text = c(
@@ -84,6 +87,7 @@ oai_complete_df(
   chunk_size = 5
 )
 ```
+
 
     ℹ Processing 5 texts in 1 chunk of up to 5 each
     ℹ Performing 5 requests in parallel (with 2 concurrent requests)...
@@ -107,6 +111,7 @@ specific format. This means we need to parse the results again after.
 However, we can use a schema to determine the format of the response:
 
 ``` r
+
 sentiment_schema <- create_json_schema(
   name = "simple_sentiment_schema",
   schema = schema_object(
@@ -129,6 +134,7 @@ structured_df <- oai_complete_df(
 )
 ```
 
+
      Processing 5 texts in 1 chunk of up to 5 each
     ℹ Performing 5 requests in parallel (with 2 concurrent requests)...
     ✔ Batch 1: 5 successful, 0 failed                                                                 
@@ -148,10 +154,12 @@ Now we need to extract each sentiment value into a sentiment column, one
 per row:
 
 ``` r
+
 structured_df |>
   dplyr::mutate(content = purrr::map(content, ~safely_from_json(.x))) |> 
   tidyr::unnest_wider(content)
 ```
+
 
     # A tibble: 5 × 5
          id sentiment .error .error_msg .chunk
@@ -197,13 +205,13 @@ So what type of tasks might we use the Completions API for?
 #### Sentiment Analysis
 
 Whilst we would generally not recommend using OpenAI’s models for
-sentiment analysis, [¹](#fn1) it is a task most people are familiar
-with.
+sentiment analysis, [^1] it is a task most people are familiar with.
 
-We set up a very basic [²](#fn2) system prompt to tell the LLM what we
-want it to do with the text we send it:
+We set up a very basic [^2] system prompt to tell the LLM what we want
+it to do with the text we send it:
 
 ``` r
+
 system_prompt <- "Analyse the text's sentiment: "
 
 text <- "Oh man, I'm getting to the end of my limit with this thing. WHY DOESN'T IT JUST WORK?!?"
@@ -222,6 +230,7 @@ example, if you intend to have a system prompt, is there a {“role”:
 > before proceeding.
 
 ``` r
+
 sentiment_request <- oai_build_completions_request(
   text,
   system_prompt = system_prompt
@@ -244,7 +253,7 @@ host: api.openai.com
 user-agent: EndpointR
 
 {
-  "model": "gpt-4.1-nano",
+  "model": "gpt-5.4-nano",
   "messages": [
     {
       "role": "system",
@@ -255,26 +264,29 @@ user-agent: EndpointR
       "content": "Oh man, I'm getting to the end of my limit with this thing. WHY DOESN'T IT JUST WORK?!?"
     }
   ],
-  "temperature": 0,
-  "max_tokens": 500
+  "max_completion_tokens": 500
 }
 ```
 
 EndpointR (via {httr2}) handles the HTTP mechanics: authentication,
 request headers, and endpoint configuration. It then constructs the JSON
 payload with your specified model, system prompt, and user message,
-whilst setting sensible defaults for temperature [³](#fn3) and
-max_tokens [⁴](#fn4).
+whilst setting a sensible default for max_tokens [^3] (sent as
+`max_completion_tokens`). Temperature [^4] is only included when you set
+it explicitly - reasoning models such as the GPT-5 family reject
+non-default values.
 
 For demonstrative purposes, we ran the same prompt with the same data
 three times (see below)
 
 ``` r
+
 sentiment_response <- sentiment_request |> 
   perform_request_or_return_error()
 ```
 
 ``` r
+
 sentiment_response |>
   resp_check_status() |> 
   resp_body_json() |> 
@@ -307,7 +319,7 @@ we would need to write a custom parser to extract ‘negative’, ‘neutral’,
 or ‘positive’ from each output. Looking at the first output, it’s clear
 the parser would need to be reasonably sophisticated. Or we could send
 another request, asking our model to please output only ‘positive’,
-‘negative’, or ‘neutral’ [⁵](#fn5).
+‘negative’, or ‘neutral’ [^5].
 
 Clearly this is more work than we should be willing to do. We’ll look at
 techniques for how to deal with this systematically, and achieve
@@ -315,10 +327,10 @@ predictable outputs in the [Structured
 Outputs](#openai-structured-outputs) section.
 
 What does the model do when we hand it a text which is difficult for
-traditional, three-category [⁶](#fn6), document-level sentiment
-analysis?
+traditional, three-category [^6], document-level sentiment analysis?
 
 ``` r
+
 ambiguous_text <- "The interface is brilliant but the performance is absolutely dreadful"
 
 ambiguous_sentiment <- oai_build_completions_request(
@@ -347,6 +359,7 @@ like concurrent requests, retries, and failing gracefully.
 Let’s experiment with a better system prompt and a list of texts:
 
 ``` r
+
 updated_sentiment_prompt <- "Classify the text into sentiment categories.
 The accepted categories are 'positive', 'negative', 'neutral', and 'mixed'.
 A 'mixed' text contains elements of positive and negative.
@@ -354,6 +367,7 @@ A 'mixed' text contains elements of positive and negative.
 ```
 
 ``` r
+
 classical_texts <- c(
  "It is a truth universally acknowledged, that a single man in possession of a good fortune, must be in want of a wife.",
  "All happy families are alike; each unhappy family is unhappy in its own way.",
@@ -369,6 +383,7 @@ classical_texts <- c(
 ```
 
 ``` r
+
 classical_requests <- oai_build_completions_request_list(
   classical_texts,
   system_prompt = updated_sentiment_prompt
@@ -379,6 +394,7 @@ When running this in testing, it took 8.5 seconds for the 10 requests if
 we send one at a time.
 
 ``` r
+
 start_seq <- Sys.time()
 classical_responses  <- classical_requests |> 
   perform_requests_with_strategy()
@@ -390,21 +406,23 @@ up, showing there is some overhead cost in sending requests in
 parallel - i.e. we did not see a 10x speed increase for 10x requests.
 
 ``` r
+
 start_par <- Sys.time()
 classical_responses  <- classical_requests |> 
   perform_requests_with_strategy(concurrent_requests = 10)
 end_par <- Sys.time() - start_par
 ```
 
-Now when we extract the content of the response, we can see [⁷](#fn7)
-that each response is a classification belonging to our classes - making
-our prompt slightly better helped us get to a better final result.
-However, if we were to repeat this over many texts - hundreds/thousands,
-it’s unlikely every single response would conform to our categories.
-Without further instruction, the models have a tendency to slightly
-change the output at unpredictable intervals.
+Now when we extract the content of the response, we can see [^7] that
+each response is a classification belonging to our classes - making our
+prompt slightly better helped us get to a better final result. However,
+if we were to repeat this over many texts - hundreds/thousands, it’s
+unlikely every single response would conform to our categories. Without
+further instruction, the models have a tendency to slightly change the
+output at unpredictable intervals.
 
 ``` r
+
 classical_responses |> 
   map(~ resp_body_json(.x) |> 
         pluck("choices", 1, "message", "content") |> 
@@ -417,6 +435,7 @@ classical_responses |>
 #### Data Frame of Texts
 
 ``` r
+
 df_classical_texts <- tibble(
   id = 1:10,
   text = classical_texts
@@ -430,6 +449,7 @@ mandatory inputs, and returns a data frame with columns: `id_var`,
 `content`, `.error`, `.error_msg`, `.chunk`.
 
 ``` r
+
 oai_complete_df(df_classical_texts, 
                 text_var = text, 
                 id_var = id,
@@ -491,6 +511,7 @@ To get a completion for a single text we can use the
 function:
 
 ``` r
+
 set_api_key("ANTHROPIC_API_KEY")
 
 sentiment_system_prompt = "Analyse the sentiment of the given text."
@@ -515,6 +536,7 @@ We can input a data frame directly into the
 function:
 
 ``` r
+
 review_df <- data.frame(
   id = 1:5,
   text = c(
@@ -536,6 +558,7 @@ ant_complete_df(
   chunk_size = 5
 )
 ```
+
 
     ℹ Processing 5 texts in 1 chunk of up to 5 each
     ℹ Results will be saved as parquet files in [directory]
@@ -567,6 +590,7 @@ responses:
 > for the latest requirements.
 
 ``` r
+
 sentiment_schema <- create_json_schema(
   name = "simple_sentiment_schema",
   schema = schema_object(
@@ -588,6 +612,7 @@ structured_df <- ant_complete_df(
 )
 ```
 
+
     ℹ Processing 5 texts in 1 chunk of up to 5 each
     ℹ Results will be saved as parquet files in [directory]
     Processing chunk 1/1 (5 texts)
@@ -606,10 +631,12 @@ structured_df <- ant_complete_df(
 Now we extract the sentiment values:
 
 ``` r
+
 structured_df |>
   dplyr::mutate(content = purrr::map(content, ~safely_from_json(.x))) |>
   tidyr::unnest_wider(content)
 ```
+
 
     # A tibble: 5 × 6
          id sentiment .error .error_msg .status .chunk
@@ -641,6 +668,7 @@ for a specific task.
 Let’s create a request and inspect it:
 
 ``` r
+
 sentiment_text <- "This is absolutely brilliant! I couldn't be happier with the results."
 
 sentiment_request <- ant_build_messages_request(
@@ -689,6 +717,7 @@ Anthropic’s structured outputs use the `output_format` parameter with
 JSON schemas:
 
 ``` r
+
 structured_request <- ant_build_messages_request(
   input = sentiment_text,
   system_prompt = sentiment_system_prompt,
@@ -711,6 +740,7 @@ Like with OpenAI, we can process multiple texts efficiently with
 concurrent requests:
 
 ``` r
+
 classical_texts <- c(
   "It is a truth universally acknowledged, that a single man in possession of a good fortune, must be in want of a wife.",
   "All happy families are alike; each unhappy family is unhappy in its own way.",
@@ -759,21 +789,196 @@ results and debug issues.
 
 ## Google
 
-TBC
+TBC - a native Gemini integration is in progress. In the meantime,
+Gemini models can be used today through Google’s OpenAI-compatible
+endpoint - see the next section.
 
-------------------------------------------------------------------------
+## OpenAI- and Anthropic-Compatible Providers
 
-1.  using such powerful models is inelegant - much smaller, less costly
-    (time, energy, \$\$) models can do the job
+Many model providers expose APIs which are compatible with OpenAI’s Chat
+Completions API, or with Anthropic’s Messages API. Because every
+EndpointR request-building function accepts an `endpoint_url` and a
+`key_name`, you can point EndpointR at these providers without writing
+any new code:
 
-2.  Generally prompts should be more detailed than this, we’ll see why
+1.  Store the provider’s API key under a name of your choosing with
+    [`set_api_key()`](https://jpcompartir.github.io/EndpointR/reference/set_api_key.md),
+    e.g. `set_api_key("DEEPSEEK_API_KEY")`
+2.  Pass the provider’s endpoint URL to `endpoint_url` - this is the
+    *full* URL of the chat completions (or messages) route, not just the
+    base URL
+3.  Pass your chosen key name to `key_name`, and set `model` to a model
+    the provider serves
 
-3.  lower values = less random output, max value is 2
+The OpenAI-flavoured functions (`oai_complete_*`, `oai_embed_*`) send a
+Bearer token in the `Authorization` header, which is what
+OpenAI-compatible providers expect. The Anthropic-flavoured functions
+(`ant_complete_*`) send `x-api-key` and `anthropic-version` headers,
+which is what Anthropic-compatible providers expect.
 
-4.  Maximum tokens of the *output* request
+### DeepSeek via the Chat Completions API
 
-5.  or go to jail
+DeepSeek’s API is OpenAI-compatible, so the `oai_complete_*` functions
+work directly:
 
-6.  positive, negative, neutral
+``` r
 
-7.  at least when I ran this in testing
+set_api_key("DEEPSEEK_API_KEY") # one-time setup, then restart R
+
+deepseek_url <- "https://api.deepseek.com/chat/completions"
+
+oai_complete_text(
+  text = "Briefly explain the difference between a list and an atomic vector in R.",
+  model = "deepseek-v4-flash",
+  endpoint_url = deepseek_url,
+  key_name = "DEEPSEEK_API_KEY"
+)
+```
+
+The same applies to the data frame and chunk-based functions:
+
+``` r
+
+reviews <- tibble::tibble(
+  id = 1:3,
+  text = c(
+    "Great product, would buy again!",
+    "Terrible experience, broke after a week.",
+    "Does what it says on the tin."
+  )
+)
+
+deepseek_results <- oai_complete_df(
+  df = reviews,
+  text_var = text,
+  id_var = id,
+  model = "deepseek-v4-flash",
+  system_prompt = "Classify the sentiment of the text as positive, negative, or neutral. Respond with the label only.",
+  endpoint_url = deepseek_url,
+  key_name = "DEEPSEEK_API_KEY"
+)
+```
+
+> **Information:** DeepSeek’s older `deepseek-chat` and
+> `deepseek-reasoner` model names are deprecated as of July 2026, and
+> map to the non-thinking and thinking modes of `deepseek-v4-flash`
+> respectively. Check the [DeepSeek API
+> docs](https://api-docs.deepseek.com/) for current model names.
+
+### DeepSeek via the Messages API
+
+DeepSeek also serves an Anthropic-compatible endpoint, so the
+`ant_complete_*` functions work too - point them at DeepSeek’s
+Anthropic-format messages route:
+
+``` r
+
+ant_complete_text(
+  text = "Briefly explain the difference between a list and an atomic vector in R.",
+  model = "deepseek-v4-pro",
+  endpoint_url = "https://api.deepseek.com/anthropic/v1/messages",
+  key_name = "DEEPSEEK_API_KEY"
+)
+```
+
+DeepSeek ignores the `anthropic-version` header and the `cache_control`
+fields EndpointR sends for prompt caching - both are harmless, but note
+you won’t get Anthropic-style prompt-caching discounts. See [DeepSeek’s
+Anthropic API guide](https://api-docs.deepseek.com/guides/anthropic_api)
+for the full list of supported and ignored fields.
+
+### Google Gemini via the Chat Completions API
+
+Google exposes an OpenAI-compatible layer for the Gemini API, covering
+both chat completions and embeddings. Get an API key from [Google AI
+Studio](https://aistudio.google.com/), then:
+
+``` r
+
+set_api_key("GEMINI_API_KEY")
+
+oai_complete_text(
+  text = "Briefly explain the difference between a list and an atomic vector in R.",
+  model = "gemini-3.5-flash",
+  endpoint_url = "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions",
+  key_name = "GEMINI_API_KEY"
+)
+```
+
+Embeddings work the same way with the `oai_embed_*` functions:
+
+``` r
+
+oai_embed_text(
+  text = "Convert this text to embeddings",
+  model = "gemini-embedding-001",
+  endpoint_url = "https://generativelanguage.googleapis.com/v1beta/openai/embeddings",
+  key_name = "GEMINI_API_KEY"
+)
+```
+
+Google describes this compatibility layer as beta: OpenAI parameters it
+doesn’t recognise are silently ignored. See the [Gemini
+OpenAI-compatibility docs](https://ai.google.dev/gemini-api/docs/openai)
+for details.
+
+### Other Compatible Providers
+
+The same pattern works for any provider advertising OpenAI (or
+Anthropic) API compatibility. Some verified examples:
+
+| Provider | Compatible with | Chat completions `endpoint_url` |
+|----|----|----|
+| DeepSeek | OpenAI + Anthropic | `https://api.deepseek.com/chat/completions` |
+| Google Gemini | OpenAI | `https://generativelanguage.googleapis.com/v1beta/openai/chat/completions` |
+| Groq | OpenAI | `https://api.groq.com/openai/v1/chat/completions` |
+| OpenRouter | OpenAI | `https://openrouter.ai/api/v1/chat/completions` |
+| Ollama (local) | OpenAI | `http://localhost:11434/v1/chat/completions` |
+
+Others (Mistral, xAI, Together AI, vLLM, LM Studio, etc.) follow the
+same pattern - check the provider’s documentation for the exact URL, and
+remember EndpointR needs the full route (ending `/chat/completions`),
+not the base URL you would give an OpenAI SDK.
+
+For local servers like Ollama that don’t require authentication,
+[`get_api_key()`](https://jpcompartir.github.io/EndpointR/reference/get_api_key.md)
+still expects the environment variable to exist - store a placeholder,
+e.g. `set_api_key("OLLAMA_API_KEY")` with any non-empty value.
+
+### Caveats
+
+Compatible does not mean identical - a few things to watch out for:
+
+- **Structured outputs vary.** The `schema` argument sends OpenAI’s
+  `response_format` with `json_schema` (or Anthropic’s `output_config`),
+  which not every provider supports. DeepSeek, for example, only
+  supports the looser `json_object` mode, not `json_schema`. Check the
+  provider’s docs before relying on schemas.
+- **Batch APIs are not portable.** The `oai_batch_*` and `ant_batch_*`
+  functions target OpenAI’s and Anthropic’s own batch infrastructure -
+  don’t point them at a compatible provider unless its documentation
+  explicitly supports it.
+- **Embeddings availability differs.** Gemini serves embeddings through
+  its OpenAI-compatible layer; DeepSeek doesn’t offer an embeddings
+  endpoint at all.
+- **Parameter handling differs at the margins.** For example, Groq
+  converts an explicit `temperature = 0` to a very small positive value,
+  and rejects some OpenAI-only fields.
+- **The Hugging Face functions are different.** `hf_embed_*` and
+  `hf_classify_*` send Hugging Face Inference payloads, not
+  OpenAI-format ones - use them for HF Inference Endpoints only.
+
+[^1]: using such powerful models is inelegant - much smaller, less
+    costly (time, energy, \$\$) models can do the job
+
+[^2]: Generally prompts should be more detailed than this, we’ll see why
+
+[^3]: Maximum tokens of the *output* request
+
+[^4]: lower values = less random output, max value is 2
+
+[^5]: or go to jail
+
+[^6]: positive, negative, neutral
+
+[^7]: at least when I ran this in testing

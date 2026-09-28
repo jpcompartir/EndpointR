@@ -7,7 +7,7 @@ API, filtered by purpose. Files are retained for 30 days after upload.
 
 ``` r
 oai_file_list(
-  purpose = c("batch", "fine-tune", "assistants", "vision", "user_data", "evals"),
+  purpose = c("batch", "fine-tune", "vision", "user_data", "evals"),
   key_name = "OPENAI_API_KEY"
 )
 ```
@@ -17,7 +17,8 @@ oai_file_list(
 - purpose:
 
   The intended purpose of the uploaded file. Must be one of "batch",
-  "fine-tune", "assistants", "vision", "user_data", or "evals".
+  "fine-tune", "vision", "user_data", or "evals". ("assistants" was
+  removed - the OpenAI Assistants API shuts down on 2026-08-26.)
 
 - key_name:
 

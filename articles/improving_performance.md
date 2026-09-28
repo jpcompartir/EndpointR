@@ -17,7 +17,7 @@ not equal - some steps are more costly than others.
 
 Creating each request is almost instant, but if we have a larger data
 frame - e.g. with 100,000 rows: creating 100,000 requests simultaneously
-will take $\approx$ 30s-90s. If we create them all at once, we’ll have
+will take $`\approx`$ 30s-90s. If we create them all at once, we’ll have
 to wait the full amount of time before we begin sending requests.
 Clearly this is wasteful - if we had created the first request and sent
 it, we would save at least 90 seconds.
@@ -39,6 +39,7 @@ requests significantly.
 ## Set Up
 
 ``` r
+
 library(tibble)
 library(tidyr)
 library(EndpointR)
@@ -55,6 +56,7 @@ vignette](https://jpcompartir.github.io/EndpointR/articles/articles/hugging_face
 on Hugging Face Inference:
 
 ``` r
+
 embedding_sentences <- c(
   "Text embedding models compress your rambling prose into compact vectors, much like how British commuters squeeze themselves into tube carriages during rush hour.",
   "Setting up an inference endpoint without proper documentation is akin to attempting to navigate London using a map of Birmingham.",
@@ -85,6 +87,7 @@ embedding_df <-
 > offline, and not committed to GitHub or other online services.
 
 ``` r
+
 endpoint_url <- httr2::secret_decrypt("kcZCsc92Ty7PuAk7_FdCcdOU_dlDpvWdDyfpwCWg-wW80eJxJPdQ68nz4V_0922SzSwM5_dYfpTOqsZ-GodUpLN4PQbwE73wlZkBCWIaIXc15g", "ENDPOINTR_KEY")
 ```
 
@@ -124,6 +127,7 @@ frame 5 rows at a time, and send new requests when responses are
 returned, until we run out of data to embed.
 
 ``` r
+
 hf_embed_df(
   df = embedding_df,
   text_var = sentence,
@@ -141,6 +145,7 @@ overhead associated with generating parallel requests, so we’ll need a
 bigger data frame to understand what type of speed up we can get.
 
 ``` r
+
 id_1000 <- 1:1000
 sentences_1000 <- rep(embedding_df$sentence, 100)
 embedding_df_1000 <- tibble(id = id_1000, sentence = sentences_1000)
@@ -174,6 +179,7 @@ requests being sent, instead of the 1,000 with `batch_size = 1`.
 > responses will contain errors.
 
 ``` r
+
 hf_embed_df(
   df = embedding_df_1000,
   text_var = sentence,
@@ -204,45 +210,47 @@ processed per second. We looked at combinations of:
 - **concurrent_requests = c(1, 5, 10, 15, 20)**
 
 ``` r
+
 data(batch_concurrent_benchmark, package = "EndpointR")
 
 knitr::kable(batch_concurrent_benchmark |> mutate_if(is.numeric, ~ round(.x, 2)))
 ```
 
 | batch_size | concurrent_requests | chunk_index | elapsed_time | success | rows_processed | throughput |
-|-----------:|--------------------:|------------:|-------------:|:--------|---------------:|-----------:|
-|          1 |                   1 |           2 |       921.77 | TRUE    |           1995 |       2.16 |
-|          1 |                   5 |           3 |       112.84 | TRUE    |           1996 |      17.69 |
-|          1 |                  10 |           4 |        54.37 | TRUE    |           1998 |      36.75 |
-|          1 |                  20 |           5 |        26.38 | TRUE    |           1999 |      75.77 |
-|          4 |                   1 |           6 |       200.85 | TRUE    |           1996 |       9.94 |
-|          4 |                   5 |           7 |        35.10 | TRUE    |           1997 |      56.90 |
-|          4 |                  10 |           8 |        25.28 | TRUE    |           2000 |      79.12 |
-|          4 |                  20 |           9 |        14.11 | TRUE    |           1999 |     141.62 |
-|          8 |                   1 |          10 |       102.14 | TRUE    |           1996 |      19.54 |
-|          8 |                   5 |          11 |        20.71 | TRUE    |           1998 |      96.48 |
-|          8 |                  10 |          12 |        13.23 | TRUE    |           1995 |     150.82 |
-|          8 |                  20 |          13 |        10.20 | TRUE    |           1998 |     195.85 |
-|         16 |                   1 |          14 |        75.39 | TRUE    |           1995 |      26.46 |
-|         16 |                   5 |          15 |        20.16 | TRUE    |           1999 |      99.14 |
-|         16 |                  10 |          16 |        12.86 | TRUE    |           1999 |     155.40 |
-|         16 |                  20 |          17 |        14.35 | TRUE    |           1998 |     139.23 |
-|         32 |                   1 |          18 |        64.83 | TRUE    |           2000 |      30.85 |
-|         32 |                   5 |          19 |        15.87 | TRUE    |           2000 |     126.04 |
-|         32 |                  10 |          20 |        12.59 | TRUE    |           2000 |     158.84 |
-|         32 |                  20 |           1 |        10.23 | TRUE    |           1998 |     195.39 |
+|---:|---:|---:|---:|:---|---:|---:|
+| 1 | 1 | 2 | 921.77 | TRUE | 1995 | 2.16 |
+| 1 | 5 | 3 | 112.84 | TRUE | 1996 | 17.69 |
+| 1 | 10 | 4 | 54.37 | TRUE | 1998 | 36.75 |
+| 1 | 20 | 5 | 26.38 | TRUE | 1999 | 75.77 |
+| 4 | 1 | 6 | 200.85 | TRUE | 1996 | 9.94 |
+| 4 | 5 | 7 | 35.10 | TRUE | 1997 | 56.90 |
+| 4 | 10 | 8 | 25.28 | TRUE | 2000 | 79.12 |
+| 4 | 20 | 9 | 14.11 | TRUE | 1999 | 141.62 |
+| 8 | 1 | 10 | 102.14 | TRUE | 1996 | 19.54 |
+| 8 | 5 | 11 | 20.71 | TRUE | 1998 | 96.48 |
+| 8 | 10 | 12 | 13.23 | TRUE | 1995 | 150.82 |
+| 8 | 20 | 13 | 10.20 | TRUE | 1998 | 195.85 |
+| 16 | 1 | 14 | 75.39 | TRUE | 1995 | 26.46 |
+| 16 | 5 | 15 | 20.16 | TRUE | 1999 | 99.14 |
+| 16 | 10 | 16 | 12.86 | TRUE | 1999 | 155.40 |
+| 16 | 20 | 17 | 14.35 | TRUE | 1998 | 139.23 |
+| 32 | 1 | 18 | 64.83 | TRUE | 2000 | 30.85 |
+| 32 | 5 | 19 | 15.87 | TRUE | 2000 | 126.04 |
+| 32 | 10 | 20 | 12.59 | TRUE | 2000 | 158.84 |
+| 32 | 20 | 1 | 10.23 | TRUE | 1998 | 195.39 |
 
-To embed $\approx$ 2,000 documents sending them 1 text and 1 request at
-a time, we get a throughput of $\approx$ 2.16 texts per second, and it
-takes over 15 minutes! At the other end, 20 concurrent requests of batch
-size 8, and 20 concurrent requests of batch size 32 have a throughput of
-\$\$195, which is close to 200x quicke! And we get our results back in
-10 seconds.
+To embed $`\approx`$ 2,000 documents sending them 1 text and 1 request
+at a time, we get a throughput of $`\approx`$ 2.16 texts per second, and
+it takes over 15 minutes! At the other end, 20 concurrent requests of
+batch size 8, and 20 concurrent requests of batch size 32 have a
+throughput of \$\$195, which is close to 200x quicke! And we get our
+results back in 10 seconds.
 
 > **NOTE**: If we needed to, we could re-run the benchmarking code
 > multiple times but the general trend is very clear.
 
 ``` r
+
 batch_concurrent_benchmark |> 
   mutate(batch_size = factor(batch_size), concurrent_requests= factor(concurrent_requests)) |>
   ggplot(aes(x= batch_size, y = throughput, group = concurrent_requests)) +
@@ -257,6 +265,7 @@ batch_concurrent_benchmark |>
 ![](improving_performance_files/figure-html/unnamed-chunk-6-1.png)
 
 ``` r
+
 batch_concurrent_benchmark |> 
     mutate(batch_size = factor(batch_size), 
            concurrent_requests = factor(concurrent_requests)) |>  
@@ -283,6 +292,7 @@ equal, increasing `concurrent_requests` increases throughput more than
 `batch_size`
 
 ``` r
+
 model <- lm(throughput ~ batch_size + concurrent_requests, data = batch_concurrent_benchmark)
 
 broom::tidy(model) |>  
@@ -309,6 +319,7 @@ TODO: out of date post-refactoring
 #### Benchmarking Concurrent Requests
 
 ``` r
+
 run_benchmark <- function(num_concurrent, data, endpoint, key) {
   start_time <- Sys.time()
   res_df <- try(hf_embed_df(
@@ -350,6 +361,7 @@ provided with the package. You could bring your own data if you wanted
 to do this.
 
 ``` r
+
 trust <- readr::read_csv("~/data/trust/trust_slice_spam_classification.csv") |> 
   select(text) |>
   mutate(id = row_number()) |>

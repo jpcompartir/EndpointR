@@ -21,6 +21,7 @@ hf_embed_df(
   endpoint_url,
   key_name,
   output_dir = "auto",
+  overwrite = FALSE,
   chunk_size = 5000L,
   concurrent_requests = 1L,
   max_retries = 5L,
@@ -54,6 +55,12 @@ hf_embed_df(
 - output_dir:
 
   Path to directory for the .parquet chunks
+
+- overwrite:
+
+  If `FALSE` (default), errors when `output_dir` already contains chunk
+  (`.parquet`) or `metadata.json` files. Set to `TRUE` to delete them
+  and write fresh outputs; other files are left untouched.
 
 - chunk_size:
 

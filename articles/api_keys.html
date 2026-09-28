@@ -7,8 +7,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
 <title>Managing API Keys Securely • EndpointR</title>
 <script src="../deps/jquery-3.6.0/jquery-3.6.0.min.js"></script><meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
-<link href="../deps/bootstrap-5.3.1/bootstrap.min.css" rel="stylesheet">
-<script src="../deps/bootstrap-5.3.1/bootstrap.bundle.min.js"></script><link href="../deps/Lato-0.4.10/font.css" rel="stylesheet">
+<link href="../deps/bootstrap-5.3.8/bootstrap.min.css" rel="stylesheet">
+<script src="../deps/bootstrap-5.3.8/bootstrap.bundle.min.js"></script><link href="../deps/Lato-0.4.10/font.css" rel="stylesheet">
 <link href="../deps/Fira_Code-0.4.10/font.css" rel="stylesheet">
 <link href="../deps/Merriweather-0.4.10/font.css" rel="stylesheet">
 <link href="../deps/font-awesome-6.5.2/css/all.min.css" rel="stylesheet">
@@ -23,7 +23,7 @@
 
     <a class="navbar-brand me-2" href="../index.html">EndpointR</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="Released version">0.2.3</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="Released version">0.2.4</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -250,7 +250,7 @@ with askpass:</p>
 <code class="sourceCode R"><span><span class="va">info</span> <span class="op">&lt;-</span> <span class="fu">askpass</span><span class="fu">::</span><span class="fu"><a href="https://r-lib.r-universe.dev/askpass/reference/askpass.html" class="external-link">askpass</a></span><span class="op">(</span><span class="op">)</span></span>
 <span><span class="va">encrypted_info</span> <span class="op">&lt;-</span> <span class="fu">httr2</span><span class="fu">::</span><span class="fu"><a href="https://httr2.r-lib.org/reference/secrets.html" class="external-link">secret_encrypt</a></span><span class="op">(</span><span class="va">info</span>, <span class="va">SUPER_SECRET_ENCRYPTION_DEVICE</span><span class="op">)</span></span>
 <span><span class="va">encrypted_info</span></span></code></pre></div>
-<pre><code><span><span class="co">#&gt; [1] "Ks_2K_Aqz8DsAxiJfMSrEuc8vVOf7fGc4lf_4dqSqXEpc1Ji3jdMxIjyMOTQmpvv_ePi"</span></span></code></pre>
+<pre><code><span><span class="co">#&gt; [1] "UfdwYam1Wn2lrWp3eKXYNzORnvEZjsJAaj8NJFspf1XfVp2RwJsJrqX0BRbZOXVnkzFO"</span></span></code></pre>
 <p>Now our secret is encrypted, we decrypt it to get the original
 information back.</p>
 <div class="sourceCode" id="cb7"><pre class="downlit sourceCode r">
@@ -268,7 +268,7 @@ information back.</p>
 </div>
 
 <div class="pkgdown-footer-right">
-  <p>Site built with <a href="https://pkgdown.r-lib.org/" class="external-link">pkgdown</a> 2.2.0.</p>
+  <p>Site built with <a href="https://pkgdown.r-lib.org/" class="external-link">pkgdown</a> 2.2.1.</p>
 </div>
 
     </footer>

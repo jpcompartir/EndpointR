@@ -14,6 +14,7 @@ ant_complete_df(
   id_var,
   model = "claude-haiku-4-5",
   output_dir = "auto",
+  overwrite = FALSE,
   system_prompt = NULL,
   schema = NULL,
   chunk_size = 5000L,
@@ -23,7 +24,8 @@ ant_complete_df(
   temperature = 0,
   max_tokens = 1024L,
   key_name = "ANTHROPIC_API_KEY",
-  endpoint_url = .ANT_MESSAGES_ENDPOINT
+  endpoint_url = .ANT_MESSAGES_ENDPOINT,
+  effort = NULL
 )
 ```
 
@@ -48,6 +50,12 @@ ant_complete_df(
 - output_dir:
 
   Directory for parquet chunks
+
+- overwrite:
+
+  If `FALSE` (default), errors when `output_dir` already contains chunk
+  (`.parquet`) or `metadata.json` files. Set to `TRUE` to delete them
+  and write fresh outputs; other files are left untouched.
 
 - system_prompt:
 
@@ -75,7 +83,9 @@ ant_complete_df(
 
 - temperature:
 
-  Sampling temperature
+  Sampling temperature (0-1), included in the request only when
+  non-NULL. Dropped with a warning on models that reject sampling
+  parameters (Claude Opus 4.7+, Sonnet 5, Fable 5).
 
 - max_tokens:
 
@@ -89,6 +99,12 @@ ant_complete_df(
 
   Anthropic API endpoint URL
 
+- effort:
+
+  Optional reasoning effort, one of "low", "medium", "high", "xhigh",
+  "max". Supported on Claude Opus 4.5+, Sonnet 4.6+ and Fable 5; not
+  supported on Haiku models.
+
 ## Value
 
 A tibble with results
@@ -101,7 +117,5 @@ loss.
 Results are written as parquet files in the specified output directory,
 along with a metadata.json file containing processing parameters.
 
-When using the `output_dir =` argument, be careful that you select a new
-directory if you do not wish to overwrite existing chunks. If there is
-already a `chunks_001.parquet` file in the directory, it will be
-overwritten.
+When using a custom `output_dir`, existing chunk files are protected by
+default. Set `overwrite = TRUE` to replace them.

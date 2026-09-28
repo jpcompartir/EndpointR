@@ -7,7 +7,7 @@ Upload a file to the OpenAI Files API
 ``` r
 oai_file_upload(
   file,
-  purpose = c("batch", "fine-tune", "assistants", "vision", "user_data", "evals"),
+  purpose = c("batch", "fine-tune", "vision", "user_data", "evals"),
   key_name = "OPENAI_API_KEY",
   endpoint_url = "https://api.openai.com/v1/files"
 )
@@ -22,7 +22,8 @@ oai_file_upload(
 - purpose:
 
   The intended purpose of the uploaded file. Must be one of "batch",
-  "fine-tune", "assistants", "vision", "user_data", or "evals".
+  "fine-tune", "vision", "user_data", or "evals". ("assistants" was
+  removed - the OpenAI Assistants API shuts down on 2026-08-26.)
 
 - key_name:
 

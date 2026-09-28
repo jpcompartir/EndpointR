@@ -18,7 +18,8 @@ ant_complete_text(
   endpoint_url = .ANT_MESSAGES_ENDPOINT,
   max_retries = 5L,
   timeout = 30L,
-  tidy = TRUE
+  tidy = TRUE,
+  effort = NULL
 )
 ```
 
@@ -42,7 +43,9 @@ ant_complete_text(
 
 - temperature:
 
-  Sampling temperature (0-1)
+  Sampling temperature (0-1), included in the request only when
+  non-NULL. Dropped with a warning on models that reject sampling
+  parameters (Claude Opus 4.7+, Sonnet 5, Fable 5).
 
 - max_tokens:
 
@@ -67,6 +70,12 @@ ant_complete_text(
 - tidy:
 
   Whether to parse structured output (default: TRUE)
+
+- effort:
+
+  Optional reasoning effort, one of "low", "medium", "high", "xhigh",
+  "max". Supported on Claude Opus 4.5+, Sonnet 4.6+ and Fable 5; not
+  supported on Haiku models.
 
 ## Value
 

@@ -1,6 +1,7 @@
 # Managing API Keys Securely
 
 ``` r
+
 library(EndpointR)
 ```
 
@@ -18,6 +19,7 @@ not show up in .Rhistory, and is less likely to be leaked.
 First you set your API key:
 
 ``` r
+
 set_api_key("TOY_API_KEY")
 ```
 
@@ -26,6 +28,7 @@ Then restart your R session.
 Now get your API key
 
 ``` r
+
 api_key <- get_api_key("TOY_API_KEY")
 ```
 
@@ -93,14 +96,14 @@ For each endpoint that EndpointR provides access to, you will need the
 correct environment variable stored in your [.Renviron
 file](https://docs.posit.co/ide/user/ide/guide/environments/r/managing-r.html#renviron)
 
-| Endpoint                   | Description                                                               | Environment Variable |
-|----------------------------|---------------------------------------------------------------------------|----------------------|
-| OpenAI                     | To access OpenAI models for embedding, classification, structured outputs | OPENAI_API_KEY       |
-| Anthropic                  | To access Anthropic models for classification and structured outputs      | ANTHROPIC_API_KEY    |
-| Hugging Face Inference API | To access models on the Hugging Face Hub via the Inference API            | HF_API_KEY           |
-|                            |                                                                           |                      |
+| Endpoint | Description | Environment Variable |
+|----|----|----|
+| OpenAI | To access OpenAI models for embedding, classification, structured outputs | OPENAI_API_KEY |
+| Anthropic | To access Anthropic models for classification and structured outputs | ANTHROPIC_API_KEY |
+| Hugging Face Inference API | To access models on the Hugging Face Hub via the Inference API | HF_API_KEY |
+|  |  |  |
 
-API Key Lookup Table
+API Key Lookup Table {.table}
 
 ## Encrypting Your API Keys
 
@@ -124,6 +127,7 @@ First we make an encryption key, remembering not to print it to the
 console/view its contents in our session
 
 ``` r
+
 SUPER_SECRET_ENCRYPTION_DEVICE <- httr2::secret_make_key() # store this separately to your API keys, but still somewhere you can retrieve/access it from.
 ```
 
@@ -131,17 +135,19 @@ Then we take some information that we want to encrypt, and input it with
 askpass:
 
 ``` r
+
 info <- askpass::askpass()
 encrypted_info <- httr2::secret_encrypt(info, SUPER_SECRET_ENCRYPTION_DEVICE)
 encrypted_info
 ```
 
-    #> [1] "Ks_2K_Aqz8DsAxiJfMSrEuc8vVOf7fGc4lf_4dqSqXEpc1Ji3jdMxIjyMOTQmpvv_ePi"
+    #> [1] "UfdwYam1Wn2lrWp3eKXYNzORnvEZjsJAaj8NJFspf1XfVp2RwJsJrqX0BRbZOXVnkzFO"
 
 Now our secret is encrypted, we decrypt it to get the original
 information back.
 
 ``` r
+
 httr2::secret_decrypt(encrypted_info, SUPER_SECRET_ENCRYPTION_DEVICE)
 #> [1] "What's the worst that could happen?"
 ```

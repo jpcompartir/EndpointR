@@ -11,8 +11,8 @@ structured responses.
 oai_build_completions_request(
   input,
   endpointr_id = NULL,
-  model = "gpt-4.1-nano",
-  temperature = 0,
+  model = .OAI_DEFAULT_MODEL,
+  temperature = NULL,
   max_tokens = 500L,
   schema = NULL,
   system_prompt = NULL,
@@ -35,15 +35,19 @@ oai_build_completions_request(
 
 - model:
 
-  OpenAI model to use (default: "gpt-4.1-nano")
+  OpenAI model to use (default: "gpt-5.4-nano")
 
 - temperature:
 
-  Sampling temperature (0-2), higher values = more randomness
+  Sampling temperature (0-2), included in the request only when
+  non-NULL. The default NULL omits it, which reasoning models (the GPT-5
+  family, o-series) require - they only accept the default temperature.
 
 - max_tokens:
 
-  Maximum tokens in response
+  Maximum tokens in the response, sent as OpenAI's
+  `max_completion_tokens` (`max_tokens` is deprecated and rejected by
+  reasoning models)
 
 - schema:
 

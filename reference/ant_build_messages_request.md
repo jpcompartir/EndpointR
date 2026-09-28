@@ -19,7 +19,8 @@ ant_build_messages_request(
   key_name = "ANTHROPIC_API_KEY",
   endpoint_url = .ANT_MESSAGES_ENDPOINT,
   timeout = 30L,
-  max_retries = 5L
+  max_retries = 5L,
+  effort = NULL
 )
 ```
 
@@ -39,7 +40,9 @@ ant_build_messages_request(
 
 - temperature:
 
-  Sampling temperature (0-2), higher values = more randomness
+  Sampling temperature (0-1), included in the request only when
+  non-NULL. Dropped with a warning on models that reject sampling
+  parameters (Claude Opus 4.7+, Sonnet 5, Fable 5).
 
 - max_tokens:
 
@@ -71,6 +74,12 @@ ant_build_messages_request(
 - max_retries:
 
   Maximum number of retry attempts for failed requests
+
+- effort:
+
+  Optional reasoning effort, one of "low", "medium", "high", "xhigh",
+  "max". Sent as `output_config$effort`. Supported on Claude Opus 4.5+,
+  Sonnet 4.6+ and Fable 5; not supported on Haiku models.
 
 ## Value
 

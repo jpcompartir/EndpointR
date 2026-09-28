@@ -6,6 +6,7 @@
 > by Sonnet, please let us know and we will credit accordingly.
 
 ``` r
+
 library(EndpointR)
 library(S7)
 library(cli)
@@ -35,6 +36,7 @@ requests to OpenAI with schema passed in 3. validate response with
 > all fields *MUST* be required:
 
 ``` r
+
 contact_schema <- create_json_schema(
  name = "contact_info",
  schema = schema_object(
@@ -63,7 +65,7 @@ resp |>
 > **NOTE:** The first time you send a request with a schema, it will
 > take longer than usual. “Typical schemas take under 10 seconds to
 > process on the first request, but more complex schemas may take up to
-> a minute.” [¹](#fn1)
+> a minute.” [^1]
 
 ## Schema Types
 
@@ -89,6 +91,7 @@ validations:
 Let’s explore each type with practical examples:
 
 ``` r
+
 # text classification with enums
 sentiment_schema <- create_json_schema(
   name = "sentiment_analysis",
@@ -114,6 +117,7 @@ and
 [`jsonlite::toJSON()`](https://jeroen.r-universe.dev/jsonlite/reference/fromJSON.html)
 
 ``` r
+
 json_dump(sentiment_schema) |> 
   jsonlite::toJSON(pretty = TRUE, auto_unbox = TRUE)
 ```
@@ -122,6 +126,7 @@ Another, more complicated, schema for product review extraction, where
 we introduce the `schema_array`:
 
 ``` r
+
 rating_schema <- create_json_schema(
   name = "product_review",
   schema = schema_object(
@@ -149,6 +154,7 @@ schema_object, has a schema_array, with its own schema_object, and
 multiple schema\_\* objects.
 
 ``` r
+
 # invoice parsing with line items
 invoice_schema <- create_json_schema(
   name = "invoice_data",
@@ -211,6 +217,7 @@ issues.
 Here’s a comprehensive example:
 
 ``` r
+
 user_profile_schema <- create_json_schema(
  name = "user_profile",
  schema = schema_object(
@@ -255,6 +262,7 @@ Now let’s see what happens when we try validate a mocked response object
 which conforms to the schema:
 
 ``` r
+
 valid_user <- '{
   "name": "Alice Smith",
   "age": 28,
@@ -274,6 +282,7 @@ And when we try to validate a mocked response object which does not
 conform to the schema:
 
 ``` r
+
 invalid_age <- '{
   "name": "Young User",
   "age": 10,
@@ -302,6 +311,7 @@ is ready to be converted into JSON. I won’t print the list as-is because
 it is long and ugly, instead we can check out the structure:
 
 ``` r
+
 contact_json_dump <- json_dump(contact_schema)
 str(contact_json_dump)
 ```
@@ -317,6 +327,7 @@ You can convert the dumped schema to a JSON object using {jsonlite}‘s
 `toJSON` function. This object will now be of the class ’json’.
 
 ``` r
+
 contact_json_schema <- 
   toJSON(contact_json_dump, 
                  pretty = TRUE, 
@@ -360,6 +371,7 @@ And we can convert our schema back to a regular R list with {jsonlite}’s
 `fromJSON` function:
 
 ``` r
+
 from_contact_json_schema <- fromJSON(contact_json_schema)
 
 class(from_contact_json_schema)
@@ -391,17 +403,15 @@ Schema design principles:
 
 ## Types Reference
 
-| Type                                                                                      | Use Case                  | Example                                              |
-|-------------------------------------------------------------------------------------------|---------------------------|------------------------------------------------------|
-| [`schema_string()`](https://jpcompartir.github.io/EndpointR/reference/schema_string.md)   | Text, names, descriptions | `schema_string("email address")`                     |
-| [`schema_integer()`](https://jpcompartir.github.io/EndpointR/reference/schema_integer.md) | Whole numbers, counts     | `schema_integer("age", minimum = 0, maximum = 120)`  |
-| [`schema_number()`](https://jpcompartir.github.io/EndpointR/reference/schema_number.md)   | Decimals, prices, scores  | `schema_number("price", minimum = 0)`                |
-| [`schema_boolean()`](https://jpcompartir.github.io/EndpointR/reference/schema_boolean.md) | Yes/no, true/false flags  | `schema_boolean("is_active")`                        |
-| [`schema_enum()`](https://jpcompartir.github.io/EndpointR/reference/schema_enum.md)       | Fixed choices             | `schema_enum(c("small", "medium", "large"), "size")` |
-| [`schema_array()`](https://jpcompartir.github.io/EndpointR/reference/schema_array.md)     | Lists, multiple values    | `schema_array(schema_string(), "tags")`              |
-| [`schema_object()`](https://jpcompartir.github.io/EndpointR/reference/schema_object.md)   | Nested structures         | `schema_object(name = schema_string("..."), ...)`    |
+| Type | Use Case | Example |
+|----|----|----|
+| [`schema_string()`](https://jpcompartir.github.io/EndpointR/reference/schema_string.md) | Text, names, descriptions | `schema_string("email address")` |
+| [`schema_integer()`](https://jpcompartir.github.io/EndpointR/reference/schema_integer.md) | Whole numbers, counts | `schema_integer("age", minimum = 0, maximum = 120)` |
+| [`schema_number()`](https://jpcompartir.github.io/EndpointR/reference/schema_number.md) | Decimals, prices, scores | `schema_number("price", minimum = 0)` |
+| [`schema_boolean()`](https://jpcompartir.github.io/EndpointR/reference/schema_boolean.md) | Yes/no, true/false flags | `schema_boolean("is_active")` |
+| [`schema_enum()`](https://jpcompartir.github.io/EndpointR/reference/schema_enum.md) | Fixed choices | `schema_enum(c("small", "medium", "large"), "size")` |
+| [`schema_array()`](https://jpcompartir.github.io/EndpointR/reference/schema_array.md) | Lists, multiple values | `schema_array(schema_string(), "tags")` |
+| [`schema_object()`](https://jpcompartir.github.io/EndpointR/reference/schema_object.md) | Nested structures | `schema_object(name = schema_string("..."), ...)` |
 
-------------------------------------------------------------------------
-
-1.  [OAI
+[^1]: [OAI
     Docs](https://openai.com/index/introducing-structured-outputs-in-the-api/)

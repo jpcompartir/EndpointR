@@ -8,8 +8,8 @@ Build OpenAI requests for batch processing
 oai_build_completions_request_list(
   inputs,
   endpointr_ids = NULL,
-  model = "gpt-4.1-nano",
-  temperature = 0,
+  model = .OAI_DEFAULT_MODEL,
+  temperature = NULL,
   max_tokens = 500L,
   schema = NULL,
   system_prompt = NULL,
@@ -36,11 +36,14 @@ oai_build_completions_request_list(
 
 - temperature:
 
-  Sampling temperature
+  Sampling temperature (0-2), included in the request only when
+  non-NULL. The default NULL omits it, which reasoning models (the GPT-5
+  family, o-series) require - they only accept the default temperature.
 
 - max_tokens:
 
-  Maximum tokens per response
+  Maximum tokens per response, sent as OpenAI's `max_completion_tokens`
+  (`max_tokens` is deprecated and rejected by reasoning models)
 
 - schema:
 

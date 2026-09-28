@@ -13,12 +13,13 @@ oai_complete_chunks(
   texts,
   ids,
   chunk_size = 5000L,
-  model = "gpt-4.1-nano",
+  model = .OAI_DEFAULT_MODEL,
   system_prompt = NULL,
   output_dir = "auto",
+  overwrite = FALSE,
   schema = NULL,
   concurrent_requests = 5L,
-  temperature = 0L,
+  temperature = NULL,
   max_tokens = 500L,
   max_retries = 5L,
   timeout = 30L,
@@ -45,7 +46,7 @@ oai_complete_chunks(
 
 - model:
 
-  OpenAI model to use (default: "gpt-4.1-nano")
+  OpenAI model to use (default: "gpt-5.4-nano")
 
 - system_prompt:
 
@@ -55,6 +56,12 @@ oai_complete_chunks(
 
   Path to directory for the .parquet chunks. "auto" generates a
   timestamped directory name. If NULL, uses a temporary directory.
+
+- overwrite:
+
+  If `FALSE` (default), errors when `output_dir` already contains chunk
+  (`.parquet`) or `metadata.json` files. Set to `TRUE` to delete them
+  and write fresh outputs; other files are left untouched.
 
 - schema:
 
@@ -67,11 +74,15 @@ oai_complete_chunks(
 
 - temperature:
 
-  Sampling temperature (0-2), lower = more deterministic (default: 0)
+  Sampling temperature (0-2), included in the request only when
+  non-NULL. The default NULL omits it, which reasoning models (the GPT-5
+  family, o-series) require - they only accept the default temperature.
 
 - max_tokens:
 
-  Maximum tokens per response (default: 500)
+  Maximum tokens per response (default: 500), sent as OpenAI's
+  `max_completion_tokens` (`max_tokens` is deprecated and rejected by
+  reasoning models)
 
 - max_retries:
 
@@ -145,7 +156,7 @@ if (FALSE) { # \dontrun{
 result <- oai_complete_chunks(
   texts = my_texts,
   ids = my_ids,
-  model = "gpt-4.1-nano"
+  model = "gpt-5.4-nano"
 )
 
 # large-scale processing with custom output directory:

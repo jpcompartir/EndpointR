@@ -9,10 +9,10 @@ response processing, with optional structured output support.
 ``` r
 oai_complete_text(
   text,
-  model = "gpt-4.1-nano",
+  model = .OAI_DEFAULT_MODEL,
   system_prompt = NULL,
   schema = NULL,
-  temperature = 0,
+  temperature = NULL,
   max_tokens = 500L,
   key_name = "OPENAI_API_KEY",
   endpoint_url = "https://api.openai.com/v1/chat/completions",
@@ -30,7 +30,7 @@ oai_complete_text(
 
 - model:
 
-  OpenAI model to use (default: "gpt-4.1-nano")
+  OpenAI model to use (default: "gpt-5.4-nano")
 
 - system_prompt:
 
@@ -43,11 +43,15 @@ oai_complete_text(
 
 - temperature:
 
-  Sampling temperature (0-2), lower = more deterministic (default: 0)
+  Sampling temperature (0-2), included in the request only when
+  non-NULL. The default NULL omits it, which reasoning models (the GPT-5
+  family, o-series) require - they only accept the default temperature.
 
 - max_tokens:
 
-  Maximum tokens in response (default: 500)
+  Maximum tokens in the response (default: 500), sent as OpenAI's
+  `max_completion_tokens` (`max_tokens` is deprecated and rejected by
+  reasoning models)
 
 - key_name:
 

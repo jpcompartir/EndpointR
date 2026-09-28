@@ -1,6 +1,7 @@
 # Synchronous vs Asynchronous/Batch APIs
 
 ``` r
+
 library(EndpointR)
 ```
 
@@ -41,6 +42,7 @@ and completions.
 ### Batch Embeddings
 
 ``` r
+
 # 1. Prepare your data
 df <- data.frame(
  id = c("doc_1", "doc_2", "doc_3"),
@@ -95,6 +97,7 @@ embeddings_df
 ### Batch Completions
 
 ``` r
+
 # 1. Prepare your data
 df <- data.frame(
  id = c("q1", "q2", "q3"),
@@ -145,6 +148,7 @@ For classification tasks or when you need structured data back, combine
 the Batch API with JSON schemas:
 
 ``` r
+
 # 1. Define a schema for sentiment classification
 sentiment_schema <- create_json_schema(
  name = "sentiment_analysis",
@@ -230,6 +234,7 @@ and **retrieve results**.
 ### Batch Messages
 
 ``` r
+
 # 1. Create a batch
 batch <- ant_batch_create(
   texts = c(
@@ -268,6 +273,7 @@ Structured outputs work with the Anthropic Batches API too. Pass a
 `json_schema` object to the `schema` parameter:
 
 ``` r
+
 # 1. Define a schema
 sentiment_schema <- create_json_schema(
   name = "sentiment_analysis",
@@ -343,6 +349,7 @@ Complete Repsonse
       }
 
 ``` r
+
 if(batch_status == "ended") results <- ant_batch_results(batch_id) # shows 'in_progress' if not completed
 
 # Parse JSON content into columns
@@ -376,6 +383,7 @@ reducing costs further.
 EndpointR provides functions for managing your batches:
 
 ``` r
+
 # List recent batches
 ant_batch_list(limit = 10)
 
@@ -391,6 +399,7 @@ multiple batches. Here’s an example classifying 500,000 documents with
 structured outputs:
 
 ``` r
+
 # 1. Define your schema
 sentiment_schema <- create_json_schema(
   name = "sentiment_analysis",
@@ -463,13 +472,13 @@ all_results |>
 > Batch Processing
 > guide](https://docs.anthropic.com/en/docs/build-with-claude/batch-processing).
 
-|              | Synchronous                                                                   | Asynchronous (Batch)                                                                   |
-|--------------|-------------------------------------------------------------------------------|----------------------------------------------------------------------------------------|
-| Cost         | Full price per token                                                          | ~50% Discount per token                                                                |
-| Latency      | Real-time                                                                     | Up to 24 hours                                                                         |
-| Use Case     | Experimentation, Prompt testing, Schema development, User-facing applications | Recurrent workflows (evals etc.), embedding large datasets, classifying large datasets |
-| Data Size    | Up to ~10,000                                                                 | ~10,000+                                                                               |
-| Max Requests | Rate-limited                                                                  | OpenAI: 50k per batch, Anthropic: 100k per batch                                       |
+|  | Synchronous | Asynchronous (Batch) |
+|----|----|----|
+| Cost | Full price per token | ~50% Discount per token |
+| Latency | Real-time | Up to 24 hours |
+| Use Case | Experimentation, Prompt testing, Schema development, User-facing applications | Recurrent workflows (evals etc.), embedding large datasets, classifying large datasets |
+| Data Size | Up to ~10,000 | ~10,000+ |
+| Max Requests | Rate-limited | OpenAI: 50k per batch, Anthropic: 100k per batch |
 
 > **Recommendation**: Use the Synchronous API when you need immediate
 > feedback e.g. prompt or schema development, and for small datasets
@@ -485,6 +494,7 @@ your org’s own cloud storage. Anthropic handles storage internally, so
 no cleanup is needed for Anthropic batches.
 
 ``` r
+
 oai_file_delete(file_info$id) # delete the input file 
 
 oai_file_delete(status$output_file_id) # delete the output file

@@ -15,6 +15,7 @@ hf_classify_df(
   key_name,
   max_length = 512L,
   output_dir = "auto",
+  overwrite = FALSE,
   tidy_func = tidy_classification_response,
   chunk_size = 5000,
   concurrent_requests = 1,
@@ -53,6 +54,12 @@ hf_classify_df(
 - output_dir:
 
   Path to directory for the .parquet chunks
+
+- overwrite:
+
+  If `FALSE` (default), errors when `output_dir` already contains chunk
+  (`.parquet`) or `metadata.json` files. Set to `TRUE` to delete them
+  and write fresh outputs; other files are left untouched.
 
 - tidy_func:
 
