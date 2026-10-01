@@ -1,8 +1,5 @@
 # constants ----
 .ANT_BATCHES_ENDPOINT <- "https://api.anthropic.com/v1/messages/batches"
-# models that reject sampling parameters (temperature/top_p/top_k) with a 400:
-# Claude Opus 4.7+, Sonnet 5, Fable 5, Mythos 5. Add new families as Anthropic releases them.
-.ANT_NO_SAMPLING_REGEX <- "fable|mythos|opus-4-[789]|sonnet-5"
 
 # ant_batch_create ----
 #' Create an Anthropic Message Batch
