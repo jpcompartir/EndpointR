@@ -368,7 +368,9 @@ test_that("with tok, TEI classifier inputs are cut to max_length tokens", {
   skip_on_cran()
   skip_if_offline("huggingface.co")
 
-  tk <- .hf_load_tokenizer("answerdotai/ModernBERT-base", list(), "HF_TEST_API_KEY")
+  # no key: the CI dummy key would be rejected, even for a public model
+  withr::local_envvar(HF_NO_TEST_API_KEY = "")
+  tk <- .hf_load_tokenizer("answerdotai/ModernBERT-base", list(), "HF_NO_TEST_API_KEY")
   skip_if(is.null(tk), "Could not download the ModernBERT tokeniser")
 
   long <- paste(rep("word", 100), collapse = " ")

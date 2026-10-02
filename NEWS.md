@@ -36,6 +36,8 @@ The detection call retries 429 and 5xx responses for about 2 minutes, because an
 - `hf_get_endpoint_info()` returns `NULL` with a message for toolkit endpoints, where it used to error.
 - `hf_build_request_batch()` gains `engine`, `task` and `max_length` arguments and builds the body for the given engine.
 - `tok` is a new suggested package.
+- EndpointR now requires R 4.1.0 or later, because the code uses the native pipe and `\(x)` functions. The old minimum of R 3.5 was wrong.
+- EndpointR no longer calls `stringr`, which it used without declaring it as a dependency.
 - `ant_batch_create()` now leaves `temperature` out of requests to models that reject sampling parameters, and warns once, as `ant_complete_text()` already did. Claude Opus 5 and Haiku 5 model names are added to the list of these models (#47).
 
 ## Breaking changes

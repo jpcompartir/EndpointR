@@ -97,7 +97,7 @@ S7::method(validate_response, json_schema) <- function(schema, data) {
       dplyr::mutate(
         field = dplyr::case_when(
           instancePath == "" ~ "root",
-          TRUE ~ stringr::str_remove(instancePath, "^/")
+          TRUE ~ sub("^/", "", instancePath)
         )
       ) |>
       dplyr::mutate(

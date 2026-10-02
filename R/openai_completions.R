@@ -578,7 +578,7 @@ oai_complete_chunks <- function(texts,
     chunk_df <- dplyr::bind_rows(chunk_results)
 
     if (nrow(chunk_df) > 0) {
-      chunk_file <- glue::glue("{output_dir}/chunk_{stringr::str_pad(chunk_num, 3, pad = '0')}.parquet")
+      chunk_file <- glue::glue("{output_dir}/chunk_{sprintf('%03d', as.integer(chunk_num))}.parquet")
       arrow::write_parquet(chunk_df, chunk_file)
     }
 
