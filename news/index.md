@@ -1,5 +1,139 @@
 # Changelog
 
+## EndpointR 0.3.0
+
+### Faster Hugging Face inference
+
+The `hf_*` functions now send several texts per request and several
+requests at once, so runs on Hugging Face dedicated endpoints are much
+faster. In tests on 1 October 2026, we classified and embedded all 2.19
+million messages of a client dataset in 13 and 20 minutes on A100
+endpoints, which would have taken about 76 and 68 hours at the old
+defaults. On 100,000 texts, the spam classifier went from 8 to about
+4,100 texts per second, and BGE M3 went from 9 to about 2,100 texts per
+second. The new `hf_throughput_benchmark` dataset has the full results,
+and the [Improving Performance
+vignette](https://jpcompartir.github.io/EndpointR/articles/improving_performance.html)
+plots them.
+
+### Detecting the inference engine
+
+Our endpoints run one of two inference engines, and the engines need
+different request bodies:
+
+- Text Embeddings Inference (TEI) runs our embedding models and, since
+  October 2026, the spam classifier.
+- The default Hugging Face Inference Toolkit runs the Spanish sentiment
+  classifier.
+
+Every `hf_embed_*` and `hf_classify_*` function has a new `engine`
+argument. The default, `"auto"`, calls the endpoint’s `/info` route once
+per session, because TEI has that route and the toolkit doesn’t. Set
+`engine = "tei"` or `engine = "toolkit"` to skip the call, e.g. when
+`/info` is blocked, or set a default for the session with
+`options(EndpointR.hf_engine = "tei")`.
+
+The detection call retries 429 and 5xx responses for about 2 minutes,
+because an endpoint that has scaled to zero returns 503 while it starts.
+
+### Classification on TEI endpoints
+
+- Classification requests to TEI send each text as a one-element list
+  (`[["a"], ["b"]]`), because TEI reads a flat list of 2 texts as one
+  sentence pair and returns one result without an error.
+- Requests ask TEI for raw scores, and the new
+  [`tidy_tei_classification_response()`](https://jpcompartir.github.io/EndpointR/reference/tidy_tei_classification_response.md)
+  applies the softmax in R. A NaN score crashes TEI’s own softmax and
+  leaves the endpoint in a failed state, so EndpointR avoids it. With
+  raw scores, a NaN score fails the request with a 424 error, and
+  EndpointR reports the text as an error.
+- TEI ignores `max_length`, and the spam classifier returns NaN scores
+  for long texts in fp16, so EndpointR now cuts texts before sending
+  them to a TEI classifier. If the `tok` package is installed and you
+  pass the model id in the new `tokenizer` argument, texts are cut to
+  `max_length` tokens. Otherwise texts are cut to `max_chars` characters
+  (default 2,000), and EndpointR prints a message that explains the
+  difference.
+
+### Batches, retries and empty texts
+
+- [`hf_embed_chunks()`](https://jpcompartir.github.io/EndpointR/reference/hf_embed_chunks.md),
+  [`hf_embed_df()`](https://jpcompartir.github.io/EndpointR/reference/hf_embed_df.md),
+  [`hf_classify_chunks()`](https://jpcompartir.github.io/EndpointR/reference/hf_classify_chunks.md)
+  and
+  [`hf_classify_df()`](https://jpcompartir.github.io/EndpointR/reference/hf_classify_df.md)
+  gain a `batch_size` argument. Results are matched to rows by their
+  position in each batch, so results come back in input order.
+- When a batch fails with a 400, 413, 422 or 424 error, a network error,
+  or the wrong number of results, EndpointR splits it in half and sends
+  each half again, down to single texts. Only the text at fault fails.
+- Requests that get 429, 502, 503 or 504 are sent again unchanged, up to
+  `max_retries` times. The retries now also work when requests run in
+  parallel, which they didn’t before.
+- Empty, whitespace and `NA` texts are not sent. They are returned as
+  error rows with the message “Empty or missing text, not sent”, so the
+  output has one row per input.
+- On the toolkit, texts are sorted by length before batching, because
+  the toolkit pads each batch to its longest text, and the requests set
+  `parameters$batch_size` so the toolkit runs the batch on the GPU at
+  once.
+- When `batch_size` is above a TEI endpoint’s `max_client_batch_size`,
+  EndpointR lowers it with a warning.
+- `metadata.json` now records the engine, `batch_size`, the TEI limits
+  from `/info`, how texts were cut, and counts of empty texts and split
+  batches.
+
+### Other changes
+
+- [`hf_get_endpoint_info()`](https://jpcompartir.github.io/EndpointR/reference/hf_get_endpoint_info.md)
+  returns `NULL` with a message for toolkit endpoints, where it used to
+  error.
+- [`hf_build_request_batch()`](https://jpcompartir.github.io/EndpointR/reference/hf_build_request_batch.md)
+  gains `engine`, `task` and `max_length` arguments and builds the body
+  for the given engine.
+- `tok` is a new suggested package.
+- EndpointR now requires R 4.1.0 or later, because the code uses the
+  native pipe and `\(x)` functions. The old minimum of R 3.5 was wrong.
+- EndpointR no longer calls `stringr`, which it used without declaring
+  it as a dependency.
+- [`ant_batch_create()`](https://jpcompartir.github.io/EndpointR/reference/ant_batch_create.md)
+  now leaves `temperature` out of requests to models that reject
+  sampling parameters, and warns once, as
+  [`ant_complete_text()`](https://jpcompartir.github.io/EndpointR/reference/ant_complete_text.md)
+  already did. Claude Opus 5 and Haiku 5 model names are added to the
+  list of these models (#47).
+
+### Breaking changes
+
+- The `_df`, `_chunks` and `_batch` functions send several texts per
+  request by default. The default `concurrent_requests` is now 16 (was 1
+  or 5), `batch_size` is 32 (was 8, or one text per request), and
+  `timeout` is 120 seconds (was 10 to 60).
+- Classification requests to TEI endpoints use the TEI format, with raw
+  scores and the softmax applied in R.
+- `tidy_func` in the classify functions now defaults to `NULL`, which
+  picks the right function for the engine. A custom `tidy_func` gets the
+  response for one batch and must return one row per text.
+  [`tidy_classification_response()`](https://jpcompartir.github.io/EndpointR/reference/tidy_classification_response.md)
+  only works for a single text, so don’t pass it to the batch functions.
+- The `endpointr_id` request header is no longer used to match results
+  to rows.
+- Empty and missing texts are reported as errors without being sent.
+- [`hf_classify_batch()`](https://jpcompartir.github.io/EndpointR/reference/hf_classify_batch.md)
+  and
+  [`hf_classify_chunks()`](https://jpcompartir.github.io/EndpointR/reference/hf_classify_chunks.md)
+  accept a single text.
+- [`hf_embed_batch()`](https://jpcompartir.github.io/EndpointR/reference/hf_embed_batch.md)
+  and
+  [`hf_classify_batch()`](https://jpcompartir.github.io/EndpointR/reference/hf_classify_batch.md)
+  always return a `.status` column.
+- Results from TEI endpoints are not exactly repeatable between runs.
+  TEI runs in fp16 and combines texts from all waiting requests into one
+  batch, so scores and embeddings change slightly from run to run,
+  whatever the client sends. To make a downstream analysis such as a
+  clustering repeatable, save the embeddings or scores once and reuse
+  them.
+
 ## EndpointR 0.2.4
 
 ### Overwrite protection for chunked outputs

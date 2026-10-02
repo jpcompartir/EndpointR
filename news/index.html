@@ -7,7 +7,7 @@
 
     <a class="navbar-brand me-2" href="../index.html">EndpointR</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="Released version">0.2.4</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="Released version">0.3.0</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -39,6 +39,7 @@
 <li class="active nav-item dropdown">
   <button class="nav-link dropdown-toggle" type="button" id="dropdown-news" data-bs-toggle="dropdown" aria-expanded="false" aria-haspopup="true">News</button>
   <ul class="dropdown-menu" aria-labelledby="dropdown-news"><li><h6 class="dropdown-header" data-toc-skip>Releases</h6></li>
+    <li><a class="dropdown-item" href="../news/index.html#endpointr-030">Version 0.3.0</a></li>
     <li><a class="dropdown-item" href="../news/index.html#endpointr-022">Version 0.2.2</a></li>
     <li><a class="dropdown-item" href="../news/index.html#endpointr-021">Version 0.2.1</a></li>
     <li><a class="dropdown-item" href="../news/index.html#endpointr-020">Version 0.2.0</a></li>
@@ -64,6 +65,66 @@
       <small>Source: <a href="https://github.com/jpcompartir/EndpointR/tree/main/NEWS.md" class="external-link"><code>NEWS.md</code></a></small>
     </div>
 
+    <div class="section level2">
+<h2 class="pkg-version" data-toc-text="0.3.0" id="endpointr-030">EndpointR 0.3.0<a class="anchor" aria-label="anchor" href="#endpointr-030"></a></h2>
+<div class="section level3">
+<h3 id="faster-hugging-face-inference-0-3-0">Faster Hugging Face inference<a class="anchor" aria-label="anchor" href="#faster-hugging-face-inference-0-3-0"></a></h3>
+<p>The <code>hf_*</code> functions now send several texts per request and several requests at once, so runs on Hugging Face dedicated endpoints are much faster. In tests on 1 October 2026, we classified and embedded all 2.19 million messages of a client dataset in 13 and 20 minutes on A100 endpoints, which would have taken about 76 and 68 hours at the old defaults. On 100,000 texts, the spam classifier went from 8 to about 4,100 texts per second, and BGE M3 went from 9 to about 2,100 texts per second. The new <code>hf_throughput_benchmark</code> dataset has the full results, and the <a href="https://jpcompartir.github.io/EndpointR/articles/improving_performance.html">Improving Performance vignette</a> plots them.</p>
+</div>
+<div class="section level3">
+<h3 id="detecting-the-inference-engine-0-3-0">Detecting the inference engine<a class="anchor" aria-label="anchor" href="#detecting-the-inference-engine-0-3-0"></a></h3>
+<p>Our endpoints run one of two inference engines, and the engines need different request bodies:</p>
+<ul><li>Text Embeddings Inference (TEI) runs our embedding models and, since October 2026, the spam classifier.</li>
+<li>The default Hugging Face Inference Toolkit runs the Spanish sentiment classifier.</li>
+</ul><p>Every <code>hf_embed_*</code> and <code>hf_classify_*</code> function has a new <code>engine</code> argument. The default, <code>"auto"</code>, calls the endpoint’s <code>/info</code> route once per session, because TEI has that route and the toolkit doesn’t. Set <code>engine = "tei"</code> or <code>engine = "toolkit"</code> to skip the call, e.g. when <code>/info</code> is blocked, or set a default for the session with <code>options(EndpointR.hf_engine = "tei")</code>.</p>
+<p>The detection call retries 429 and 5xx responses for about 2 minutes, because an endpoint that has scaled to zero returns 503 while it starts.</p>
+</div>
+<div class="section level3">
+<h3 id="classification-on-tei-endpoints-0-3-0">Classification on TEI endpoints<a class="anchor" aria-label="anchor" href="#classification-on-tei-endpoints-0-3-0"></a></h3>
+<ul><li>Classification requests to TEI send each text as a one-element list (<code>[["a"], ["b"]]</code>), because TEI reads a flat list of 2 texts as one sentence pair and returns one result without an error.</li>
+<li>Requests ask TEI for raw scores, and the new <code><a href="../reference/tidy_tei_classification_response.html">tidy_tei_classification_response()</a></code> applies the softmax in R. A NaN score crashes TEI’s own softmax and leaves the endpoint in a failed state, so EndpointR avoids it. With raw scores, a NaN score fails the request with a 424 error, and EndpointR reports the text as an error.</li>
+<li>TEI ignores <code>max_length</code>, and the spam classifier returns NaN scores for long texts in fp16, so EndpointR now cuts texts before sending them to a TEI classifier. If the <code>tok</code> package is installed and you pass the model id in the new <code>tokenizer</code> argument, texts are cut to <code>max_length</code> tokens. Otherwise texts are cut to <code>max_chars</code> characters (default 2,000), and EndpointR prints a message that explains the difference.</li>
+</ul></div>
+<div class="section level3">
+<h3 id="batches-retries-and-empty-texts-0-3-0">Batches, retries and empty texts<a class="anchor" aria-label="anchor" href="#batches-retries-and-empty-texts-0-3-0"></a></h3>
+<ul><li>
+<code><a href="../reference/hf_embed_chunks.html">hf_embed_chunks()</a></code>, <code><a href="../reference/hf_embed_df.html">hf_embed_df()</a></code>, <code><a href="../reference/hf_classify_chunks.html">hf_classify_chunks()</a></code> and <code><a href="../reference/hf_classify_df.html">hf_classify_df()</a></code> gain a <code>batch_size</code> argument. Results are matched to rows by their position in each batch, so results come back in input order.</li>
+<li>When a batch fails with a 400, 413, 422 or 424 error, a network error, or the wrong number of results, EndpointR splits it in half and sends each half again, down to single texts. Only the text at fault fails.</li>
+<li>Requests that get 429, 502, 503 or 504 are sent again unchanged, up to <code>max_retries</code> times. The retries now also work when requests run in parallel, which they didn’t before.</li>
+<li>Empty, whitespace and <code>NA</code> texts are not sent. They are returned as error rows with the message “Empty or missing text, not sent”, so the output has one row per input.</li>
+<li>On the toolkit, texts are sorted by length before batching, because the toolkit pads each batch to its longest text, and the requests set <code>parameters$batch_size</code> so the toolkit runs the batch on the GPU at once.</li>
+<li>When <code>batch_size</code> is above a TEI endpoint’s <code>max_client_batch_size</code>, EndpointR lowers it with a warning.</li>
+<li>
+<code>metadata.json</code> now records the engine, <code>batch_size</code>, the TEI limits from <code>/info</code>, how texts were cut, and counts of empty texts and split batches.</li>
+</ul></div>
+<div class="section level3">
+<h3 id="other-changes-0-3-0">Other changes<a class="anchor" aria-label="anchor" href="#other-changes-0-3-0"></a></h3>
+<ul><li>
+<code><a href="../reference/hf_get_endpoint_info.html">hf_get_endpoint_info()</a></code> returns <code>NULL</code> with a message for toolkit endpoints, where it used to error.</li>
+<li>
+<code><a href="../reference/hf_build_request_batch.html">hf_build_request_batch()</a></code> gains <code>engine</code>, <code>task</code> and <code>max_length</code> arguments and builds the body for the given engine.</li>
+<li>
+<code>tok</code> is a new suggested package.</li>
+<li>EndpointR now requires R 4.1.0 or later, because the code uses the native pipe and <code>\(x)</code> functions. The old minimum of R 3.5 was wrong.</li>
+<li>EndpointR no longer calls <code>stringr</code>, which it used without declaring it as a dependency.</li>
+<li>
+<code><a href="../reference/ant_batch_create.html">ant_batch_create()</a></code> now leaves <code>temperature</code> out of requests to models that reject sampling parameters, and warns once, as <code><a href="../reference/ant_complete_text.html">ant_complete_text()</a></code> already did. Claude Opus 5 and Haiku 5 model names are added to the list of these models (#47).</li>
+</ul></div>
+<div class="section level3">
+<h3 id="breaking-changes-0-3-0">Breaking changes<a class="anchor" aria-label="anchor" href="#breaking-changes-0-3-0"></a></h3>
+<ul><li>The <code>_df</code>, <code>_chunks</code> and <code>_batch</code> functions send several texts per request by default. The default <code>concurrent_requests</code> is now 16 (was 1 or 5), <code>batch_size</code> is 32 (was 8, or one text per request), and <code>timeout</code> is 120 seconds (was 10 to 60).</li>
+<li>Classification requests to TEI endpoints use the TEI format, with raw scores and the softmax applied in R.</li>
+<li>
+<code>tidy_func</code> in the classify functions now defaults to <code>NULL</code>, which picks the right function for the engine. A custom <code>tidy_func</code> gets the response for one batch and must return one row per text. <code><a href="../reference/tidy_classification_response.html">tidy_classification_response()</a></code> only works for a single text, so don’t pass it to the batch functions.</li>
+<li>The <code>endpointr_id</code> request header is no longer used to match results to rows.</li>
+<li>Empty and missing texts are reported as errors without being sent.</li>
+<li>
+<code><a href="../reference/hf_classify_batch.html">hf_classify_batch()</a></code> and <code><a href="../reference/hf_classify_chunks.html">hf_classify_chunks()</a></code> accept a single text.</li>
+<li>
+<code><a href="../reference/hf_embed_batch.html">hf_embed_batch()</a></code> and <code><a href="../reference/hf_classify_batch.html">hf_classify_batch()</a></code> always return a <code>.status</code> column.</li>
+<li>Results from TEI endpoints are not exactly repeatable between runs. TEI runs in fp16 and combines texts from all waiting requests into one batch, so scores and embeddings change slightly from run to run, whatever the client sends. To make a downstream analysis such as a clustering repeatable, save the embeddings or scores once and reuse them.</li>
+</ul></div>
+</div>
     <div class="section level2">
 <h2 class="pkg-version" data-toc-text="0.2.4" id="endpointr-024">EndpointR 0.2.4<a class="anchor" aria-label="anchor" href="#endpointr-024"></a></h2>
 <div class="section level3">

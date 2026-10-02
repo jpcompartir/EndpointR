@@ -14,9 +14,10 @@ hf_embed_text(
   ...,
   parameters = list(),
   tidy = TRUE,
-  max_retries = 3,
-  timeout = 10,
-  validate = FALSE
+  max_retries = 5,
+  timeout = 120,
+  validate = FALSE,
+  engine = getOption("EndpointR.hf_engine", "auto")
 )
 ```
 
@@ -41,7 +42,8 @@ hf_embed_text(
 
 - parameters:
 
-  Advanced usage: parameters to pass to the API endpoint
+  Advanced usage: parameters to pass to the API endpoint. On TEI
+  endpoints these are added to the top level of the request body.
 
 - tidy:
 
@@ -59,9 +61,22 @@ hf_embed_text(
 
   Whether to validate the endpoint before creating the request
 
+- engine:
+
+  The endpoint's inference engine: `"auto"` (default) detects it with a
+  call to the endpoint's `/info` route, `"tei"` for Text Embeddings
+  Inference, `"toolkit"` for the default Hugging Face Inference Toolkit.
+  Set the default for a session with
+  `options(EndpointR.hf_engine = "tei")`.
+
 ## Value
 
 A tibble containing the embedding vectors
+
+## Details
+
+The text is sent as a batch of one, in the request format for the
+endpoint's inference engine (see the `engine` argument).
 
 ## Examples
 
@@ -70,14 +85,8 @@ if (FALSE) { # \dontrun{
   # Generate embeddings using API key from environment
   embeddings <- hf_embed_text(
     text = "This is a sample text to embed",
-    endpoint_url = "https://my-endpoint.huggingface.cloud"
-  )
-
-  # With custom API key environment variable name
-  embeddings <- hf_embed_text(
-    text = "This is a sample text to embed",
     endpoint_url = "https://my-endpoint.huggingface.cloud",
-    key_name = "MY_CUSTOM_API_KEY"
+    key_name = "HF_API_KEY"
   )
 } # }
 ```

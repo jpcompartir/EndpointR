@@ -12,15 +12,19 @@ hf_classify_batch(
   endpoint_url,
   key_name,
   ...,
-  tidy_func = tidy_batch_classification_response,
-  parameters = list(return_all_scores = TRUE),
-  batch_size = 8,
+  tidy_func = NULL,
+  parameters = list(),
+  batch_size = 32,
   progress = TRUE,
-  concurrent_requests = 5,
+  concurrent_requests = 16,
   max_retries = 5,
-  timeout = 30,
+  timeout = 120,
   include_texts = TRUE,
-  relocate_col = 2
+  relocate_col = 2,
+  max_length = 512L,
+  max_chars = 2000L,
+  tokenizer = NULL,
+  engine = getOption("EndpointR.hf_engine", "auto")
 )
 ```
 
@@ -32,29 +36,32 @@ hf_classify_batch(
 
 - endpoint_url:
 
-  URL of the Hugging Face Inference API endpoint
+  The URL of the Hugging Face Inference API endpoint
 
 - key_name:
 
-  Name of environment variable containing the API key
+  Name of the environment variable containing the API key
 
 - ...:
 
-  Additional arguments passed to request functions
+  Reserved for future use
 
 - tidy_func:
 
-  Function to process API responses, defaults to
-  `tidy_batch_classification_response`
+  Function to process API responses. `NULL` (default) picks
+  [`tidy_tei_classification_response()`](https://jpcompartir.github.io/EndpointR/reference/tidy_tei_classification_response.md)
+  on TEI and `tidy_batch_classification_response()` on the toolkit. A
+  custom function receives the response for one batch and must return
+  one row per text.
 
 - parameters:
 
-  List of parameters for the API endpoint, defaults to
-  `list(return_all_scores = TRUE)`
+  Advanced usage: parameters to pass to the API endpoint. These override
+  the defaults for the engine.
 
 - batch_size:
 
-  Integer; number of texts per batch (default: 8)
+  Integer; number of texts per request (default: 32)
 
 - progress:
 
@@ -62,15 +69,16 @@ hf_classify_batch(
 
 - concurrent_requests:
 
-  Integer; number of concurrent requests (default: 5)
+  Integer; number of concurrent requests (default: 16)
 
 - max_retries:
 
-  Integer; maximum retry attempts (default: 5)
+  Integer; maximum re-sends for requests that get 429 or 5xx (default:
+  5)
 
 - timeout:
 
-  Numeric; request timeout in seconds (default: 20)
+  Numeric; request timeout in seconds (default: 120)
 
 - include_texts:
 
@@ -80,6 +88,30 @@ hf_classify_batch(
 
   Integer; column position for text column (default: 2)
 
+- max_length:
+
+  Maximum number of tokens per text. Longer texts are cut. `NULL` turns
+  client-side cutting off on TEI.
+
+- max_chars:
+
+  Character limit used on TEI when no tokeniser is available
+
+- tokenizer:
+
+  On TEI: a Hugging Face model id (e.g. `"org/model"`) or a
+  [`tok::tokenizer`](https://rdrr.io/pkg/tok/man/tokenizer.html), used
+  with the `tok` package to cut texts to `max_length` tokens. Dedicated
+  endpoints do not report their model id, so pass it here.
+
+- engine:
+
+  The endpoint's inference engine: `"auto"` (default) detects it with a
+  call to the endpoint's `/info` route, `"tei"` for Text Embeddings
+  Inference, `"toolkit"` for the default Hugging Face Inference Toolkit.
+  Set the default for a session with
+  `options(EndpointR.hf_engine = "tei")`.
+
 ## Value
 
 Data frame with classification scores for each text, plus columns for
@@ -88,13 +120,20 @@ messages
 
 ## Details
 
-This function processes multiple texts efficiently by splitting them
-into batches and optionally sending concurrent requests. It includes
-robust error handling and progress reporting for large batches.
+Texts are sent in batches of `batch_size`, with `concurrent_requests`
+requests in flight. On the default Inference Toolkit, texts are sorted
+by length before batching, because the toolkit pads each batch to its
+longest text. Results are returned in input order.
 
-The function automatically handles request failures with retries and
-includes error information in the output when requests fail. Original
-text order is preserved in the results.
+When a batch fails with a client error (400, 413, 422 or 424) or a
+network error, it is split in half and sent again, down to single texts,
+so only the text at fault fails. Requests that get 429 or 5xx are
+re-sent unchanged, up to `max_retries` times. Empty and missing texts
+are not sent; they are returned as error rows.
+
+On TEI endpoints, EndpointR asks for raw scores and applies the softmax
+in R, and cuts long texts before sending (see
+[`hf_classify_text()`](https://jpcompartir.github.io/EndpointR/reference/hf_classify_text.md)).
 
 The function does not currently handle
 `list(return_all_scores = FALSE)`.
@@ -113,7 +152,8 @@ if (FALSE) { # \dontrun{
     texts = texts,
     endpoint_url = "redacted",
     key_name = "API_KEY",
-    batch_size = 3
+    batch_size = 32,
+    concurrent_requests = 16
   )
 } # }
 ```

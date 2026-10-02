@@ -89,8 +89,9 @@ embedding
 For multiple texts, use
 [`hf_embed_batch()`](https://jpcompartir.github.io/EndpointR/reference/hf_embed_batch.md)
 which handles batching automatically. We feed in a vector of inputs and
-a `batch_size`, and the function takes care of batching our vector into
-as many batches as necessary.
+a `batch_size`, and the function splits the vector into as many batches
+as it needs. The defaults are `batch_size = 32` and
+`concurrent_requests = 16`, so our 4 texts go in a single request.
 
 ``` r
 
@@ -105,16 +106,22 @@ batch_embeddings <- hf_embed_batch(
   texts = texts_to_embed,
   endpoint_url = embed_url,
   key_name = "HF_TEST_API_KEY",
-  batch_size = 2,  # process 2 texts per API call
-  concurrent_requests = 2  # run 2 requests in parallel
+  batch_size = 32,  # texts per request
+  concurrent_requests = 16  # requests in flight at once
 )
 
 # Check results
 glimpse(batch_embeddings[1,1:10 ]) # truncated for ease
 ```
 
-The result includes: - `text`: your original text - `.error` and
-`.error_msg`: error tracking - `V1` to `V768`: the embedding dimensions
+The result includes:
+
+- `text`: your original text
+- `.error`, `.error_msg` and `.status`: error tracking
+- `V1` to `V768`: the embedding dimensions
+
+Empty and missing texts are not sent. They come back as rows with
+`.error = TRUE`.
 
 ### Data Frame Integration
 
@@ -128,8 +135,8 @@ embedded_df <- hf_embed_df(
   id_var = id,          # unique identifier column
   endpoint_url = embed_url,
   key_name = "HF_TEST_API_KEY",
-  batch_size = 3,
-  concurrent_requests = 1
+  batch_size = 32,
+  concurrent_requests = 16
 )
 
 # Original data + embeddings
@@ -274,6 +281,36 @@ documentation. Most models handle ~512 tokens well. More modern models
 can handle more (check model card). Dedicated Inference Endpoints will
 receive as many requests as the assigned hardware is able to handle.
 
+Most Dedicated Inference Endpoints for embedding models run Text
+Embeddings Inference (TEI), which has two settings to know about:
+
+- `max_client_batch_size` is the most texts TEI accepts in one request.
+  The default is 32, and TEI rejects larger requests. EndpointR reads
+  the value from the endpoint’s `/info` route and lowers `batch_size` to
+  it with a warning. You can raise the limit with
+  `--max-client-batch-size` when you deploy the endpoint.
+- `auto_truncate` decides whether TEI cuts texts that are longer than
+  the model’s limit when a request doesn’t say. EndpointR sends
+  `truncate: true` with every TEI embedding request, so long texts are
+  cut at the model’s limit either way.
+
+Check both values with
+[`hf_get_endpoint_info()`](https://jpcompartir.github.io/EndpointR/reference/hf_get_endpoint_info.md):
+
+``` r
+
+info <- hf_get_endpoint_info(embed_url, key_name = "HF_TEST_API_KEY")
+info$max_client_batch_size
+info$auto_truncate
+info$max_input_length
+```
+
+[`hf_get_endpoint_info()`](https://jpcompartir.github.io/EndpointR/reference/hf_get_endpoint_info.md)
+returns `NULL` for endpoints that run the default Hugging Face Inference
+Toolkit, because the toolkit has no `/info` route. See the [Hugging Face
+Inference](https://jpcompartir.github.io/EndpointR/articles/hugging_face_inference.html#which-engine-does-my-endpoint-run)
+vignette for the differences between the two engines.
+
 This code chunk shows you how to chunk up your texts if you’re finding
 errors due to payload size:
 
@@ -322,9 +359,13 @@ if (any(results$.error)) {
 
 ### Performance Tips
 
-1.  **Start small**: Begin with `batch_size = 5` and
-    `concurrent_requests = 1`.
-2.  **Scale gradually**: Increase parameters whilst monitoring errors
+1.  **Start with the defaults**: For Hugging Face, `batch_size = 32` and
+    `concurrent_requests = 16` work on every TEI endpoint. In our tests
+    with BGE M3 on an A100, 32 texts per request embedded about 1,600
+    texts per second with 8 requests in flight, and about 2,100 with 32.
+    One text and one request at a time gave 9 texts per second.
+2.  **Scale gradually**: Increase parameters whilst monitoring errors.
+    On TEI, more requests in flight helped up to about 32.
 3.  **Model selection**:
     - Hugging Face: `all-MiniLM-L6-v2` for speed (384 dims)
     - OpenAI: `text-embedding-3-small` with custom dimensions for
@@ -410,8 +451,8 @@ Use fewer concurrent_requests if you’re running into rate limit issues.
 
 results <- hf_embed_batch(
   texts = large_text_collection,
-  batch_size = 3,
-  concurrent_requests = 1  # sequential processing
+  batch_size = 32,
+  concurrent_requests = 2  # fewer requests in flight
 )
 
 results <- oai_embed_batch(

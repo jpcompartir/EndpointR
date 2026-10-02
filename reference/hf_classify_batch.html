@@ -11,7 +11,7 @@ concurrent requests, and error recovery automatically."></head><body>
 
     <a class="navbar-brand me-2" href="../index.html">EndpointR</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="Released version">0.2.4</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="Released version">0.3.0</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -43,6 +43,7 @@ concurrent requests, and error recovery automatically."></head><body>
 <li class="nav-item dropdown">
   <button class="nav-link dropdown-toggle" type="button" id="dropdown-news" data-bs-toggle="dropdown" aria-expanded="false" aria-haspopup="true">News</button>
   <ul class="dropdown-menu" aria-labelledby="dropdown-news"><li><h6 class="dropdown-header" data-toc-skip>Releases</h6></li>
+    <li><a class="dropdown-item" href="../news/index.html#endpointr-030">Version 0.3.0</a></li>
     <li><a class="dropdown-item" href="../news/index.html#endpointr-022">Version 0.2.2</a></li>
     <li><a class="dropdown-item" href="../news/index.html#endpointr-021">Version 0.2.1</a></li>
     <li><a class="dropdown-item" href="../news/index.html#endpointr-020">Version 0.2.0</a></li>
@@ -82,15 +83,19 @@ concurrent requests, and error recovery automatically.</p>
 <span>  <span class="va">endpoint_url</span>,</span>
 <span>  <span class="va">key_name</span>,</span>
 <span>  <span class="va">...</span>,</span>
-<span>  tidy_func <span class="op">=</span> <span class="va">tidy_batch_classification_response</span>,</span>
-<span>  parameters <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span>return_all_scores <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span>,</span>
-<span>  batch_size <span class="op">=</span> <span class="fl">8</span>,</span>
+<span>  tidy_func <span class="op">=</span> <span class="cn">NULL</span>,</span>
+<span>  parameters <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span><span class="op">)</span>,</span>
+<span>  batch_size <span class="op">=</span> <span class="fl">32</span>,</span>
 <span>  progress <span class="op">=</span> <span class="cn">TRUE</span>,</span>
-<span>  concurrent_requests <span class="op">=</span> <span class="fl">5</span>,</span>
+<span>  concurrent_requests <span class="op">=</span> <span class="fl">16</span>,</span>
 <span>  max_retries <span class="op">=</span> <span class="fl">5</span>,</span>
-<span>  timeout <span class="op">=</span> <span class="fl">30</span>,</span>
+<span>  timeout <span class="op">=</span> <span class="fl">120</span>,</span>
 <span>  include_texts <span class="op">=</span> <span class="cn">TRUE</span>,</span>
-<span>  relocate_col <span class="op">=</span> <span class="fl">2</span></span>
+<span>  relocate_col <span class="op">=</span> <span class="fl">2</span>,</span>
+<span>  max_length <span class="op">=</span> <span class="fl">512L</span>,</span>
+<span>  max_chars <span class="op">=</span> <span class="fl">2000L</span>,</span>
+<span>  tokenizer <span class="op">=</span> <span class="cn">NULL</span>,</span>
+<span>  engine <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/options.html" class="external-link">getOption</a></span><span class="op">(</span><span class="st">"EndpointR.hf_engine"</span>, <span class="st">"auto"</span><span class="op">)</span></span>
 <span><span class="op">)</span></span></code></pre></div>
     </div>
 
@@ -103,29 +108,31 @@ concurrent requests, and error recovery automatically.</p>
 
 
 <dt id="arg-endpoint-url">endpoint_url<a class="anchor" aria-label="anchor" href="#arg-endpoint-url"></a></dt>
-<dd><p>URL of the Hugging Face Inference API endpoint</p></dd>
+<dd><p>The URL of the Hugging Face Inference API endpoint</p></dd>
 
 
 <dt id="arg-key-name">key_name<a class="anchor" aria-label="anchor" href="#arg-key-name"></a></dt>
-<dd><p>Name of environment variable containing the API key</p></dd>
+<dd><p>Name of the environment variable containing the API key</p></dd>
 
 
 <dt id="arg--">...<a class="anchor" aria-label="anchor" href="#arg--"></a></dt>
-<dd><p>Additional arguments passed to request functions</p></dd>
+<dd><p>Reserved for future use</p></dd>
 
 
 <dt id="arg-tidy-func">tidy_func<a class="anchor" aria-label="anchor" href="#arg-tidy-func"></a></dt>
-<dd><p>Function to process API responses, defaults to
-<code>tidy_batch_classification_response</code></p></dd>
+<dd><p>Function to process API responses. <code>NULL</code> (default) picks
+<code><a href="tidy_tei_classification_response.html">tidy_tei_classification_response()</a></code> on TEI and
+<code>tidy_batch_classification_response()</code> on the toolkit. A custom function
+receives the response for one batch and must return one row per text.</p></dd>
 
 
 <dt id="arg-parameters">parameters<a class="anchor" aria-label="anchor" href="#arg-parameters"></a></dt>
-<dd><p>List of parameters for the API endpoint, defaults to
-<code>list(return_all_scores = TRUE)</code></p></dd>
+<dd><p>Advanced usage: parameters to pass to the API endpoint.
+These override the defaults for the engine.</p></dd>
 
 
 <dt id="arg-batch-size">batch_size<a class="anchor" aria-label="anchor" href="#arg-batch-size"></a></dt>
-<dd><p>Integer; number of texts per batch (default: 8)</p></dd>
+<dd><p>Integer; number of texts per request (default: 32)</p></dd>
 
 
 <dt id="arg-progress">progress<a class="anchor" aria-label="anchor" href="#arg-progress"></a></dt>
@@ -133,15 +140,15 @@ concurrent requests, and error recovery automatically.</p>
 
 
 <dt id="arg-concurrent-requests">concurrent_requests<a class="anchor" aria-label="anchor" href="#arg-concurrent-requests"></a></dt>
-<dd><p>Integer; number of concurrent requests (default: 5)</p></dd>
+<dd><p>Integer; number of concurrent requests (default: 16)</p></dd>
 
 
 <dt id="arg-max-retries">max_retries<a class="anchor" aria-label="anchor" href="#arg-max-retries"></a></dt>
-<dd><p>Integer; maximum retry attempts (default: 5)</p></dd>
+<dd><p>Integer; maximum re-sends for requests that get 429 or 5xx (default: 5)</p></dd>
 
 
 <dt id="arg-timeout">timeout<a class="anchor" aria-label="anchor" href="#arg-timeout"></a></dt>
-<dd><p>Numeric; request timeout in seconds (default: 20)</p></dd>
+<dd><p>Numeric; request timeout in seconds (default: 120)</p></dd>
 
 
 <dt id="arg-include-texts">include_texts<a class="anchor" aria-label="anchor" href="#arg-include-texts"></a></dt>
@@ -152,6 +159,29 @@ concurrent requests, and error recovery automatically.</p>
 <dt id="arg-relocate-col">relocate_col<a class="anchor" aria-label="anchor" href="#arg-relocate-col"></a></dt>
 <dd><p>Integer; column position for text column (default: 2)</p></dd>
 
+
+<dt id="arg-max-length">max_length<a class="anchor" aria-label="anchor" href="#arg-max-length"></a></dt>
+<dd><p>Maximum number of tokens per text. Longer texts are cut.
+<code>NULL</code> turns client-side cutting off on TEI.</p></dd>
+
+
+<dt id="arg-max-chars">max_chars<a class="anchor" aria-label="anchor" href="#arg-max-chars"></a></dt>
+<dd><p>Character limit used on TEI when no tokeniser is available</p></dd>
+
+
+<dt id="arg-tokenizer">tokenizer<a class="anchor" aria-label="anchor" href="#arg-tokenizer"></a></dt>
+<dd><p>On TEI: a Hugging Face model id (e.g. <code>"org/model"</code>) or a
+<code><a href="https://rdrr.io/pkg/tok/man/tokenizer.html" class="external-link">tok::tokenizer</a></code>, used with the <code>tok</code> package to cut texts to
+<code>max_length</code> tokens. Dedicated endpoints do not report their model id, so
+pass it here.</p></dd>
+
+
+<dt id="arg-engine">engine<a class="anchor" aria-label="anchor" href="#arg-engine"></a></dt>
+<dd><p>The endpoint's inference engine: <code>"auto"</code> (default) detects it
+with a call to the endpoint's <code>/info</code> route, <code>"tei"</code> for Text Embeddings
+Inference, <code>"toolkit"</code> for the default Hugging Face Inference Toolkit.
+Set the default for a session with <code>options(EndpointR.hf_engine = "tei")</code>.</p></dd>
+
 </dl></div>
     <div class="section level2">
     <h2 id="value">Value<a class="anchor" aria-label="anchor" href="#value"></a></h2>
@@ -160,12 +190,17 @@ for original text (if <code>include_texts=TRUE</code>), error status, and error 
     </div>
     <div class="section level2">
     <h2 id="details">Details<a class="anchor" aria-label="anchor" href="#details"></a></h2>
-    <p>This function processes multiple texts efficiently by splitting them into
-batches and optionally sending concurrent requests. It includes robust
-error handling and progress reporting for large batches.</p>
-<p>The function automatically handles request failures with retries and
-includes error information in the output when requests fail. Original
-text order is preserved in the results.</p>
+    <p>Texts are sent in batches of <code>batch_size</code>, with <code>concurrent_requests</code>
+requests in flight. On the default Inference Toolkit, texts are sorted by
+length before batching, because the toolkit pads each batch to its longest
+text. Results are returned in input order.</p>
+<p>When a batch fails with a client error (400, 413, 422 or 424) or a network
+error, it is split in half and sent again, down to single texts, so only the
+text at fault fails. Requests that get 429 or 5xx are re-sent unchanged, up
+to <code>max_retries</code> times. Empty and missing texts are not sent; they are
+returned as error rows.</p>
+<p>On TEI endpoints, EndpointR asks for raw scores and applies the softmax in
+R, and cuts long texts before sending (see <code><a href="hf_classify_text.html">hf_classify_text()</a></code>).</p>
 <p>The function does not currently handle <code>list(return_all_scores = FALSE)</code>.</p>
     </div>
 
@@ -182,7 +217,8 @@ text order is preserved in the results.</p>
 <span class="r-in"><span>    texts <span class="op">=</span> <span class="va">texts</span>,</span></span>
 <span class="r-in"><span>    endpoint_url <span class="op">=</span> <span class="st">"redacted"</span>,</span></span>
 <span class="r-in"><span>    key_name <span class="op">=</span> <span class="st">"API_KEY"</span>,</span></span>
-<span class="r-in"><span>    batch_size <span class="op">=</span> <span class="fl">3</span></span></span>
+<span class="r-in"><span>    batch_size <span class="op">=</span> <span class="fl">32</span>,</span></span>
+<span class="r-in"><span>    concurrent_requests <span class="op">=</span> <span class="fl">16</span></span></span>
 <span class="r-in"><span>  <span class="op">)</span></span></span>
 <span class="r-in"><span><span class="op">}</span> <span class="co"># }</span></span></span>
 </code></pre></div>

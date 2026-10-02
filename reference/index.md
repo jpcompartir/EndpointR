@@ -40,6 +40,8 @@ Functions for classifying text using Hugging Face endpoints
   Endpoints
 - [`tidy_classification_response()`](https://jpcompartir.github.io/EndpointR/reference/tidy_classification_response.md)
   : Convert Hugging Face classification response to tidy format
+- [`tidy_tei_classification_response()`](https://jpcompartir.github.io/EndpointR/reference/tidy_tei_classification_response.md)
+  : Tidy a TEI classification response with raw scores
 
 ## Hugging Face - Core Infrastructure
 
@@ -228,6 +230,8 @@ Datasets included with the package for examples and testing
 
 - [`batch_concurrent_benchmark`](https://jpcompartir.github.io/EndpointR/reference/batch_concurrent_benchmark.md)
   : Batch concurrent benchmark results
+- [`hf_throughput_benchmark`](https://jpcompartir.github.io/EndpointR/reference/hf_throughput_benchmark.md)
+  : Hugging Face endpoint throughput benchmark
 - [`sentiment_classification_example`](https://jpcompartir.github.io/EndpointR/reference/sentiment_classification_example.md)
   : Single sentiment classification result example
 - [`df_sentiment_classification_example`](https://jpcompartir.github.io/EndpointR/reference/df_sentiment_classification_example.md)

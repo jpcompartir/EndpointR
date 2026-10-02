@@ -3,7 +3,6 @@
 High-level function to generate embeddings for texts in a data frame.
 This function handles the entire process from request creation to
 response processing, with options for batching & parallel execution.
-Setting the number of retries
 
 Avoid risk of data loss by setting a low-ish chunk_size (e.g. 5,000,
 10,000). Each chunk is written to a `.parquet` file in the `output_dir=`
@@ -23,10 +22,12 @@ hf_embed_df(
   output_dir = "auto",
   overwrite = FALSE,
   chunk_size = 5000L,
-  concurrent_requests = 1L,
+  batch_size = 32L,
+  concurrent_requests = 16L,
   max_retries = 5L,
-  timeout = 15L,
-  progress = TRUE
+  timeout = 120L,
+  progress = TRUE,
+  engine = getOption("EndpointR.hf_engine", "auto")
 )
 ```
 
@@ -67,14 +68,17 @@ hf_embed_df(
   The size of each chunk that will be processed and then written to a
   file.
 
+- batch_size:
+
+  Number of texts to send in each request (default: 32)
+
 - concurrent_requests:
 
-  Number of requests to send at once. Some APIs do not allow for
-  multiple requests.
+  Number of requests to send at once (default: 16)
 
 - max_retries:
 
-  Maximum number of retry attempts for failed requests.
+  Maximum re-sends for requests that get 429 or 5xx.
 
 - timeout:
 
@@ -84,36 +88,39 @@ hf_embed_df(
 
   Whether to display a progress bar
 
+- engine:
+
+  The endpoint's inference engine: `"auto"` (default), `"tei"` or
+  `"toolkit"`. See
+  [`hf_embed_text()`](https://jpcompartir.github.io/EndpointR/reference/hf_embed_text.md).
+
 ## Value
 
 A data frame with the original data plus embedding columns
+
+## Details
+
+See
+[`hf_embed_chunks()`](https://jpcompartir.github.io/EndpointR/reference/hf_embed_chunks.md)
+for how texts are batched, retried and split.
 
 ## Examples
 
 ``` r
 if (FALSE) { # \dontrun{
-  # Generate embeddings for a data frame
   df <- data.frame(
     id = 1:3,
     text = c("First example", "Second example", "Third example")
   )
 
-  # Use batching without parallel processing
   embeddings_df <- hf_embed_df(
     df = df,
     text_var = text,
-    endpoint_url = "https://my-endpoint.huggingface.cloud",
-    id_var = id
-  )
-
-  # Use both chunking and parallel processing
-  embeddings_df <- hf_embed_df(
-    df = df,
-    text_var = text,
-    endpoint_url = "https://my-endpoint.huggingface.cloud",
     id_var = id,
-    chunk_size = 10000,
-    concurrent_requests = 50
+    endpoint_url = "https://my-endpoint.huggingface.cloud",
+    key_name = "HF_API_KEY",
+    batch_size = 32,
+    concurrent_requests = 16
   )
 } # }
 ```

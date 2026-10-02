@@ -25,7 +25,7 @@
 
     <a class="navbar-brand me-2" href="index.html">EndpointR</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="Released version">0.2.4</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="Released version">0.3.0</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -61,6 +61,7 @@
   <button class="nav-link dropdown-toggle" type="button" id="dropdown-news" data-bs-toggle="dropdown" aria-expanded="false" aria-haspopup="true">News</button>
   <ul class="dropdown-menu" aria-labelledby="dropdown-news">
 <li><h6 class="dropdown-header" data-toc-skip>Releases</h6></li>
+    <li><a class="dropdown-item" href="news/index.html#endpointr-030">Version 0.3.0</a></li>
     <li><a class="dropdown-item" href="news/index.html#endpointr-022">Version 0.2.2</a></li>
     <li><a class="dropdown-item" href="news/index.html#endpointr-021">Version 0.2.1</a></li>
     <li><a class="dropdown-item" href="news/index.html#endpointr-020">Version 0.2.0</a></li>
@@ -135,8 +136,8 @@
 <span>  texts <span class="op">=</span> <span class="va">review_texts</span>,</span>
 <span>  endpoint_url <span class="op">=</span> <span class="va">endpoint_url</span>,</span>
 <span>  key_name <span class="op">=</span> <span class="st">"HF_API_KEY"</span>,</span>
-<span>  batch_size <span class="op">=</span> <span class="fl">3</span>,</span>
-<span>  concurrent_requests <span class="op">=</span> <span class="fl">2</span></span>
+<span>  batch_size <span class="op">=</span> <span class="fl">32</span>,  <span class="co"># texts per request</span></span>
+<span>  concurrent_requests <span class="op">=</span> <span class="fl">16</span>  <span class="co"># requests in flight at once</span></span>
 <span><span class="op">)</span></span></code></pre></div>
 <p>Embed a data frame of texts:</p>
 <div class="sourceCode" id="cb6"><pre class="downlit sourceCode r">
@@ -153,9 +154,10 @@
 <span>  key_name <span class="op">=</span> <span class="st">"HF_API_KEY"</span>,</span>
 <span>  output_dir <span class="op">=</span> <span class="st">"embeddings_output"</span>,  <span class="co"># writes .parquet chunks to this directory</span></span>
 <span>  chunk_size <span class="op">=</span> <span class="fl">5000</span>,  <span class="co"># process 5000 rows per chunk</span></span>
-<span>  concurrent_requests <span class="op">=</span> <span class="fl">2</span>,</span>
+<span>  batch_size <span class="op">=</span> <span class="fl">32</span>,  <span class="co"># texts per request</span></span>
+<span>  concurrent_requests <span class="op">=</span> <span class="fl">16</span>,  <span class="co"># requests in flight at once</span></span>
 <span>  max_retries <span class="op">=</span> <span class="fl">5</span>,</span>
-<span>  timeout <span class="op">=</span> <span class="fl">15</span></span>
+<span>  timeout <span class="op">=</span> <span class="fl">120</span></span>
 <span><span class="op">)</span></span></code></pre></div>
 </div>
 <div class="section level2">
@@ -190,11 +192,13 @@
 <span>  max_length <span class="op">=</span> <span class="fl">512</span>,  <span class="co"># truncate texts longer than 512 tokens</span></span>
 <span>  output_dir <span class="op">=</span> <span class="st">"classification_output"</span>,  <span class="co"># writes .parquet chunks to this directory</span></span>
 <span>  chunk_size <span class="op">=</span> <span class="fl">2500</span>,  <span class="co"># process 2500 rows per chunk</span></span>
-<span>  concurrent_requests <span class="op">=</span> <span class="fl">3</span>,</span>
+<span>  batch_size <span class="op">=</span> <span class="fl">32</span>,  <span class="co"># texts per request</span></span>
+<span>  concurrent_requests <span class="op">=</span> <span class="fl">16</span>,  <span class="co"># requests in flight at once</span></span>
 <span>  max_retries <span class="op">=</span> <span class="fl">5</span>,</span>
-<span>  timeout <span class="op">=</span> <span class="fl">60</span></span>
+<span>  timeout <span class="op">=</span> <span class="fl">120</span></span>
 <span><span class="op">)</span> <span class="op">|&gt;</span></span>
 <span>  <span class="fu">dplyr</span><span class="fu">::</span><span class="fu"><a href="https://dplyr.tidyverse.org/reference/rename.html" class="external-link">rename</a></span><span class="op">(</span><span class="op">!</span><span class="op">!</span><span class="op">!</span><span class="fu">labelid_2class</span><span class="op">(</span><span class="op">)</span><span class="op">)</span></span></code></pre></div>
+<p>EndpointR checks whether a Hugging Face endpoint runs Text Embeddings Inference (TEI) or the default Hugging Face Inference Toolkit, because the two need different request formats. It does this once per endpoint with a call to the endpoint’s <code>/info</code> route. Set <code>engine = "tei"</code> or <code>engine = "toolkit"</code> to skip the check, e.g. when <code>/info</code> is blocked. On TEI, <code>max_length</code> is applied in R before sending, because TEI ignores it. The <a href="articles/hugging_face_inference.html#which-engine-does-my-endpoint-run">engine section of the inference vignette</a> explains the differences.</p>
 <p>Read the <a href="articles/hugging_face_inference.html">Hugging Face Inference Vignette</a> for more information on embedding and classifying using Dedicated Inference Endpoints and the Inference API from Hugging Face.</p>
 </div>
 <div class="section level2">
@@ -301,17 +305,30 @@
 <li>
 <code>endpoint_url</code>: The API endpoint used</li>
 <li>
+<code>engine</code>: Whether the endpoint runs <code>"tei"</code> or <code>"toolkit"</code>
+</li>
+<li>
 <code>chunk_size</code>: Number of rows processed per chunk</li>
+<li>
+<code>batch_size</code>: Number of texts sent in each request</li>
 <li>
 <code>n_texts</code>: Total number of texts processed</li>
 <li>
-<code>concurrent_requests</code>: Parallel request setting</li>
+<code>concurrent_requests</code>: Number of requests in flight at once</li>
 <li>
 <code>timeout</code>: Request timeout in seconds</li>
 <li>
 <code>max_retries</code>: Maximum retry attempts</li>
 <li>
-<code>inference_parameters</code>: Model-specific parameters (e.g., truncate, max_length)</li>
+<code>inference_parameters</code>: The request body without the texts (classification only)</li>
+<li>
+<code>truncation_method</code>: How long texts were cut (<code>"tok"</code>, <code>"max_chars"</code>, <code>"endpoint"</code> or <code>"none"</code>), classification only</li>
+<li>
+<code>n_empty_texts</code>: Number of empty or missing texts, which were not sent</li>
+<li>
+<code>n_split_batches</code>: Number of failed batches that were split and sent again</li>
+<li>On TEI endpoints, the fields from <code>/info</code>: <code>version</code>, <code>model_id</code>, <code>model_type</code>, <code>max_input_length</code>, <code>max_batch_tokens</code>, <code>max_client_batch_size</code> and <code>auto_truncate</code>
+</li>
 <li>
 <code>timestamp</code>: When the job was run</li>
 <li>

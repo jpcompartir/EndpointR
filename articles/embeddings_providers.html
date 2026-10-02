@@ -23,7 +23,7 @@
 
     <a class="navbar-brand me-2" href="../index.html">EndpointR</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="Released version">0.2.4</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="Released version">0.3.0</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -59,6 +59,7 @@
   <button class="nav-link dropdown-toggle" type="button" id="dropdown-news" data-bs-toggle="dropdown" aria-expanded="false" aria-haspopup="true">News</button>
   <ul class="dropdown-menu" aria-labelledby="dropdown-news">
 <li><h6 class="dropdown-header" data-toc-skip>Releases</h6></li>
+    <li><a class="dropdown-item" href="../news/index.html#endpointr-030">Version 0.3.0</a></li>
     <li><a class="dropdown-item" href="../news/index.html#endpointr-022">Version 0.2.2</a></li>
     <li><a class="dropdown-item" href="../news/index.html#endpointr-021">Version 0.2.1</a></li>
     <li><a class="dropdown-item" href="../news/index.html#endpointr-020">Version 0.2.0</a></li>
@@ -219,8 +220,10 @@ accessing embeddings from the <code>all-mpnet-base-v2</code> model.</p>
 </h3>
 <p>For multiple texts, use <code><a href="../reference/hf_embed_batch.html">hf_embed_batch()</a></code> which handles
 batching automatically. We feed in a vector of inputs and a
-<code>batch_size</code>, and the function takes care of batching our
-vector into as many batches as necessary.</p>
+<code>batch_size</code>, and the function splits the vector into as many
+batches as it needs. The defaults are <code>batch_size = 32</code> and
+<code>concurrent_requests = 16</code>, so our 4 texts go in a single
+request.</p>
 <div class="sourceCode" id="cb4"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">texts_to_embed</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span></span>
 <span>  <span class="st">"First document about machine learning"</span>,</span>
@@ -233,15 +236,24 @@ vector into as many batches as necessary.</p>
 <span>  texts <span class="op">=</span> <span class="va">texts_to_embed</span>,</span>
 <span>  endpoint_url <span class="op">=</span> <span class="va">embed_url</span>,</span>
 <span>  key_name <span class="op">=</span> <span class="st">"HF_TEST_API_KEY"</span>,</span>
-<span>  batch_size <span class="op">=</span> <span class="fl">2</span>,  <span class="co"># process 2 texts per API call</span></span>
-<span>  concurrent_requests <span class="op">=</span> <span class="fl">2</span>  <span class="co"># run 2 requests in parallel</span></span>
+<span>  batch_size <span class="op">=</span> <span class="fl">32</span>,  <span class="co"># texts per request</span></span>
+<span>  concurrent_requests <span class="op">=</span> <span class="fl">16</span>  <span class="co"># requests in flight at once</span></span>
 <span><span class="op">)</span></span>
 <span></span>
 <span><span class="co"># Check results</span></span>
 <span><span class="fu"><a href="https://pillar.r-lib.org/reference/glimpse.html" class="external-link">glimpse</a></span><span class="op">(</span><span class="va">batch_embeddings</span><span class="op">[</span><span class="fl">1</span>,<span class="fl">1</span><span class="op">:</span><span class="fl">10</span> <span class="op">]</span><span class="op">)</span> <span class="co"># truncated for ease</span></span></code></pre></div>
-<p>The result includes: - <code>text</code>: your original text -
-<code>.error</code> and <code>.error_msg</code>: error tracking -
-<code>V1</code> to <code>V768</code>: the embedding dimensions</p>
+<p>The result includes:</p>
+<ul>
+<li>
+<code>text</code>: your original text</li>
+<li>
+<code>.error</code>, <code>.error_msg</code> and
+<code>.status</code>: error tracking</li>
+<li>
+<code>V1</code> to <code>V768</code>: the embedding dimensions</li>
+</ul>
+<p>Empty and missing texts are not sent. They come back as rows with
+<code>.error = TRUE</code>.</p>
 </div>
 <div class="section level3">
 <h3 id="data-frame-integration">Data Frame Integration<a class="anchor" aria-label="anchor" href="#data-frame-integration"></a>
@@ -254,8 +266,8 @@ vector into as many batches as necessary.</p>
 <span>  id_var <span class="op">=</span> <span class="va">id</span>,          <span class="co"># unique identifier column</span></span>
 <span>  endpoint_url <span class="op">=</span> <span class="va">embed_url</span>,</span>
 <span>  key_name <span class="op">=</span> <span class="st">"HF_TEST_API_KEY"</span>,</span>
-<span>  batch_size <span class="op">=</span> <span class="fl">3</span>,</span>
-<span>  concurrent_requests <span class="op">=</span> <span class="fl">1</span></span>
+<span>  batch_size <span class="op">=</span> <span class="fl">32</span>,</span>
+<span>  concurrent_requests <span class="op">=</span> <span class="fl">16</span></span>
 <span><span class="op">)</span></span>
 <span></span>
 <span><span class="co"># Original data + embeddings</span></span>
@@ -391,9 +403,36 @@ procedure.</p>
 documentation. Most models handle ~512 tokens well. More modern models
 can handle more (check model card). Dedicated Inference Endpoints will
 receive as many requests as the assigned hardware is able to handle.</p>
+<p>Most Dedicated Inference Endpoints for embedding models run Text
+Embeddings Inference (TEI), which has two settings to know about:</p>
+<ul>
+<li>
+<code>max_client_batch_size</code> is the most texts TEI accepts in
+one request. The default is 32, and TEI rejects larger requests.
+EndpointR reads the value from the endpoint’s <code>/info</code> route
+and lowers <code>batch_size</code> to it with a warning. You can raise
+the limit with <code>--max-client-batch-size</code> when you deploy the
+endpoint.</li>
+<li>
+<code>auto_truncate</code> decides whether TEI cuts texts that are
+longer than the model’s limit when a request doesn’t say. EndpointR
+sends <code>truncate: true</code> with every TEI embedding request, so
+long texts are cut at the model’s limit either way.</li>
+</ul>
+<p>Check both values with <code><a href="../reference/hf_get_endpoint_info.html">hf_get_endpoint_info()</a></code>:</p>
+<div class="sourceCode" id="cb12"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">info</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/hf_get_endpoint_info.html">hf_get_endpoint_info</a></span><span class="op">(</span><span class="va">embed_url</span>, key_name <span class="op">=</span> <span class="st">"HF_TEST_API_KEY"</span><span class="op">)</span></span>
+<span><span class="va">info</span><span class="op">$</span><span class="va">max_client_batch_size</span></span>
+<span><span class="va">info</span><span class="op">$</span><span class="va">auto_truncate</span></span>
+<span><span class="va">info</span><span class="op">$</span><span class="va">max_input_length</span></span></code></pre></div>
+<p><code><a href="../reference/hf_get_endpoint_info.html">hf_get_endpoint_info()</a></code> returns <code>NULL</code> for
+endpoints that run the default Hugging Face Inference Toolkit, because
+the toolkit has no <code>/info</code> route. See the <a href="hugging_face_inference.html#which-engine-does-my-endpoint-run">Hugging
+Face Inference</a> vignette for the differences between the two
+engines.</p>
 <p>This code chunk shows you how to chunk up your texts if you’re
 finding errors due to payload size:</p>
-<div class="sourceCode" id="cb12"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb13"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">chunk_text</span> <span class="op">&lt;-</span> <span class="kw">function</span><span class="op">(</span><span class="va">text</span>, <span class="va">max_chars</span> <span class="op">=</span> <span class="fl">2000</span><span class="op">)</span> <span class="op">{</span></span>
 <span>  <span class="kw">if</span> <span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/nchar.html" class="external-link">nchar</a></span><span class="op">(</span><span class="va">text</span><span class="op">)</span> <span class="op">&lt;=</span> <span class="va">max_chars</span><span class="op">)</span> <span class="kw"><a href="https://rdrr.io/r/base/function.html" class="external-link">return</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span><span class="va">text</span><span class="op">)</span><span class="op">)</span></span>
 <span>  </span>
@@ -414,7 +453,7 @@ finding errors due to payload size:</p>
 <p>Always check for errors in your results. This chunk shows you how to
 send off your failures in another batch request, but beware you’ll need
 to handle the resulting data frames.</p>
-<div class="sourceCode" id="cb13"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb14"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">results</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/oai_embed_batch.html">oai_embed_batch</a></span><span class="op">(</span>texts <span class="op">=</span> <span class="va">texts_to_embed</span><span class="op">)</span></span>
 <span></span>
 <span><span class="co"># Check overall success</span></span>
@@ -439,11 +478,16 @@ to handle the resulting data frames.</p>
 </h3>
 <ol style="list-style-type: decimal">
 <li>
-<strong>Start small</strong>: Begin with <code>batch_size = 5</code>
-and <code>concurrent_requests = 1</code>.</li>
+<strong>Start with the defaults</strong>: For Hugging Face,
+<code>batch_size = 32</code> and <code>concurrent_requests = 16</code>
+work on every TEI endpoint. In our tests with BGE M3 on an A100, 32
+texts per request embedded about 1,600 texts per second with 8 requests
+in flight, and about 2,100 with 32. One text and one request at a time
+gave 9 texts per second.</li>
 <li>
 <strong>Scale gradually</strong>: Increase parameters whilst
-monitoring errors</li>
+monitoring errors. On TEI, more requests in flight helped up to about
+32.</li>
 <li>
 <strong>Model selection</strong>:
 <ul>
@@ -467,7 +511,7 @@ Rate Limits</a></p>
 <h3 id="cost-optimisation">Cost Optimisation<a class="anchor" aria-label="anchor" href="#cost-optimisation"></a>
 </h3>
 <p>OpenAI: Reduce dimensions to save storage and computation</p>
-<div class="sourceCode" id="cb14"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb15"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">compact_embeddings</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/oai_embed_batch.html">oai_embed_batch</a></span><span class="op">(</span></span>
 <span>  texts <span class="op">=</span> <span class="va">texts_to_embed</span>,</span>
 <span>  model <span class="op">=</span> <span class="st">"text-embedding-3-small"</span>,</span>
@@ -509,7 +553,7 @@ result</p>
 <li>Run clustering algorithm</li>
 <li>Add clusters to data frame</li>
 </ol>
-<div class="sourceCode" id="cb15"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb16"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">embeddings_for_clustering</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/hf_embed_df.html">hf_embed_df</a></span><span class="op">(</span></span>
 <span>  df <span class="op">=</span> <span class="va">sample_texts</span>,</span>
 <span>  text_var <span class="op">=</span> <span class="va">text</span>,</span>
@@ -541,11 +585,11 @@ small part of the modelling process</p>
 </h3>
 <p>Use fewer concurrent_requests if you’re running into rate limit
 issues.</p>
-<div class="sourceCode" id="cb16"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb17"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">results</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/hf_embed_batch.html">hf_embed_batch</a></span><span class="op">(</span></span>
 <span>  texts <span class="op">=</span> <span class="va">large_text_collection</span>,</span>
-<span>  batch_size <span class="op">=</span> <span class="fl">3</span>,</span>
-<span>  concurrent_requests <span class="op">=</span> <span class="fl">1</span>  <span class="co"># sequential processing</span></span>
+<span>  batch_size <span class="op">=</span> <span class="fl">32</span>,</span>
+<span>  concurrent_requests <span class="op">=</span> <span class="fl">2</span>  <span class="co"># fewer requests in flight</span></span>
 <span><span class="op">)</span></span>
 <span></span>
 <span><span class="va">results</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/oai_embed_batch.html">oai_embed_batch</a></span><span class="op">(</span></span>
@@ -563,7 +607,7 @@ batch_size, to embed more data with fewer requests.</p>
 </h3>
 <p>Increase value of timeout parameter if sending many requests, or
 responses begin timing out.</p>
-<div class="sourceCode" id="cb17"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb18"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span></span>
 <span><span class="va">results</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/oai_embed_batch.html">oai_embed_batch</a></span><span class="op">(</span></span>
 <span>  texts <span class="op">=</span> <span class="va">texts_to_embed</span>,</span>
@@ -575,7 +619,7 @@ responses begin timing out.</p>
 <h3 id="memory-issues">Memory Issues<a class="anchor" aria-label="anchor" href="#memory-issues"></a>
 </h3>
 <p>Process in chunks for very large datasets</p>
-<div class="sourceCode" id="cb18"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb19"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span></span>
 <span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://purrr.tidyverse.org/" class="external-link">purrr</a></span><span class="op">)</span></span>
 <span></span>

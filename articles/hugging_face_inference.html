@@ -23,7 +23,7 @@
 
     <a class="navbar-brand me-2" href="../index.html">EndpointR</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="Released version">0.2.4</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="Released version">0.3.0</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -59,6 +59,7 @@
   <button class="nav-link dropdown-toggle" type="button" id="dropdown-news" data-bs-toggle="dropdown" aria-expanded="false" aria-haspopup="true">News</button>
   <ul class="dropdown-menu" aria-labelledby="dropdown-news">
 <li><h6 class="dropdown-header" data-toc-skip>Releases</h6></li>
+    <li><a class="dropdown-item" href="../news/index.html#endpointr-030">Version 0.3.0</a></li>
     <li><a class="dropdown-item" href="../news/index.html#endpointr-022">Version 0.2.2</a></li>
     <li><a class="dropdown-item" href="../news/index.html#endpointr-021">Version 0.2.1</a></li>
     <li><a class="dropdown-item" href="../news/index.html#endpointr-020">Version 0.2.0</a></li>
@@ -148,6 +149,138 @@ need to deploy a <a href="https://huggingface.co/inference-endpoints/dedicated" 
 Inference Endpoint</a>.</p>
 </div>
 <div class="section level2">
+<h2 id="which-engine-does-my-endpoint-run">Which engine does my endpoint run?<a class="anchor" aria-label="anchor" href="#which-engine-does-my-endpoint-run"></a>
+</h2>
+<p>Hugging Face endpoints run one of two inference engines, and the two
+engines need different request formats. EndpointR checks which engine an
+endpoint runs, so in most cases you don’t need to do anything. It still
+helps to know the differences, because they change how texts are cut,
+how fast a job runs, and whether you get the same scores twice.</p>
+<ul>
+<li>
+<a href="https://huggingface.co/docs/text-embeddings-inference" class="external-link">Text
+Embeddings Inference</a> (TEI) is a server for embedding models and
+classifiers. Hugging Face picks it by default for most embedding models,
+and you can choose it for classifiers.</li>
+<li>The default Hugging Face Inference Toolkit runs a
+<code>transformers</code> pipeline. Endpoints that don’t use TEI, or
+another named container, run the toolkit.</li>
+</ul>
+<table class="table">
+<colgroup>
+<col width="33%">
+<col width="33%">
+<col width="33%">
+</colgroup>
+<thead><tr class="header">
+<th></th>
+<th>Default toolkit</th>
+<th>TEI</th>
+</tr></thead>
+<tbody>
+<tr class="odd">
+<td>Batch of texts, embeddings</td>
+<td><code>{"inputs": ["a", "b"]}</code></td>
+<td><code>{"inputs": ["a", "b"], "truncate": true}</code></td>
+</tr>
+<tr class="even">
+<td>Batch of texts, classification</td>
+<td><code>{"inputs": ["a", "b"], "parameters": {...}}</code></td>
+<td><code>{"inputs": [["a"], ["b"]], "truncate": true, "raw_scores": true}</code></td>
+</tr>
+<tr class="odd">
+<td>Batching on the GPU</td>
+<td>Only if the request sets <code>parameters$batch_size</code>, which
+EndpointR does. The default is 1 text at a time.</td>
+<td>Always. TEI combines texts from all waiting requests into one
+batch.</td>
+</tr>
+<tr class="even">
+<td>Texts per request</td>
+<td>No fixed limit</td>
+<td>
+<code>--max-client-batch-size</code>, 32 by default. Larger requests
+are rejected.</td>
+</tr>
+<tr class="odd">
+<td>Truncation</td>
+<td>
+<code>parameters$truncation</code> and
+<code>parameters$max_length</code>
+</td>
+<td>Top-level <code>truncate</code>, which cuts at the model’s own limit
+(8,192 tokens for ModernBERT and BGE M3). TEI ignores
+<code>max_length</code>.</td>
+</tr>
+<tr class="even">
+<td>Sorting texts by length</td>
+<td>Helps, because the pipeline pads each batch to its longest text
+(about 20% faster)</td>
+<td>No effect, because TEI does not pad</td>
+</tr>
+<tr class="odd">
+<td>More requests in flight</td>
+<td>No gain above about 8</td>
+<td>Helps up to about 32</td>
+</tr>
+<tr class="even">
+<td>Precision</td>
+<td>fp32</td>
+<td>fp16</td>
+</tr>
+<tr class="odd">
+<td>Repeatable results</td>
+<td>Yes</td>
+<td>No, see <a href="#repeatable-results">Repeatable results</a>
+</td>
+</tr>
+<tr class="even">
+<td>
+<code>GET /info</code> route</td>
+<td>None</td>
+<td>Returns the model and its limits</td>
+</tr>
+</tbody>
+</table>
+<div class="section level3">
+<h3 id="how-endpointr-detects-the-engine">How EndpointR detects the engine<a class="anchor" aria-label="anchor" href="#how-endpointr-detects-the-engine"></a>
+</h3>
+<p>Every <code>hf_embed_*()</code> and <code>hf_classify_*()</code>
+function has an <code>engine</code> argument. The default,
+<code>"auto"</code>, sends <code>GET {endpoint_url}/info</code> once per
+endpoint URL in each R session and keeps the answer. TEI answers with
+JSON that includes <code>max_client_batch_size</code>, and the toolkit
+has no <code>/info</code> route, so it answers with an error such as
+404. The call retries 503 responses for about 2 minutes, because an
+endpoint that has scaled to zero returns 503 while it starts.</p>
+<p>You can skip the check with <code>engine = "tei"</code> or
+<code>engine = "toolkit"</code>, e.g. when a proxy blocks
+<code>/info</code>. To set it for a whole session, use an option:</p>
+<div class="sourceCode" id="cb3"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/base/options.html" class="external-link">options</a></span><span class="op">(</span>EndpointR.hf_engine <span class="op">=</span> <span class="st">"tei"</span><span class="op">)</span></span></code></pre></div>
+<p>To see what an endpoint reports, call
+<code><a href="../reference/hf_get_endpoint_info.html">hf_get_endpoint_info()</a></code>. It returns the <code>/info</code>
+JSON on TEI, and <code>NULL</code> with a message on the toolkit:</p>
+<div class="sourceCode" id="cb4"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">info</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/hf_get_endpoint_info.html">hf_get_endpoint_info</a></span><span class="op">(</span></span>
+<span>  endpoint_url <span class="op">=</span> <span class="st">"https://your-endpoint.endpoints.huggingface.cloud"</span>,</span>
+<span>  key_name <span class="op">=</span> <span class="st">"HF_API_KEY"</span></span>
+<span><span class="op">)</span></span>
+<span></span>
+<span><span class="va">info</span><span class="op">$</span><span class="va">max_client_batch_size</span> <span class="co"># texts allowed per request</span></span>
+<span><span class="va">info</span><span class="op">$</span><span class="va">max_input_length</span>      <span class="co"># tokens per text before TEI cuts it</span></span>
+<span><span class="va">info</span><span class="op">$</span><span class="va">version</span></span></code></pre></div>
+<p>If you have the <a href="https://huggingface.co/docs/huggingface_hub/guides/cli" class="external-link"><code>hf</code>
+command line tool</a>, <code>hf endpoints describe &lt;name&gt;</code>
+shows the engine too. An <code>"image": {"tei": ...}</code> entry means
+TEI, and an <code>"image": {"huggingface": {}}</code> entry means the
+toolkit.</p>
+<p>EndpointR records the engine, and on TEI the <code>/info</code>
+fields, in the <code>metadata.json</code> file of every
+<code>_chunks()</code> and <code>_df()</code> run.</p>
+</div>
+</div>
+<div class="section level2">
 <h2 id="understanding-the-function-hierarchy">Understanding the Function Hierarchy<a class="anchor" aria-label="anchor" href="#understanding-the-function-hierarchy"></a>
 </h2>
 <p>EndpointR provides four levels of functions for working with Hugging
@@ -219,7 +352,7 @@ from data frames and call the chunk functions internally.</p>
 <h3 id="choosing-the-right-function">Choosing the Right Function<a class="anchor" aria-label="anchor" href="#choosing-the-right-function"></a>
 </h3>
 <p>Use this decision tree:</p>
-<div class="sourceCode" id="cb3"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb5"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="co"># Single text? Use _text functions</span></span>
 <span><span class="kw">if</span> <span class="op">(</span><span class="va">n_texts</span> <span class="op">==</span> <span class="fl">1</span><span class="op">)</span> <span class="op">{</span></span>
 <span>  <span class="va">result</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/hf_embed_text.html">hf_embed_text</a></span><span class="op">(</span><span class="va">text</span>, <span class="va">endpoint_url</span>, <span class="va">key_name</span><span class="op">)</span></span>
@@ -229,19 +362,23 @@ from data frames and call the chunk functions internally.</p>
 <span></span>
 <span><span class="co"># Small batch (&lt;5000 texts) and want results in memory only?</span></span>
 <span><span class="kw">if</span> <span class="op">(</span><span class="va">n_texts</span> <span class="op">&lt;</span> <span class="fl">5000</span> <span class="op">&amp;&amp;</span> <span class="op">!</span><span class="va">need_file_output</span><span class="op">)</span> <span class="op">{</span></span>
-<span>  <span class="va">results</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/hf_embed_batch.html">hf_embed_batch</a></span><span class="op">(</span><span class="va">texts</span>, <span class="va">endpoint_url</span>, <span class="va">key_name</span>, batch_size <span class="op">=</span> <span class="fl">10</span><span class="op">)</span></span>
+<span>  <span class="va">results</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/hf_embed_batch.html">hf_embed_batch</a></span><span class="op">(</span><span class="va">texts</span>, <span class="va">endpoint_url</span>, <span class="va">key_name</span>,</span>
+<span>                            batch_size <span class="op">=</span> <span class="fl">32</span>, concurrent_requests <span class="op">=</span> <span class="fl">16</span><span class="op">)</span></span>
 <span>  <span class="co"># or</span></span>
-<span>  <span class="va">results</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/hf_classify_batch.html">hf_classify_batch</a></span><span class="op">(</span><span class="va">texts</span>, <span class="va">endpoint_url</span>, <span class="va">key_name</span>, batch_size <span class="op">=</span> <span class="fl">8</span><span class="op">)</span></span>
+<span>  <span class="va">results</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/hf_classify_batch.html">hf_classify_batch</a></span><span class="op">(</span><span class="va">texts</span>, <span class="va">endpoint_url</span>, <span class="va">key_name</span>,</span>
+<span>                               batch_size <span class="op">=</span> <span class="fl">32</span>, concurrent_requests <span class="op">=</span> <span class="fl">16</span><span class="op">)</span></span>
 <span><span class="op">}</span></span>
 <span></span>
 <span><span class="co"># Large dataset or want file output for safety?</span></span>
 <span><span class="co"># Use _df functions (they call _chunks internally)</span></span>
 <span><span class="kw">if</span> <span class="op">(</span><span class="va">n_texts</span> <span class="op">&gt;=</span> <span class="fl">5000</span> <span class="op">||</span> <span class="va">need_safety</span><span class="op">)</span> <span class="op">{</span></span>
 <span>  <span class="va">results</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/hf_embed_df.html">hf_embed_df</a></span><span class="op">(</span><span class="va">df</span>, <span class="va">text</span>, <span class="va">id</span>, <span class="va">endpoint_url</span>, <span class="va">key_name</span>,</span>
-<span>                         chunk_size <span class="op">=</span> <span class="fl">5000</span>, output_dir <span class="op">=</span> <span class="st">"my_results"</span><span class="op">)</span></span>
+<span>                         chunk_size <span class="op">=</span> <span class="fl">5000</span>, output_dir <span class="op">=</span> <span class="st">"my_results"</span>,</span>
+<span>                         batch_size <span class="op">=</span> <span class="fl">32</span>, concurrent_requests <span class="op">=</span> <span class="fl">16</span><span class="op">)</span></span>
 <span>  <span class="co"># or</span></span>
 <span>  <span class="va">results</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/hf_classify_df.html">hf_classify_df</a></span><span class="op">(</span><span class="va">df</span>, <span class="va">text</span>, <span class="va">id</span>, <span class="va">endpoint_url</span>, <span class="va">key_name</span>,</span>
-<span>                            chunk_size <span class="op">=</span> <span class="fl">2500</span>, output_dir <span class="op">=</span> <span class="st">"my_results"</span>,</span>
+<span>                            chunk_size <span class="op">=</span> <span class="fl">5000</span>, output_dir <span class="op">=</span> <span class="st">"my_results"</span>,</span>
+<span>                            batch_size <span class="op">=</span> <span class="fl">32</span>, concurrent_requests <span class="op">=</span> <span class="fl">16</span>,</span>
 <span>                            max_length <span class="op">=</span> <span class="fl">512</span><span class="op">)</span></span>
 <span><span class="op">}</span></span></code></pre></div>
 <blockquote>
@@ -250,83 +387,182 @@ from data frames and call the chunk functions internally.</p>
 incremental file writing is worth it.</p>
 </blockquote>
 </div>
+<div class="section level3">
+<h3 id="how-the-batch-chunk-and-data-frame-functions-send-texts">How the batch, chunk and data frame functions send texts<a class="anchor" aria-label="anchor" href="#how-the-batch-chunk-and-data-frame-functions-send-texts"></a>
+</h3>
+<p>The <code>_batch()</code>, <code>_chunks()</code> and
+<code>_df()</code> functions send <code>batch_size</code> texts in each
+request (32 by default) and keep <code>concurrent_requests</code>
+requests in flight (16 by default). Before 0.3.0, the
+<code>_chunks()</code> and <code>_df()</code> functions sent one text
+per request and <code>_df()</code> sent one request at a time, which
+left the GPU mostly idle. In our tests, the new defaults were more than
+100 times faster on TEI. The <a href="improving_performance.html">Improving Performance</a> vignette has
+the numbers.</p>
+<p>The functions also do the following:</p>
+<ul>
+<li>They don’t send empty or missing texts. Those rows come back with
+<code>.error = TRUE</code> and the message “Empty or missing text, not
+sent”, so the output has one row per input.</li>
+<li>On the toolkit, they sort texts by length before they make batches.
+Results always come back in the order of your input.</li>
+<li>When a batch fails with HTTP 400, 413, 422 or 424, a network error,
+or the wrong number of results, they split it in half and send each half
+again, down to single texts. Only the text at fault fails.</li>
+<li>When a request gets HTTP 429, 502, 503 or 504, they wait and send it
+again unchanged, up to <code>max_retries</code> times.</li>
+<li>On TEI, when <code>batch_size</code> is above the endpoint’s
+<code>max_client_batch_size</code>, they lower <code>batch_size</code>
+to that value and warn you.</li>
+</ul>
+</div>
 </div>
 <div class="section level2">
 <h2 id="key-differences-embeddings-vs-classification">Key Differences: Embeddings vs Classification<a class="anchor" aria-label="anchor" href="#key-differences-embeddings-vs-classification"></a>
 </h2>
-<p>Understanding the differences between embedding and classification
-functions is crucial for effective use.</p>
+<p>The request EndpointR sends depends on the task and on the engine.
+EndpointR handles the differences, but they explain some of the
+arguments and results.</p>
 <div class="section level3">
 <h3 id="text-truncation-handling">Text Truncation Handling<a class="anchor" aria-label="anchor" href="#text-truncation-handling"></a>
 </h3>
 <p><strong>Embeddings</strong> (<code>hf_embed_*</code>):</p>
 <ul>
-<li>
-<strong>NO</strong> <code>max_length</code> parameter in the R
-functions</li>
-<li>Truncation is handled <strong>at the endpoint level</strong>
-</li>
-<li>For Dedicated Endpoints: Set <code>AUTO_TRUNCATE=true</code> in your
-endpoint’s environment variables</li>
-<li>For Inference API: Truncation is typically handled automatically by
-the model</li>
-<li>Uses TEI (Text Embeddings Inference) which only accepts
-<code>truncate</code>, not <code>truncation</code> or
-<code>max_length</code>
-</li>
+<li>There is no <code>max_length</code> argument.</li>
+<li>On TEI, EndpointR sends <code>truncate: true</code> at the top level
+of the request, so TEI cuts each text at the model’s own limit
+(e.g. 8,192 tokens for BGE M3). You no longer need
+<code>AUTO_TRUNCATE=true</code> on the endpoint, although it does no
+harm.</li>
+<li>On the toolkit, truncation depends on the model’s pipeline. None of
+our embedding endpoints run the toolkit, so this path is untested.</li>
 </ul>
 <p><strong>Classification</strong> (<code>hf_classify_*</code>):</p>
 <ul>
 <li>
-<strong>HAS</strong> <code>max_length</code> parameter (default:
-<code>512L</code>)</li>
-<li>Truncation is controlled <strong>in your R code</strong>
-</li>
-<li>Texts longer than <code>max_length</code> tokens are truncated
-before classification</li>
-<li>Uses standard inference parameters: <code>truncation=TRUE</code> and
-<code>max_length</code>
-</li>
+<code>max_length</code> (default <code>512L</code>) sets the maximum
+number of tokens per text.</li>
+<li>On the toolkit, EndpointR sends <code>truncation: true</code> and
+<code>max_length</code> to the endpoint, and the pipeline cuts each
+text.</li>
+<li>On TEI, EndpointR cuts texts in R before it sends them, because TEI
+ignores <code>max_length</code> and only cuts at the model’s own
+limit.</li>
 </ul>
-<div class="sourceCode" id="cb4"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="co"># Embeddings - NO max_length parameter</span></span>
-<span><span class="fu"><a href="../reference/hf_embed_df.html">hf_embed_df</a></span><span class="op">(</span></span>
-<span>  df <span class="op">=</span> <span class="va">my_data</span>,</span>
-<span>  text_var <span class="op">=</span> <span class="va">text</span>,</span>
-<span>  id_var <span class="op">=</span> <span class="va">id</span>,</span>
-<span>  endpoint_url <span class="op">=</span> <span class="va">embed_url</span>,</span>
-<span>  key_name <span class="op">=</span> <span class="st">"HF_API_KEY"</span></span>
-<span>  <span class="co"># max_length not available - set AUTO_TRUNCATE in endpoint settings</span></span>
-<span><span class="op">)</span></span>
+</div>
+<div class="section level3">
+<h3 id="why-endpointr-cuts-classifier-texts-in-r-on-tei">Why EndpointR cuts classifier texts in R on TEI<a class="anchor" aria-label="anchor" href="#why-endpointr-cuts-classifier-texts-in-r-on-tei"></a>
+</h3>
+<p>Long texts give NaN scores on some TEI classifiers. TEI runs models
+in fp16 (half precision), and our ModernBERT spam classifier returned
+NaN scores for many long texts. The same texts failed when sent on their
+own, so the cause is length, not batching.</p>
+<table class="table">
+<thead><tr class="header">
+<th>Text length</th>
+<th>Texts with a NaN score</th>
+</tr></thead>
+<tbody>
+<tr class="odd">
+<td>Up to 2,048 tokens</td>
+<td>0 of 10,877</td>
+</tr>
+<tr class="even">
+<td>2,049 to 4,096 tokens</td>
+<td>9 of 683</td>
+</tr>
+<tr class="odd">
+<td>4,097 to 8,192 tokens</td>
+<td>53 of 143</td>
+</tr>
+<tr class="even">
+<td>Above 8,192 tokens</td>
+<td>54 of 54</td>
+</tr>
+</tbody>
+</table>
+<p>A NaN score also crashed TEI 1.8.2 when the request asked TEI for
+probabilities. TEI’s softmax failed, the endpoint returned 503, and it
+then stayed in a failed state until someone restarted it. EndpointR
+avoids the crash because it sends <code>raw_scores: true</code> and
+applies the softmax in R (see
+<code><a href="../reference/tidy_tei_classification_response.html">tidy_tei_classification_response()</a></code>). With raw scores, TEI
+returns <code>424 {"error": "score is NaN"}</code> for the request and
+keeps running, and EndpointR then splits the batch so that only the long
+text fails.</p>
+<p>EndpointR cuts texts in one of two ways:</p>
+<ol style="list-style-type: decimal">
+<li>If the <a href="https://cran.r-project.org/package=tok" class="external-link"><code>tok</code></a>
+package is installed and EndpointR knows the model id, it downloads the
+model’s <code>tokenizer.json</code> from the Hugging Face Hub (with your
+<code>key_name</code>, so private models work). It then cuts each text
+longer than <code>max_length</code> tokens to the text covered by its
+first <code>max_length</code> tokens. Dedicated endpoints report their
+model id as <code>/repository</code>, so pass the id with the
+<code>tokenizer</code> argument.</li>
+<li>Otherwise, it cuts each text to <code>max_chars</code> characters
+(2,000 by default) and prints a message. The tokeniser works on bytes,
+so some scripts produce more than one token per character, and 2,000
+characters is not a guaranteed limit of 512 tokens.</li>
+</ol>
+<div class="sourceCode" id="cb6"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/utils/install.packages.html" class="external-link">install.packages</a></span><span class="op">(</span><span class="st">"tok"</span><span class="op">)</span></span>
 <span></span>
-<span><span class="co"># Classification - max_length IS available</span></span>
 <span><span class="fu"><a href="../reference/hf_classify_df.html">hf_classify_df</a></span><span class="op">(</span></span>
 <span>  df <span class="op">=</span> <span class="va">my_data</span>,</span>
 <span>  text_var <span class="op">=</span> <span class="va">text</span>,</span>
 <span>  id_var <span class="op">=</span> <span class="va">id</span>,</span>
 <span>  endpoint_url <span class="op">=</span> <span class="va">classify_url</span>,</span>
 <span>  key_name <span class="op">=</span> <span class="st">"HF_API_KEY"</span>,</span>
-<span>  max_length <span class="op">=</span> <span class="fl">512</span>  <span class="co"># Control truncation here</span></span>
+<span>  max_length <span class="op">=</span> <span class="fl">512</span>,</span>
+<span>  tokenizer <span class="op">=</span> <span class="st">"org/model-name"</span>  <span class="co"># the model id on the Hugging Face Hub</span></span>
 <span><span class="op">)</span></span></code></pre></div>
+<p>Set <code>max_length = NULL</code> to send texts uncut.
+<code>metadata.json</code> records the method in
+<code>truncation_method</code> (<code>"tok"</code>,
+<code>"max_chars"</code>, <code>"none"</code>, or
+<code>"endpoint"</code> on the toolkit) and the number of texts that
+were cut in <code>n_texts_cut</code>. The output’s text column always
+holds your original texts.</p>
 </div>
 <div class="section level3">
 <h3 id="inference-parameters-sent-to-api">Inference Parameters Sent to API<a class="anchor" aria-label="anchor" href="#inference-parameters-sent-to-api"></a>
 </h3>
-<p>The functions send different parameters to the Hugging Face API:</p>
-<p><strong>Embeddings</strong>:</p>
-<div class="sourceCode" id="cb5"><pre class="sourceCode json"><code class="sourceCode json"><span id="cb5-1"><a href="#cb5-1" tabindex="-1"></a><span class="fu">{</span></span>
-<span id="cb5-2"><a href="#cb5-2" tabindex="-1"></a>  <span class="dt">"truncate"</span><span class="fu">:</span> <span class="kw">true</span></span>
-<span id="cb5-3"><a href="#cb5-3" tabindex="-1"></a><span class="fu">}</span></span></code></pre></div>
-<p><strong>Classification</strong>:</p>
-<div class="sourceCode" id="cb6"><pre class="sourceCode json"><code class="sourceCode json"><span id="cb6-1"><a href="#cb6-1" tabindex="-1"></a><span class="fu">{</span></span>
-<span id="cb6-2"><a href="#cb6-2" tabindex="-1"></a>  <span class="dt">"return_all_scores"</span><span class="fu">:</span> <span class="kw">true</span><span class="fu">,</span></span>
-<span id="cb6-3"><a href="#cb6-3" tabindex="-1"></a>  <span class="dt">"truncation"</span><span class="fu">:</span> <span class="kw">true</span><span class="fu">,</span></span>
-<span id="cb6-4"><a href="#cb6-4" tabindex="-1"></a>  <span class="dt">"max_length"</span><span class="fu">:</span> <span class="dv">512</span></span>
-<span id="cb6-5"><a href="#cb6-5" tabindex="-1"></a><span class="fu">}</span></span></code></pre></div>
-<p>These differences are handled automatically - you don’t need to worry
-about them unless you’re debugging API issues. Check
-<code>metadata.json</code> (see below) to see what parameters were
-used.</p>
+<p>The request body depends on the engine and the task. EndpointR always
+sends the texts as a JSON array, even for a batch of one text.</p>
+<p><strong>Embeddings on TEI</strong>:</p>
+<div class="sourceCode" id="cb7"><pre class="sourceCode json"><code class="sourceCode json"><span id="cb7-1"><a href="#cb7-1" tabindex="-1"></a><span class="fu">{</span></span>
+<span id="cb7-2"><a href="#cb7-2" tabindex="-1"></a>  <span class="dt">"inputs"</span><span class="fu">:</span> <span class="ot">[</span><span class="st">"first text"</span><span class="ot">,</span> <span class="st">"second text"</span><span class="ot">]</span><span class="fu">,</span></span>
+<span id="cb7-3"><a href="#cb7-3" tabindex="-1"></a>  <span class="dt">"truncate"</span><span class="fu">:</span> <span class="kw">true</span></span>
+<span id="cb7-4"><a href="#cb7-4" tabindex="-1"></a><span class="fu">}</span></span></code></pre></div>
+<p><strong>Classification on TEI</strong>:</p>
+<div class="sourceCode" id="cb8"><pre class="sourceCode json"><code class="sourceCode json"><span id="cb8-1"><a href="#cb8-1" tabindex="-1"></a><span class="fu">{</span></span>
+<span id="cb8-2"><a href="#cb8-2" tabindex="-1"></a>  <span class="dt">"inputs"</span><span class="fu">:</span> <span class="ot">[[</span><span class="st">"first text"</span><span class="ot">],</span> <span class="ot">[</span><span class="st">"second text"</span><span class="ot">]]</span><span class="fu">,</span></span>
+<span id="cb8-3"><a href="#cb8-3" tabindex="-1"></a>  <span class="dt">"truncate"</span><span class="fu">:</span> <span class="kw">true</span><span class="fu">,</span></span>
+<span id="cb8-4"><a href="#cb8-4" tabindex="-1"></a>  <span class="dt">"raw_scores"</span><span class="fu">:</span> <span class="kw">true</span></span>
+<span id="cb8-5"><a href="#cb8-5" tabindex="-1"></a><span class="fu">}</span></span></code></pre></div>
+<p>Each text is wrapped in its own list, because TEI reads a flat list
+of exactly 2 texts as one sentence pair. It returns one result with no
+error, so 2 texts would get 1 score. TEI rejects a flat list of 3 or
+more texts.</p>
+<p><strong>Classification on the toolkit</strong>:</p>
+<div class="sourceCode" id="cb9"><pre class="sourceCode json"><code class="sourceCode json"><span id="cb9-1"><a href="#cb9-1" tabindex="-1"></a><span class="fu">{</span></span>
+<span id="cb9-2"><a href="#cb9-2" tabindex="-1"></a>  <span class="dt">"inputs"</span><span class="fu">:</span> <span class="ot">[</span><span class="st">"first text"</span><span class="ot">,</span> <span class="st">"second text"</span><span class="ot">]</span><span class="fu">,</span></span>
+<span id="cb9-3"><a href="#cb9-3" tabindex="-1"></a>  <span class="dt">"parameters"</span><span class="fu">:</span> <span class="fu">{</span></span>
+<span id="cb9-4"><a href="#cb9-4" tabindex="-1"></a>    <span class="dt">"return_all_scores"</span><span class="fu">:</span> <span class="kw">true</span><span class="fu">,</span></span>
+<span id="cb9-5"><a href="#cb9-5" tabindex="-1"></a>    <span class="dt">"truncation"</span><span class="fu">:</span> <span class="kw">true</span><span class="fu">,</span></span>
+<span id="cb9-6"><a href="#cb9-6" tabindex="-1"></a>    <span class="dt">"max_length"</span><span class="fu">:</span> <span class="dv">512</span><span class="fu">,</span></span>
+<span id="cb9-7"><a href="#cb9-7" tabindex="-1"></a>    <span class="dt">"batch_size"</span><span class="fu">:</span> <span class="dv">2</span></span>
+<span id="cb9-8"><a href="#cb9-8" tabindex="-1"></a>  <span class="fu">}</span></span>
+<span id="cb9-9"><a href="#cb9-9" tabindex="-1"></a><span class="fu">}</span></span></code></pre></div>
+<p><code>batch_size</code> is set to the number of texts in the request.
+Without it, the toolkit pipeline runs one text at a time on the GPU,
+even when a request holds many texts.</p>
+<p>The <code>parameters</code> argument of the <code>hf_*</code>
+functions adds to or overrides these defaults. On TEI, EndpointR adds
+the entries to the top level of the body, because TEI ignores a
+<code>parameters</code> field. Check <code>metadata.json</code> (see
+below) to see what was sent.</p>
 </div>
 </div>
 <div class="section level2">
@@ -336,7 +572,7 @@ used.</p>
 <h3 id="single-text">Single Text<a class="anchor" aria-label="anchor" href="#single-text"></a>
 </h3>
 <p>Embed one piece of text:</p>
-<div class="sourceCode" id="cb7"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb10"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="co"># inference api url for embeddings</span></span>
 <span><span class="va">embed_url</span> <span class="op">&lt;-</span> <span class="st">"https://router.huggingface.co/hf-inference/models/sentence-transformers/all-mpnet-base-v2/pipeline/feature-extraction"</span></span>
 <span></span>
@@ -356,7 +592,7 @@ Check the model’s Hugging Face page for its embedding size.</p>
 <h3 id="list-of-texts">List of Texts<a class="anchor" aria-label="anchor" href="#list-of-texts"></a>
 </h3>
 <p>Embed multiple texts at once using batching:</p>
-<div class="sourceCode" id="cb8"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb11"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">texts</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span></span>
 <span>  <span class="st">"First text to embed"</span>,</span>
 <span>  <span class="st">"Second text to embed"</span>,</span>
@@ -367,7 +603,8 @@ Check the model’s Hugging Face page for its embedding size.</p>
 <span>  <span class="va">texts</span>,</span>
 <span>  endpoint_url <span class="op">=</span> <span class="va">embed_url</span>,</span>
 <span>  key_name <span class="op">=</span> <span class="st">"HF_API_KEY"</span>,</span>
-<span>  batch_size <span class="op">=</span> <span class="fl">3</span>  <span class="co"># process 3 texts per request</span></span>
+<span>  batch_size <span class="op">=</span> <span class="fl">32</span>,          <span class="co"># texts per request</span></span>
+<span>  concurrent_requests <span class="op">=</span> <span class="fl">16</span>  <span class="co"># requests in flight at once</span></span>
 <span><span class="op">)</span></span></code></pre></div>
 <p>The result includes:</p>
 <ul>
@@ -377,6 +614,8 @@ Check the model’s Hugging Face page for its embedding size.</p>
 <code>.error</code>: TRUE if something went wrong</li>
 <li>
 <code>.error_msg</code>: what went wrong (if anything)</li>
+<li>
+<code>.status</code>: the HTTP status code of a failed request</li>
 <li>
 <code>V1</code> to <code>V384</code>: the embedding values</li>
 </ul>
@@ -404,7 +643,7 @@ your RAM</li>
 <strong>Reproducibility</strong>: Metadata tracks exactly what
 parameters you used</li>
 </ol>
-<div class="sourceCode" id="cb9"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb12"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="co"># Basic usage - auto-generates output directory</span></span>
 <span><span class="va">embedding_result</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/hf_embed_df.html">hf_embed_df</a></span><span class="op">(</span></span>
 <span>  df <span class="op">=</span> <span class="va">my_data</span>,</span>
@@ -414,7 +653,8 @@ parameters you used</li>
 <span>  key_name <span class="op">=</span> <span class="st">"HF_API_KEY"</span>,</span>
 <span>  output_dir <span class="op">=</span> <span class="st">"auto"</span>,  <span class="co"># Creates "hf_embeddings_batch_TIMESTAMP"</span></span>
 <span>  chunk_size <span class="op">=</span> <span class="fl">5000</span>,    <span class="co"># Writes every 5000 rows</span></span>
-<span>  concurrent_requests <span class="op">=</span> <span class="fl">2</span></span>
+<span>  batch_size <span class="op">=</span> <span class="fl">32</span>,      <span class="co"># Texts per request</span></span>
+<span>  concurrent_requests <span class="op">=</span> <span class="fl">16</span></span>
 <span><span class="op">)</span></span>
 <span></span>
 <span><span class="co"># Custom output directory</span></span>
@@ -441,16 +681,16 @@ parameters you used</li>
 <p><strong>IMPORTANT</strong>: Add your output directories to
 <code>.gitignore</code>! These files contain API responses and can be
 large.</p>
-<div class="sourceCode" id="cb11"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb11-1"><a href="#cb11-1" tabindex="-1"></a><span class="co"># .gitignore</span></span>
-<span id="cb11-2"><a href="#cb11-2" tabindex="-1"></a>hf_embeddings_batch_<span class="sc">*</span><span class="er">/</span></span>
-<span id="cb11-3"><a href="#cb11-3" tabindex="-1"></a>hf_classification_chunks_<span class="sc">*</span><span class="er">/</span></span>
-<span id="cb11-4"><a href="#cb11-4" tabindex="-1"></a>my_embeddings_v1<span class="sc">/</span></span></code></pre></div>
+<div class="sourceCode" id="cb14"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb14-1"><a href="#cb14-1" tabindex="-1"></a><span class="co"># .gitignore</span></span>
+<span id="cb14-2"><a href="#cb14-2" tabindex="-1"></a>hf_embeddings_batch_<span class="sc">*</span><span class="er">/</span></span>
+<span id="cb14-3"><a href="#cb14-3" tabindex="-1"></a>hf_classification_chunks_<span class="sc">*</span><span class="er">/</span></span>
+<span id="cb14-4"><a href="#cb14-4" tabindex="-1"></a>my_embeddings_v1<span class="sc">/</span></span></code></pre></div>
 </div>
 <div class="section level4">
 <h4 id="reading-results-from-disk">Reading Results from Disk<a class="anchor" aria-label="anchor" href="#reading-results-from-disk"></a>
 </h4>
 <p>If your R session crashes or you want to reload results later:</p>
-<div class="sourceCode" id="cb12"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb15"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="co"># List all parquet files (excludes metadata.json automatically)</span></span>
 <span><span class="va">parquet_files</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/list.files.html" class="external-link">list.files</a></span><span class="op">(</span><span class="st">"my_embeddings_v1"</span>,</span>
 <span>                           pattern <span class="op">=</span> <span class="st">"\\.parquet$"</span>,</span>
@@ -470,21 +710,31 @@ large.</p>
 <h4 id="understanding-metadata-json">Understanding metadata.json<a class="anchor" aria-label="anchor" href="#understanding-metadata-json"></a>
 </h4>
 <p>The metadata file records everything about your processing job:</p>
-<div class="sourceCode" id="cb13"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb16"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">metadata</span> <span class="op">&lt;-</span> <span class="fu">jsonlite</span><span class="fu">::</span><span class="fu"><a href="https://jeroen.r-universe.dev/jsonlite/reference/read_json.html" class="external-link">read_json</a></span><span class="op">(</span><span class="st">"my_embeddings_v1/metadata.json"</span><span class="op">)</span></span>
 <span></span>
 <span><span class="co"># Check which endpoint was used</span></span>
 <span><span class="va">metadata</span><span class="op">$</span><span class="va">endpoint_url</span></span>
 <span></span>
+<span><span class="co"># Check which engine the endpoint runs, and its limits on TEI</span></span>
+<span><span class="va">metadata</span><span class="op">$</span><span class="va">engine</span></span>
+<span><span class="va">metadata</span><span class="op">$</span><span class="va">max_client_batch_size</span></span>
+<span><span class="va">metadata</span><span class="op">$</span><span class="va">version</span></span>
+<span></span>
 <span><span class="co"># See processing parameters</span></span>
 <span><span class="va">metadata</span><span class="op">$</span><span class="va">chunk_size</span></span>
+<span><span class="va">metadata</span><span class="op">$</span><span class="va">batch_size</span></span>
 <span><span class="va">metadata</span><span class="op">$</span><span class="va">concurrent_requests</span></span>
 <span><span class="va">metadata</span><span class="op">$</span><span class="va">timeout</span></span>
 <span></span>
-<span><span class="co"># See inference parameters (differs between embed and classify!)</span></span>
+<span><span class="co"># See how many texts were empty, and how many batches were split</span></span>
+<span><span class="va">metadata</span><span class="op">$</span><span class="va">n_empty_texts</span></span>
+<span><span class="va">metadata</span><span class="op">$</span><span class="va">n_split_batches</span></span>
+<span></span>
+<span><span class="co"># For classification, see the request body without the texts, and how texts were cut</span></span>
 <span><span class="va">metadata</span><span class="op">$</span><span class="va">inference_parameters</span></span>
-<span><span class="co"># For embeddings: {truncate: true}</span></span>
-<span><span class="co"># For classification: {return_all_scores: true, truncation: true, max_length: 512}</span></span>
+<span><span class="va">metadata</span><span class="op">$</span><span class="va">truncation_method</span></span>
+<span><span class="va">metadata</span><span class="op">$</span><span class="va">n_texts_cut</span></span>
 <span></span>
 <span><span class="co"># Check when the job ran</span></span>
 <span><span class="va">metadata</span><span class="op">$</span><span class="va">timestamp</span></span></code></pre></div>
@@ -500,7 +750,7 @@ large.</p>
 <h4 id="check-for-errors">Check for Errors<a class="anchor" aria-label="anchor" href="#check-for-errors"></a>
 </h4>
 <p>Always verify your results:</p>
-<div class="sourceCode" id="cb14"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb17"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">embedding_result</span> <span class="op">|&gt;</span> <span class="fu"><a href="https://dplyr.tidyverse.org/reference/count.html" class="external-link">count</a></span><span class="op">(</span><span class="va">.error</span><span class="op">)</span></span>
 <span></span>
 <span><span class="co"># View any failures (column names match your original data frame)</span></span>
@@ -519,12 +769,13 @@ large.</p>
 <h2 id="classification">Classification<a class="anchor" aria-label="anchor" href="#classification"></a>
 </h2>
 <p>Classification works similarly to embeddings, but with a different
-URL, output format, and the additional <code>max_length</code> parameter
-for controlling text truncation.</p>
+URL, output format, and the additional <code>max_length</code>,
+<code>max_chars</code> and <code>tokenizer</code> arguments for
+controlling text truncation.</p>
 <div class="section level3">
 <h3 id="single-text-1">Single Text<a class="anchor" aria-label="anchor" href="#single-text-1"></a>
 </h3>
-<div class="sourceCode" id="cb15"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb18"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">classify_url</span> <span class="op">&lt;-</span> <span class="st">"https://router.huggingface.co/hf-inference/models/distilbert/distilbert-base-uncased-finetuned-sst-2-english"</span></span>
 <span></span>
 <span><span class="va">sentiment</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/hf_classify_text.html">hf_classify_text</a></span><span class="op">(</span></span>
@@ -536,7 +787,7 @@ for controlling text truncation.</p>
 <div class="section level3">
 <h3 id="processing-data-frames">Processing Data Frames<a class="anchor" aria-label="anchor" href="#processing-data-frames"></a>
 </h3>
-<div class="sourceCode" id="cb16"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb19"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">classification_result</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/hf_classify_df.html">hf_classify_df</a></span><span class="op">(</span></span>
 <span>  df <span class="op">=</span> <span class="va">my_data</span>,</span>
 <span>  text_var <span class="op">=</span> <span class="va">text</span>,</span>
@@ -545,23 +796,32 @@ for controlling text truncation.</p>
 <span>  key_name <span class="op">=</span> <span class="st">"HF_API_KEY"</span>,</span>
 <span>  max_length <span class="op">=</span> <span class="fl">512</span>,  <span class="co"># Truncate texts longer than 512 tokens</span></span>
 <span>  output_dir <span class="op">=</span> <span class="st">"my_classification_v1"</span>,</span>
-<span>  chunk_size <span class="op">=</span> <span class="fl">2500</span>,  <span class="co"># Smaller chunks for classification</span></span>
-<span>  concurrent_requests <span class="op">=</span> <span class="fl">1</span>,</span>
-<span>  timeout <span class="op">=</span> <span class="fl">60</span>  <span class="co"># Longer timeout for classification</span></span>
+<span>  chunk_size <span class="op">=</span> <span class="fl">5000</span>,</span>
+<span>  batch_size <span class="op">=</span> <span class="fl">32</span>,</span>
+<span>  concurrent_requests <span class="op">=</span> <span class="fl">16</span>,</span>
+<span>  timeout <span class="op">=</span> <span class="fl">120</span></span>
 <span><span class="op">)</span></span></code></pre></div>
 <p>The result includes:</p>
 <ul>
 <li>Your original ID and text columns (with their original names
 preserved)</li>
-<li>Classification labels (e.g., POSITIVE, NEGATIVE)</li>
-<li>Confidence scores</li>
+<li>One column per classification label (e.g., POSITIVE, NEGATIVE),
+holding that label’s probability</li>
 <li>Error tracking columns (<code>.error</code>,
-<code>.error_msg</code>)</li>
+<code>.error_msg</code>, <code>.status</code>)</li>
 <li>Chunk tracking (<code>.chunk</code>)</li>
 </ul>
 <blockquote>
 <p><strong>NOTE</strong>: Classification labels are model and task
 specific. Check the model card on Hugging Face for label mappings.</p>
+</blockquote>
+<blockquote>
+<p><strong>NOTE</strong>: On TEI, EndpointR asks for raw scores (logits)
+and turns them into probabilities in R with
+<code><a href="../reference/tidy_tei_classification_response.html">tidy_tei_classification_response()</a></code>. On the toolkit, it uses
+<code>tidy_batch_classification_response()</code>. If you pass your own
+<code>tidy_func</code>, it receives the response for one batch and must
+return one row per text.</p>
 </blockquote>
 <blockquote>
 <p><strong>IMPORTANT</strong>: The function preserves your original
@@ -575,7 +835,7 @@ generic <code>id</code> and <code>text</code>.</p>
 </h3>
 <p>Many classification models use generic labels like
 <code>LABEL_0</code>, <code>LABEL_1</code>. You can rename these:</p>
-<div class="sourceCode" id="cb17"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb20"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="co"># Create a mapping function</span></span>
 <span><span class="va">labelid_2class</span> <span class="op">&lt;-</span> <span class="kw">function</span><span class="op">(</span><span class="op">)</span> <span class="op">{</span></span>
 <span>  <span class="kw"><a href="https://rdrr.io/r/base/function.html" class="external-link">return</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span></span>
@@ -606,7 +866,7 @@ Face endpoints.</p>
 <h3 id="get-model-token-limits">Get Model Token Limits<a class="anchor" aria-label="anchor" href="#get-model-token-limits"></a>
 </h3>
 <p>Find out the maximum token length for a model:</p>
-<div class="sourceCode" id="cb18"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb21"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="co"># Get the model's max token length from Hugging Face</span></span>
 <span><span class="va">max_tokens</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/hf_get_model_max_length.html">hf_get_model_max_length</a></span><span class="op">(</span></span>
 <span>  model_name <span class="op">=</span> <span class="st">"cardiffnlp/twitter-roberta-base-sentiment"</span>,</span>
@@ -628,9 +888,11 @@ have varying token limits (e.g., 512, 1024, 2048).</p>
 <div class="section level3">
 <h3 id="get-endpoint-information">Get Endpoint Information<a class="anchor" aria-label="anchor" href="#get-endpoint-information"></a>
 </h3>
-<p>Retrieve detailed information about your Dedicated Inference
-Endpoint:</p>
-<div class="sourceCode" id="cb19"><pre class="downlit sourceCode r">
+<p>Retrieve detailed information about a Dedicated Inference Endpoint
+that runs TEI. For endpoints that run the toolkit,
+<code><a href="../reference/hf_get_endpoint_info.html">hf_get_endpoint_info()</a></code> returns <code>NULL</code> with a
+message, because the toolkit has no <code>/info</code> route:</p>
+<div class="sourceCode" id="cb22"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">endpoint_info</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/hf_get_endpoint_info.html">hf_get_endpoint_info</a></span><span class="op">(</span></span>
 <span>  endpoint_url <span class="op">=</span> <span class="st">"https://your-endpoint.endpoints.huggingface.cloud"</span>,</span>
 <span>  key_name <span class="op">=</span> <span class="st">"HF_API_KEY"</span></span>
@@ -640,10 +902,11 @@ Endpoint:</p>
 <span><span class="va">endpoint_info</span></span></code></pre></div>
 <p>This is useful for:</p>
 <ul>
-<li>Checking endpoint status</li>
-<li>Verifying model configuration</li>
-<li>Understanding available features</li>
-<li>Debugging connection issues</li>
+<li>Checking which engine an endpoint runs</li>
+<li>Checking <code>max_client_batch_size</code> before you raise
+<code>batch_size</code>
+</li>
+<li>Checking the TEI version and the model’s token limit</li>
 </ul>
 </div>
 </div>
@@ -657,7 +920,7 @@ docs</a>)</li>
 <li>Get your endpoint URL</li>
 <li>Replace the URL in any function:</li>
 </ol>
-<div class="sourceCode" id="cb20"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb23"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="co"># just change this line</span></span>
 <span><span class="va">dedicated_url</span> <span class="op">&lt;-</span> <span class="st">"https://your-endpoint-name.endpoints.huggingface.cloud"</span></span>
 <span></span>
@@ -668,23 +931,23 @@ docs</a>)</li>
 <span>  key_name <span class="op">=</span> <span class="st">"HF_API_KEY"</span></span>
 <span><span class="op">)</span></span></code></pre></div>
 <blockquote>
-<p><strong>Note</strong>: Dedicated endpoints take 20-30 seconds to
-start if they’re idle (cold start). Set <code>max_retries = 10</code> to
-give them time to wake up.</p>
+<p><strong>Note</strong>: A dedicated endpoint that has scaled to zero
+returns 503 for about 1.5 to 2 minutes while it starts. With
+<code>engine = "auto"</code>, EndpointR’s <code>/info</code> check waits
+for up to about 2 minutes, so the endpoint is usually ready before the
+first batch goes out.</p>
 </blockquote>
 <div class="section level3">
 <h3 id="setting-auto_truncate-for-embedding-endpoints">Setting AUTO_TRUNCATE for Embedding Endpoints<a class="anchor" aria-label="anchor" href="#setting-auto_truncate-for-embedding-endpoints"></a>
 </h3>
-<p>For Dedicated Inference Endpoints running embedding models, you
-should enable automatic truncation:</p>
-<ol style="list-style-type: decimal">
-<li>In your endpoint settings on Hugging Face</li>
-<li>Add environment variable: <code>AUTO_TRUNCATE=true</code>
-</li>
-<li>This handles long texts automatically at the endpoint level</li>
-</ol>
-<p>Without this, very long texts may cause “Payload too large”
-errors.</p>
+<p>Since 0.3.0, EndpointR sends <code>truncate: true</code> with every
+embedding request to a TEI endpoint, so TEI cuts long texts at the
+model’s limit. Earlier versions sent <code>truncate</code> inside
+<code>parameters</code>, which TEI ignores, and relied on the endpoint
+setting.</p>
+<p>You can still set the environment variable
+<code>AUTO_TRUNCATE=true</code> in your endpoint settings on Hugging
+Face, so that requests from other tools are cut too.</p>
 </div>
 </div>
 <div class="section level2">
@@ -695,16 +958,20 @@ errors.</p>
 </h3>
 <ul>
 <li>
-<strong>Start conservative</strong>: Begin with
-<code>chunk_size = 2500</code> and
-<code>concurrent_requests = 1</code>
+<strong>Use the defaults</strong>: <code>batch_size = 32</code> and
+<code>concurrent_requests = 16</code> work on every TEI endpoint,
+because 32 is TEI’s default <code>max_client_batch_size</code>
 </li>
 <li>
-<strong>Scale gradually</strong>: Monitor for errors as you increase
-concurrency</li>
+<strong>Raise <code>batch_size</code> on TEI if the endpoint allows
+it</strong>: check <code>max_client_batch_size</code> with
+<code><a href="../reference/hf_get_endpoint_info.html">hf_get_endpoint_info()</a></code>. On our spam classifier, set to 128,
+128 texts per request and 32 requests in flight gave about 4,300 texts
+per second</li>
 <li>
-<strong>Embeddings are faster</strong>: You can often use higher
-concurrency for embeddings than classification</li>
+<strong>Don’t go above 64 texts per request on the toolkit</strong>:
+64 was the best setting in our tests, and larger batches were
+slower</li>
 <li>
 <strong>Watch your rate limits</strong>:
 <ul>
@@ -725,7 +992,7 @@ errors</li>
 <code>chunk_size = 1000-2500</code>
 </li>
 </ul>
-<div class="sourceCode" id="cb21"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb24"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="co"># For very large datasets</span></span>
 <span><span class="fu"><a href="../reference/hf_embed_df.html">hf_embed_df</a></span><span class="op">(</span></span>
 <span>  df <span class="op">=</span> <span class="va">large_data</span>,</span>
@@ -733,8 +1000,7 @@ errors</li>
 <span>  id_var <span class="op">=</span> <span class="va">id</span>,</span>
 <span>  endpoint_url <span class="op">=</span> <span class="va">embed_url</span>,</span>
 <span>  key_name <span class="op">=</span> <span class="st">"HF_API_KEY"</span>,</span>
-<span>  chunk_size <span class="op">=</span> <span class="fl">1000</span>,  <span class="co"># Smaller chunks for memory efficiency</span></span>
-<span>  concurrent_requests <span class="op">=</span> <span class="fl">1</span></span>
+<span>  chunk_size <span class="op">=</span> <span class="fl">1000</span>  <span class="co"># Smaller chunks for memory efficiency</span></span>
 <span><span class="op">)</span></span></code></pre></div>
 </div>
 <div class="section level3">
@@ -742,8 +1008,8 @@ errors</li>
 </h3>
 <p><strong>For Embeddings</strong>:</p>
 <ol style="list-style-type: decimal">
-<li>Set <code>AUTO_TRUNCATE=true</code> in your Dedicated Endpoint’s
-environment variables</li>
+<li>On TEI, EndpointR sends <code>truncate: true</code>, so TEI cuts
+texts at the model’s limit</li>
 <li>For Inference API, truncation is handled automatically by most
 models</li>
 <li>Consider preprocessing very long texts before embedding (e.g., take
@@ -755,6 +1021,9 @@ first N characters)</li>
 token limit</li>
 <li>Set <code>max_length</code> appropriately (default 512 works for
 most models)</li>
+<li>On TEI, install <code>tok</code> and pass the model id as
+<code>tokenizer</code>, so texts are cut at exactly
+<code>max_length</code> tokens</li>
 <li>For documents longer than <code>max_length</code>, consider:
 <ul>
 <li>Chunking documents and classifying each chunk</li>
@@ -763,7 +1032,7 @@ most models)</li>
 </ul>
 </li>
 </ol>
-<div class="sourceCode" id="cb22"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb25"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="co"># Get model's actual max length</span></span>
 <span><span class="va">model_limit</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/hf_get_model_max_length.html">hf_get_model_max_length</a></span><span class="op">(</span></span>
 <span>  model_name <span class="op">=</span> <span class="st">"distilbert/distilbert-base-uncased-finetuned-sst-2-english"</span>,</span>
@@ -786,7 +1055,7 @@ most models)</li>
 <h3 id="error-recovery">Error Recovery<a class="anchor" aria-label="anchor" href="#error-recovery"></a>
 </h3>
 <p>Always check for errors and consider retrying failures:</p>
-<div class="sourceCode" id="cb23"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb26"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="co"># Check results for errors</span></span>
 <span><span class="va">results</span> <span class="op">|&gt;</span> <span class="fu"><a href="https://dplyr.tidyverse.org/reference/count.html" class="external-link">count</a></span><span class="op">(</span><span class="va">.error</span><span class="op">)</span></span>
 <span></span>
@@ -797,15 +1066,16 @@ most models)</li>
 <span><span class="co"># If you used review_id and review_text, use those names instead</span></span>
 <span><span class="va">failed</span> <span class="op">|&gt;</span> <span class="fu"><a href="https://dplyr.tidyverse.org/reference/select.html" class="external-link">select</a></span><span class="op">(</span><span class="va">id</span>, <span class="va">.error_msg</span><span class="op">)</span></span>
 <span></span>
-<span><span class="co"># Retry failed texts with adjusted parameters</span></span>
+<span><span class="co"># EndpointR has already split failed batches down to single texts, so a text</span></span>
+<span><span class="co"># that still fails usually fails on its own (e.g. a NaN score, HTTP 424).</span></span>
+<span><span class="co"># Texts that failed with a timeout or 5xx may succeed on a second attempt.</span></span>
 <span><span class="co"># Access text column by its actual name from your data</span></span>
 <span><span class="va">retry_results</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/hf_embed_batch.html">hf_embed_batch</a></span><span class="op">(</span></span>
 <span>  texts <span class="op">=</span> <span class="va">failed</span><span class="op">$</span><span class="va">text</span>,  <span class="co"># Use your actual column name</span></span>
 <span>  endpoint_url <span class="op">=</span> <span class="va">embed_url</span>,</span>
 <span>  key_name <span class="op">=</span> <span class="st">"HF_API_KEY"</span>,</span>
-<span>  batch_size <span class="op">=</span> <span class="fl">1</span>,  <span class="co"># One at a time for failures</span></span>
-<span>  timeout <span class="op">=</span> <span class="fl">30</span>,    <span class="co"># Longer timeout</span></span>
-<span>  max_retries <span class="op">=</span> <span class="fl">10</span> <span class="co"># More retries</span></span>
+<span>  timeout <span class="op">=</span> <span class="fl">300</span>,    <span class="co"># Longer timeout</span></span>
+<span>  max_retries <span class="op">=</span> <span class="fl">10</span>  <span class="co"># More retries</span></span>
 <span><span class="op">)</span></span></code></pre></div>
 </div>
 <div class="section level3">
@@ -825,8 +1095,8 @@ version control</li>
 <strong>Use Dedicated Endpoints</strong>: For production workloads,
 avoid the free Inference API</li>
 <li>
-<strong>Set appropriate timeouts</strong>: Classification needs
-longer timeouts than embeddings</li>
+<strong>Set appropriate timeouts</strong>: The default of 120
+seconds allows for batches of long texts</li>
 <li>
 <strong>Test with small samples</strong>: Before processing 1M rows,
 test with 100 rows</li>
@@ -844,15 +1114,16 @@ on Hugging Face</li>
 </h3>
 <p><strong>For Embeddings</strong>:</p>
 <ul>
-<li>Not fixable in R code - must configure endpoint</li>
 <li>
-<strong>Dedicated Endpoints</strong>: Set
-<code>AUTO_TRUNCATE=true</code> in endpoint environment variables</li>
+<strong>Dedicated Endpoints on TEI</strong>: EndpointR sends
+<code>truncate: true</code>, so long texts are cut. If you still see the
+error, lower <code>batch_size</code>, because the whole request may be
+too large</li>
 <li>
 <strong>Inference API</strong>: Preprocess and truncate texts before
 sending</li>
 </ul>
-<div class="sourceCode" id="cb24"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb27"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="co"># Preprocessing approach for Inference API</span></span>
 <span><span class="va">my_data</span> <span class="op">&lt;-</span> <span class="va">my_data</span> <span class="op">|&gt;</span></span>
 <span>  <span class="fu"><a href="https://dplyr.tidyverse.org/reference/mutate.html" class="external-link">mutate</a></span><span class="op">(</span>text <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/substr.html" class="external-link">substr</a></span><span class="op">(</span><span class="va">text</span>, <span class="fl">1</span>, <span class="fl">5000</span><span class="op">)</span><span class="op">)</span>  <span class="co"># Limit to ~5000 characters</span></span></code></pre></div>
@@ -860,7 +1131,7 @@ sending</li>
 <ul>
 <li>Reduce the <code>max_length</code> parameter</li>
 </ul>
-<div class="sourceCode" id="cb25"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb28"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="../reference/hf_classify_df.html">hf_classify_df</a></span><span class="op">(</span></span>
 <span>  df <span class="op">=</span> <span class="va">my_data</span>,</span>
 <span>  text_var <span class="op">=</span> <span class="va">text</span>,</span>
@@ -873,42 +1144,46 @@ sending</li>
 <div class="section level3">
 <h3 id="timeouts">Timeouts<a class="anchor" aria-label="anchor" href="#timeouts"></a>
 </h3>
-<p>Classification takes longer than embeddings. Increase timeout if
-needed:</p>
-<div class="sourceCode" id="cb26"><pre class="downlit sourceCode r">
+<p>Batches of long texts can take longer than the default timeout of 120
+seconds. When a request times out, EndpointR splits the batch and sends
+the halves again. If many batches time out, increase the timeout:</p>
+<div class="sourceCode" id="cb29"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="../reference/hf_classify_df.html">hf_classify_df</a></span><span class="op">(</span></span>
 <span>  df <span class="op">=</span> <span class="va">my_data</span>,</span>
 <span>  text_var <span class="op">=</span> <span class="va">text</span>,</span>
 <span>  id_var <span class="op">=</span> <span class="va">id</span>,</span>
 <span>  endpoint_url <span class="op">=</span> <span class="va">classify_url</span>,</span>
 <span>  key_name <span class="op">=</span> <span class="st">"HF_API_KEY"</span>,</span>
-<span>  timeout <span class="op">=</span> <span class="fl">120</span>,  <span class="co"># Increase from default 60</span></span>
+<span>  timeout <span class="op">=</span> <span class="fl">300</span>,  <span class="co"># Increase from default 120</span></span>
 <span>  max_retries <span class="op">=</span> <span class="fl">10</span></span>
 <span><span class="op">)</span></span></code></pre></div>
 </div>
 <div class="section level3">
 <h3 id="dedicated-endpoint-cold-starts">Dedicated Endpoint Cold Starts<a class="anchor" aria-label="anchor" href="#dedicated-endpoint-cold-starts"></a>
 </h3>
-<p>Dedicated endpoints take 20-30 seconds to wake up from idle:</p>
-<div class="sourceCode" id="cb27"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="co"># Set higher max_retries to allow for cold start</span></span>
-<span><span class="fu"><a href="../reference/hf_embed_df.html">hf_embed_df</a></span><span class="op">(</span></span>
+<p>A dedicated endpoint that has scaled to zero returns 503 for about
+1.5 to 2 minutes while it starts. With <code>engine = "auto"</code>,
+EndpointR’s <code>/info</code> check retries for about 2 minutes, so it
+usually waits until the endpoint is ready. If you set
+<code>engine</code> yourself, the batches are retried instead, with
+waits of 2, 4, 8, 16 and 30 seconds by default. Raise
+<code>max_retries</code> to wait longer:</p>
+<div class="sourceCode" id="cb30"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="fu"><a href="../reference/hf_embed_df.html">hf_embed_df</a></span><span class="op">(</span></span>
 <span>  df <span class="op">=</span> <span class="va">my_data</span>,</span>
 <span>  text_var <span class="op">=</span> <span class="va">text</span>,</span>
 <span>  id_var <span class="op">=</span> <span class="va">id</span>,</span>
 <span>  endpoint_url <span class="op">=</span> <span class="va">dedicated_url</span>,</span>
 <span>  key_name <span class="op">=</span> <span class="st">"HF_API_KEY"</span>,</span>
-<span>  max_retries <span class="op">=</span> <span class="fl">10</span>,  <span class="co"># Give it time to wake up</span></span>
-<span>  timeout <span class="op">=</span> <span class="fl">30</span></span>
+<span>  engine <span class="op">=</span> <span class="st">"tei"</span>,</span>
+<span>  max_retries <span class="op">=</span> <span class="fl">10</span>  <span class="co"># waits up to about 4 minutes in total</span></span>
 <span><span class="op">)</span></span></code></pre></div>
-<p>The first chunk may fail or be slow, but subsequent chunks will be
-fast once the endpoint is warm.</p>
 </div>
 <div class="section level3">
 <h3 id="out-of-memory-errors">Out of Memory Errors<a class="anchor" aria-label="anchor" href="#out-of-memory-errors"></a>
 </h3>
 <p>Reduce <code>chunk_size</code>:</p>
-<div class="sourceCode" id="cb28"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb31"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="co"># Instead of default 5000</span></span>
 <span><span class="fu"><a href="../reference/hf_embed_df.html">hf_embed_df</a></span><span class="op">(</span></span>
 <span>  df <span class="op">=</span> <span class="va">large_data</span>,</span>
@@ -916,8 +1191,7 @@ fast once the endpoint is warm.</p>
 <span>  id_var <span class="op">=</span> <span class="va">id</span>,</span>
 <span>  endpoint_url <span class="op">=</span> <span class="va">embed_url</span>,</span>
 <span>  key_name <span class="op">=</span> <span class="st">"HF_API_KEY"</span>,</span>
-<span>  chunk_size <span class="op">=</span> <span class="fl">1000</span>,  <span class="co"># Smaller chunks</span></span>
-<span>  concurrent_requests <span class="op">=</span> <span class="fl">1</span></span>
+<span>  chunk_size <span class="op">=</span> <span class="fl">1000</span>  <span class="co"># Smaller chunks</span></span>
 <span><span class="op">)</span></span></code></pre></div>
 </div>
 <div class="section level3">
@@ -925,26 +1199,26 @@ fast once the endpoint is warm.</p>
 </h3>
 <p><strong>For Inference API</strong>:</p>
 <ul>
-<li>Reduce <code>concurrent_requests</code> to 1</li>
-<li>Increase delays between requests (handled automatically by
-retries)</li>
+<li>Reduce <code>concurrent_requests</code>, e.g. to 2</li>
+<li>EndpointR waits and retries requests that get 429</li>
 </ul>
-<div class="sourceCode" id="cb29"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb32"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="../reference/hf_embed_df.html">hf_embed_df</a></span><span class="op">(</span></span>
 <span>  df <span class="op">=</span> <span class="va">my_data</span>,</span>
 <span>  text_var <span class="op">=</span> <span class="va">text</span>,</span>
 <span>  id_var <span class="op">=</span> <span class="va">id</span>,</span>
 <span>  endpoint_url <span class="op">=</span> <span class="va">embed_url</span>,</span>
 <span>  key_name <span class="op">=</span> <span class="st">"HF_API_KEY"</span>,</span>
-<span>  concurrent_requests <span class="op">=</span> <span class="fl">1</span>,  <span class="co"># Sequential processing</span></span>
+<span>  concurrent_requests <span class="op">=</span> <span class="fl">2</span>,</span>
 <span>  max_retries <span class="op">=</span> <span class="fl">10</span>  <span class="co"># More retries with backoff</span></span>
 <span><span class="op">)</span></span></code></pre></div>
 <p><strong>For Dedicated Endpoints</strong>:</p>
 <ul>
 <li>Not typically rate-limited</li>
-<li>If you see errors, your hardware may be overwhelmed</li>
-<li>Reduce <code>concurrent_requests</code> or upgrade your endpoint
-hardware</li>
+<li>TEI returns 429 when its queue is full, and EndpointR retries those
+requests</li>
+<li>If you see many errors, reduce <code>concurrent_requests</code> or
+upgrade your endpoint hardware</li>
 </ul>
 </div>
 <div class="section level3">
@@ -959,6 +1233,73 @@ need to:</p>
 <li>Run the model locally (outside of EndpointR)</li>
 </ol>
 </div>
+<div class="section level3">
+<h3 id="problems-we-have-seen-with-tei-and-the-toolkit">Problems we have seen with TEI and the toolkit<a class="anchor" aria-label="anchor" href="#problems-we-have-seen-with-tei-and-the-toolkit"></a>
+</h3>
+<p>We found the following problems when we tested our endpoints.
+EndpointR handles each of them, but they help explain errors you may see
+from other tools.</p>
+<ol style="list-style-type: decimal">
+<li>A flat list of exactly 2 texts sent to a TEI classifier is read as
+one sentence pair, and TEI returns one result with no error. A flat list
+of 3 or more texts is rejected with
+<code>Failed to deserialize the JSON body ... expected a string, a pair of strings [string, string] or a batch of mixed strings and pairs</code>.
+EndpointR sends <code>[["a"], ["b"]]</code> to TEI classifiers.</li>
+<li>A batch of 1 must still be sent as a list. In R,
+<code>as.list(texts)</code> gives <code>["a"]</code>, but a character
+vector of length 1 gives <code>"a"</code>.</li>
+<li>TEI ignores <code>parameters$max_length</code>, and long texts can
+give NaN scores in fp16. See <a href="#why-endpointr-cuts-classifier-texts-in-r-on-tei">Why EndpointR
+cuts classifier texts in R on TEI</a>.</li>
+<li>A NaN score crashes TEI 1.8.2 when <code>raw_scores</code> is false,
+and the endpoint stays in a failed state until someone restarts it. With
+<code>raw_scores: true</code>, TEI returns 424 for the request and keeps
+running.</li>
+<li>One empty text makes the toolkit reject the whole batch with
+<code>You need to specify either text or text_target</code>. EndpointR
+does not send empty texts.</li>
+<li>TEI rejects requests with more texts than
+<code>max_client_batch_size</code>. EndpointR lowers
+<code>batch_size</code> to that value.</li>
+<li>A scaled-to-zero endpoint returns 503 for about 1.5 to 2 minutes
+while it starts.</li>
+<li>Some fine-tuned classifiers need a change to their
+<code>config.json</code> before they run on TEI. For our spam
+classifier, the <code>label2id</code> values had to be numbers, not
+strings, and we had to add <code>"num_labels": 2</code>.</li>
+</ol>
+</div>
+</div>
+<div class="section level2">
+<h2 id="repeatable-results">Repeatable results<a class="anchor" aria-label="anchor" href="#repeatable-results"></a>
+</h2>
+<p>TEI does not give exactly the same results each time you run the same
+texts. TEI runs models in fp16 and combines texts from all waiting
+requests into one batch, so the numbers depend on which texts share a
+batch, and that depends on timing. This happens whatever the client
+sends, including one text per request. The toolkit runs in fp32 and gave
+the same results each time in our tests.</p>
+<p>In our tests, the differences were small:</p>
+<ul>
+<li>When we ran the same 100,000 texts through our spam classifier on
+TEI twice, 18% of the scores changed slightly and 4 labels changed. The
+largest change in a score was 0.071.</li>
+<li>99.95% of spam labels from TEI matched the labels from the same
+model on the toolkit. The 50 labels that changed all had toolkit scores
+between 0.494 and 0.557.</li>
+<li>BGE M3 embeddings of 50,000 messages, made on TEI with 32 texts per
+request, matched embeddings of the same messages made a year earlier
+with 1 text per request. The median cosine similarity was 0.9999993 and
+the lowest was 0.99907.</li>
+</ul>
+<p>The embedding differences change a UMAP and HDBSCAN clustering about
+as much as a new UMAP seed does. The adjusted Rand index against the
+original clustering was 0.59 to 0.66, compared with 0.65 for a new seed.
+PCA followed by k-means was stable, at 0.96 to 1.00.</p>
+<p>To make an analysis repeatable, save the embeddings and scores once,
+e.g. in the <code>.parquet</code> files that the <code>_df()</code>
+functions write, and reuse them. Don’t embed or classify the same texts
+again and expect identical numbers.</p>
 </div>
 <div class="section level2">
 <h2 id="improving-performance">Improving Performance<a class="anchor" aria-label="anchor" href="#improving-performance"></a>
@@ -967,8 +1308,14 @@ need to:</p>
 vignette.</p>
 <p>Quick tips:</p>
 <ul>
-<li>Increase <code>concurrent_requests</code> gradually while monitoring
-errors</li>
+<li>Start with the defaults, <code>batch_size = 32</code> and
+<code>concurrent_requests = 16</code>
+</li>
+<li>On TEI, raise <code>batch_size</code> up to the endpoint’s
+<code>max_client_batch_size</code>, and <code>concurrent_requests</code>
+up to about 32</li>
+<li>On the toolkit, use up to 64 texts per request and about 8 requests
+in flight</li>
 <li>Use larger <code>chunk_size</code> values for faster processing (if
 memory allows)</li>
 <li>For Dedicated Endpoints, upgrade hardware for better throughput</li>
@@ -1044,6 +1391,11 @@ overhead</li>
 <td><strong>Truncation Control</strong></td>
 <td>Limited (model-dependent)</td>
 <td>Full control via environment variables</td>
+</tr>
+<tr class="odd">
+<td><strong>Engine</strong></td>
+<td>Chosen by Hugging Face</td>
+<td>TEI or the toolkit, chosen when you deploy</td>
 </tr>
 </tbody>
 </table>

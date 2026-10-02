@@ -1,8 +1,7 @@
 # Classify a data frame of texts using Hugging Face Inference Endpoints
 
 Classifies texts in a data frame column using a Hugging Face
-classification endpoint and joins the results back to the original data
-frame.
+classification endpoint, writing results to disk in chunks.
 
 ## Usage
 
@@ -16,11 +15,16 @@ hf_classify_df(
   max_length = 512L,
   output_dir = "auto",
   overwrite = FALSE,
-  tidy_func = tidy_classification_response,
+  tidy_func = NULL,
   chunk_size = 5000,
-  concurrent_requests = 1,
+  batch_size = 32L,
+  concurrent_requests = 16,
   max_retries = 5,
-  timeout = 60
+  timeout = 120,
+  max_chars = 2000L,
+  tokenizer = NULL,
+  engine = getOption("EndpointR.hf_engine", "auto"),
+  progress = TRUE
 )
 ```
 
@@ -40,7 +44,7 @@ hf_classify_df(
 
 - endpoint_url:
 
-  URL of the Hugging Face Inference API endpoint
+  Hugging Face Classification Endpoint
 
 - key_name:
 
@@ -48,8 +52,8 @@ hf_classify_df(
 
 - max_length:
 
-  The maximum number of tokens in the text variable. Beyond this cut-off
-  everything is truncated.
+  Maximum number of tokens per text. Longer texts are cut. `NULL` turns
+  client-side cutting off on TEI.
 
 - output_dir:
 
@@ -63,42 +67,75 @@ hf_classify_df(
 
 - tidy_func:
 
-  Function to process API responses, defaults to
-  `tidy_batch_classification_response`
+  Function to process API responses. `NULL` (default) picks
+  [`tidy_tei_classification_response()`](https://jpcompartir.github.io/EndpointR/reference/tidy_tei_classification_response.md)
+  on TEI and `tidy_batch_classification_response()` on the toolkit. A
+  custom function receives the response for one batch and must return
+  one row per text.
 
 - chunk_size:
 
   Number of texts to process in each chunk before writing to disk
   (default: 5000)
 
+- batch_size:
+
+  Integer; number of texts per request (default: 32)
+
 - concurrent_requests:
 
-  Integer; number of concurrent requests (default: 1)
+  Integer; number of concurrent requests (default: 16)
 
 - max_retries:
 
-  Integer; maximum retry attempts (default: 5)
+  Integer; maximum re-sends for requests that get 429 or 5xx (default:
+  5)
 
 - timeout:
 
-  Numeric; request timeout in seconds (default: 30)
+  Numeric; request timeout in seconds (default: 120)
+
+- max_chars:
+
+  Character limit used on TEI when no tokeniser is available
+
+- tokenizer:
+
+  On TEI: a Hugging Face model id (e.g. `"org/model"`) or a
+  [`tok::tokenizer`](https://rdrr.io/pkg/tok/man/tokenizer.html), used
+  with the `tok` package to cut texts to `max_length` tokens. Dedicated
+  endpoints do not report their model id, so pass it here.
+
+- engine:
+
+  The endpoint's inference engine: `"auto"` (default) detects it with a
+  call to the endpoint's `/info` route, `"tei"` for Text Embeddings
+  Inference, `"toolkit"` for the default Hugging Face Inference Toolkit.
+  Set the default for a session with
+  `options(EndpointR.hf_engine = "tei")`.
+
+- progress:
+
+  Logical; whether to show progress bar (default: TRUE)
 
 ## Value
 
-Original data frame with additional columns for classification scores,
-or classification results table if row counts don't match
+A data frame with the ids, texts and classification scores, plus
+`.error`, `.error_msg`, `.status` and `.chunk` columns
 
 ## Details
 
-This function extracts texts and IDs from the specified columns,
-classifies them in chunks. It writes
+This function extracts texts and IDs from the specified columns and
+classifies them with
 [`hf_classify_chunks()`](https://jpcompartir.github.io/EndpointR/reference/hf_classify_chunks.md),
-and then returns all of the chu
+which writes each chunk to a `.parquet` file in `output_dir` and returns
+all of the chunks combined.
 
-The function preserves the original data frame structure and adds new
-columns for classification scores. If the number of rows doesn't match
-after processing (due to errors), it returns the classification results
-separately with a warning.
+See
+[`hf_classify_batch()`](https://jpcompartir.github.io/EndpointR/reference/hf_classify_batch.md)
+for how texts are batched, retried and split, and
+[`hf_classify_text()`](https://jpcompartir.github.io/EndpointR/reference/hf_classify_text.md)
+for how texts are cut on TEI endpoints.
 
 The function does not currently handle
 `list(return_all_scores = FALSE)`.
@@ -117,7 +154,9 @@ if (FALSE) { # \dontrun{
     text_var = review,
     id_var = id,
     endpoint_url = "redacted",
-    key_name = "API_KEY"
+    key_name = "API_KEY",
+    batch_size = 32,
+    concurrent_requests = 16
   )
 } # }
 ```

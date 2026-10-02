@@ -1,9 +1,8 @@
 # Prepare a batch request for multiple texts
 
 Creates an httr2 request object for obtaining a response from a Hugging
-Face Inference endpoint for multiple text inputs in a single batch. This
-function can be used for various tasks, such as embedding or classifying
-multiple inputs simultaneously.
+Face Inference endpoint for multiple text inputs in a single batch. The
+request body depends on the endpoint's inference engine and the task.
 
 ## Usage
 
@@ -14,8 +13,11 @@ hf_build_request_batch(
   endpoint_url,
   key_name,
   max_retries = 5,
-  timeout = 10,
-  validate = FALSE
+  timeout = 120,
+  validate = FALSE,
+  engine = c("toolkit", "tei"),
+  task = c("embed", "classify"),
+  max_length = 512L
 )
 ```
 
@@ -27,7 +29,7 @@ hf_build_request_batch(
 
 - parameters:
 
-  Parameters to send with inputs
+  Parameters to send with inputs. These override the defaults.
 
 - endpoint_url:
 
@@ -39,7 +41,7 @@ hf_build_request_batch(
 
 - max_retries:
 
-  Maximum number of retry attempts for failed requests
+  Maximum number of attempts for requests that get 429 or 5xx
 
 - timeout:
 
@@ -49,34 +51,51 @@ hf_build_request_batch(
 
   Whether to validate the endpoint before creating the request
 
+- engine:
+
+  `"toolkit"` (default) or `"tei"`
+
+- task:
+
+  `"embed"` (default) or `"classify"`
+
+- max_length:
+
+  Maximum tokens per text for toolkit classification
+
 ## Value
 
 An httr2 request object configured for batch processing
 
 ## Details
 
-For developers, this function forms the basis of batch requests,
-enabling more efficient processing of multiple inputs in a single API
-call.
+- TEI classification sends each text as a one-element list
+  (`[[text], [text]]`), because TEI reads a flat list of 2 texts as one
+  sentence pair. It also asks for raw scores, and EndpointR applies the
+  softmax (see
+  [`tidy_tei_classification_response()`](https://jpcompartir.github.io/EndpointR/reference/tidy_tei_classification_response.md)).
+
+- TEI embeddings send `truncate = true` at the top level of the body.
+
+- On TEI, `parameters` are added to the top level of the body, because
+  TEI ignores a `parameters` field.
+
+- Toolkit classification sends `return_all_scores`, `truncation`,
+  `max_length` and `batch_size` in `parameters`. Without `batch_size`,
+  the toolkit runs one text at a time on the GPU.
+
+Inputs are always sent as a JSON array, even for a single text.
 
 ## Examples
 
 ``` r
 if (FALSE) { # \dontrun{
-  # Create batch request using API key from environment
   batch_req <- hf_build_request_batch(
     inputs = c("First text to embed", "Second text to embed"),
     endpoint_url = "https://my-endpoint.huggingface.cloud/embedding_api",
-    key_name = "HF_API_KEY"
-  )
-
-  # Using custom timeout and retry settings
-  batch_req <- hf_build_request_batch(
-    inputs = c("Text one", "Text two", "Text three"),
-    endpoint_url = "https://my-endpoint.huggingface.cloud/embedding_api",
     key_name = "HF_API_KEY",
-    max_retries = 3,
-    timeout = 15
+    engine = "tei",
+    task = "embed"
   )
 } # }
 ```
