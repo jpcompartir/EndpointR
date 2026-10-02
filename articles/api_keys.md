@@ -141,7 +141,7 @@ encrypted_info <- httr2::secret_encrypt(info, SUPER_SECRET_ENCRYPTION_DEVICE)
 encrypted_info
 ```
 
-    #> [1] "UfdwYam1Wn2lrWp3eKXYNzORnvEZjsJAaj8NJFspf1XfVp2RwJsJrqX0BRbZOXVnkzFO"
+    #> [1] "LJbTWBUV_8V4IQAjoXQttFsQ_5jpxwz_-ymt_zXqGVG7RicZkrMw69BZF83e-E3upmdF"
 
 Now our secret is encrypted, we decrypt it to get the original
 information back.
