@@ -7,9 +7,8 @@
 #   - more inputs than max_client_batch_size are rejected
 #   - a NaN score with raw_scores = true returns 424 for the whole request
 #   - classifier labels are sorted by score
-# The status codes for the two rejections (422 for the JSON error, 413 for the
-# batch size) come from TEI's source code and have not been checked against a
-# live endpoint.
+# The status codes and messages were checked against live TEI 1.8.2 endpoints
+# on 2 October 2026: 422 for a flat list of 3, and 413 for too many inputs.
 #
 # Toolkit rules: no /info route, and one empty text fails the whole batch.
 
@@ -70,8 +69,7 @@
   }
   if (is_flat && length(inputs) >= 3) {
     return(l$send_json(res, list(
-      error = "Failed to deserialize the JSON body into the target type: inputs: expected a string, a pair of strings [string, string] or a batch of mixed strings and pairs",
-      error_type = "Validation"
+      error = "Failed to deserialize the JSON body into the target type: inputs: invalid length 3, expected a string, a pair of strings [string, string] or a batch of mixed strings and pairs [[string], [string, string], ...] at line 1"
     ), status = 422L))
   }
   if (length(inputs) > l$tei_max_batch) {
