@@ -11,13 +11,15 @@ hf_embed_batch(
   ...,
   tidy_func = tidy_embedding_response,
   parameters = list(),
-  batch_size = 8,
+  batch_size = 32,
   include_texts = TRUE,
-  concurrent_requests = 5,
+  concurrent_requests = 16,
   max_retries = 5,
-  timeout = 10,
+  timeout = 120,
   validate = FALSE,
-  relocate_col = 2
+  relocate_col = 2,
+  engine = getOption("EndpointR.hf_engine", "auto"),
+  progress = TRUE
 )
 }
 \arguments{
@@ -27,47 +29,61 @@ hf_embed_batch(
 
 \item{key_name}{Name of the environment variable containing the API key}
 
-\item{...}{ellipsis sent to \code{hf_perform_request} TODO (reserved ATM)}
+\item{...}{Reserved for future use}
 
 \item{tidy_func}{Function to process/tidy the raw API response (default: tidy_embedding_response)}
 
-\item{parameters}{Advanced usage: parameters to pass to the API endpoint.}
+\item{parameters}{Advanced usage: parameters to pass to the API endpoint. On
+TEI endpoints these are added to the top level of the request body.}
 
-\item{batch_size}{Number of texts to process in one batch}
+\item{batch_size}{Number of texts to send in each request (default: 32)}
 
 \item{include_texts}{Whether to return the original texts in the return tibble}
 
-\item{concurrent_requests}{Number of requests to send simultaneously}
+\item{concurrent_requests}{Number of requests to send simultaneously (default: 16)}
 
-\item{max_retries}{Maximum number of retry attempts for failed requests}
+\item{max_retries}{Maximum number of re-sends for requests that get 429 or 5xx}
 
 \item{timeout}{Request timeout in seconds}
 
 \item{validate}{Whether to validate the endpoint before creating the request}
 
 \item{relocate_col}{Which position in the data frame to relocate the results to.}
+
+\item{engine}{The endpoint's inference engine: \code{"auto"} (default), \code{"tei"}
+or \code{"toolkit"}. See \code{\link[=hf_embed_text]{hf_embed_text()}}.}
+
+\item{progress}{Whether to show a progress bar}
 }
 \value{
 A tibble containing the embedding vectors
 }
 \description{
 High-level function to generate embeddings for multiple text strings.
-This function handles batching and parallel processing of embedding requests, and attempts to handle errors gracefully.
+This function sends several texts per request and several requests at once,
+and attempts to handle errors gracefully.
+}
+\details{
+Texts are sent in batches of \code{batch_size}, with \code{concurrent_requests}
+requests in flight. When a batch fails with a client error (400, 413, 422
+or 424) or a network error, it is split in half and sent again, down to
+single texts, so only the text at fault fails. Requests that get 429 or 5xx
+are re-sent unchanged, up to \code{max_retries} times.
+
+Empty and missing texts are not sent. They are returned as error rows.
+
+TEI endpoints reject requests with more texts than their
+\code{max_client_batch_size} (32 by default). When \code{batch_size} is larger,
+EndpointR lowers it with a warning.
 }
 \examples{
 \dontrun{
-  # Generate embeddings for multiple texts using default batch size
-  embeddings <- hf_embed_batch(
-    texts = c("First example", "Second example", "Third example"),
-    endpoint_url = "https://my-endpoint.huggingface.cloud"
-  )
-
-  # With custom batch size and concurrent requests
   embeddings <- hf_embed_batch(
     texts = c("First example", "Second example", "Third example"),
     endpoint_url = "https://my-endpoint.huggingface.cloud",
-    batch_size = 10,
-    concurrent_requests = 5
+    key_name = "HF_API_KEY",
+    batch_size = 32,
+    concurrent_requests = 16
   )
 }
 }

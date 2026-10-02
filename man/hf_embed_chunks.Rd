@@ -11,11 +11,14 @@ hf_embed_chunks(
   output_dir = "auto",
   overwrite = FALSE,
   chunk_size = 5000L,
-  concurrent_requests = 5L,
+  batch_size = 32L,
+  concurrent_requests = 16L,
   max_retries = 5L,
-  timeout = 10L,
+  timeout = 120L,
   key_name = "HF_API_KEY",
-  id_col_name = "id"
+  id_col_name = "id",
+  engine = getOption("EndpointR.hf_engine", "auto"),
+  progress = TRUE
 )
 }
 \arguments{
@@ -31,15 +34,22 @@ hf_embed_chunks(
 
 \item{chunk_size}{Number of texts to process in each chunk before writing to disk (default: 5000)}
 
-\item{concurrent_requests}{Number of concurrent requests (default: 5)}
+\item{batch_size}{Number of texts to send in each request (default: 32)}
 
-\item{max_retries}{Maximum retry attempts per failed request (default: 5)}
+\item{concurrent_requests}{Number of concurrent requests (default: 16)}
 
-\item{timeout}{Request timeout in seconds (default: 10)}
+\item{max_retries}{Maximum re-sends for requests that get 429 or 5xx (default: 5)}
+
+\item{timeout}{Request timeout in seconds (default: 120)}
 
 \item{key_name}{Name of environment variable containing the API key (default: "HF_API_KEY")}
 
 \item{id_col_name}{Name for the ID column in output (default: "id"). When called from hf_embed_df(), this preserves the original column name.}
+
+\item{engine}{The endpoint's inference engine: \code{"auto"} (default), \code{"tei"}
+or \code{"toolkit"}. See \code{\link[=hf_embed_text]{hf_embed_text()}}.}
+
+\item{progress}{Whether to show a progress bar}
 }
 \value{
 A tibble with columns:
@@ -47,6 +57,7 @@ A tibble with columns:
 \item ID column (name specified by \code{id_col_name}): Original identifier from input
 \item \code{.error}: Logical indicating if request failed
 \item \code{.error_msg}: Error message if failed, NA otherwise
+\item \code{.status}: HTTP status code of a failed request, NA otherwise
 \item \code{.chunk}: Chunk number for tracking
 \item Embedding columns (V1, V2, etc.)
 }
@@ -55,7 +66,16 @@ A tibble with columns:
 This function is capable of processing large volumes of text through Hugging Face's Inference Embedding Endpoints. Results are written in chunks to a file, to avoid out of memory issues.
 }
 \details{
-This function processes texts in chunks, creating individual requests for each text
-within a chunk. The chunk size determines how many texts are processed before writing results
-to disk. Within each chunk, requests are sent with the specified level of concurrency.
+This function processes texts in chunks. Within each chunk, texts
+are sent in batches of \code{batch_size} texts per request, with
+\code{concurrent_requests} requests in flight. After each chunk, its results are
+written to a \code{.parquet} file in \code{output_dir}.
+
+When a batch fails with a client error (400, 413, 422 or 424) or a network
+error, it is split in half and sent again, down to single texts, so only the
+text at fault fails. Empty and missing texts are not sent; they are returned
+as error rows. Results are returned in input order.
+
+The engine, batch size, endpoint limits (on TEI), number of empty texts and
+number of split batches are recorded in \code{metadata.json}.
 }

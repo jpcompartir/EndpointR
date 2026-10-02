@@ -13,3 +13,4 @@ todos\.qmd
 ^\.github$
 ^test_dir/
 ^\.claude$
+^data-raw$

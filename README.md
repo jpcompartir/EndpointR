@@ -67,8 +67,8 @@ hf_embed_batch(
   texts = review_texts,
   endpoint_url = endpoint_url,
   key_name = "HF_API_KEY",
-  batch_size = 3,
-  concurrent_requests = 2
+  batch_size = 32,  # texts per request
+  concurrent_requests = 16  # requests in flight at once
 )
 ```
 
@@ -90,9 +90,10 @@ hf_embed_df(
   key_name = "HF_API_KEY",
   output_dir = "embeddings_output",  # writes .parquet chunks to this directory
   chunk_size = 5000,  # process 5000 rows per chunk
-  concurrent_requests = 2,
+  batch_size = 32,  # texts per request
+  concurrent_requests = 16,  # requests in flight at once
   max_retries = 5,
-  timeout = 15
+  timeout = 120
 )
 ```
 
@@ -137,12 +138,23 @@ hf_classify_df(
   max_length = 512,  # truncate texts longer than 512 tokens
   output_dir = "classification_output",  # writes .parquet chunks to this directory
   chunk_size = 2500,  # process 2500 rows per chunk
-  concurrent_requests = 3,
+  batch_size = 32,  # texts per request
+  concurrent_requests = 16,  # requests in flight at once
   max_retries = 5,
-  timeout = 60
+  timeout = 120
 ) |>
   dplyr::rename(!!!labelid_2class())
 ```
+
+EndpointR checks whether a Hugging Face endpoint runs Text Embeddings
+Inference (TEI) or the default Hugging Face Inference Toolkit, because
+the two need different request formats. It does this once per endpoint
+with a call to the endpoint’s `/info` route. Set `engine = "tei"` or
+`engine = "toolkit"` to skip the check, e.g. when `/info` is blocked. On
+TEI, `max_length` is applied in R before sending, because TEI ignores
+it. The [engine section of the inference
+vignette](articles/hugging_face_inference.html#which-engine-does-my-endpoint-run)
+explains the differences.
 
 Read the [Hugging Face Inference
 Vignette](articles/hugging_face_inference.html) for more information on
@@ -275,13 +287,23 @@ Each Hugging Face output directory contains a `metadata.json` file that
 records:
 
 - `endpoint_url`: The API endpoint used
+- `engine`: Whether the endpoint runs `"tei"` or `"toolkit"`
 - `chunk_size`: Number of rows processed per chunk
+- `batch_size`: Number of texts sent in each request
 - `n_texts`: Total number of texts processed
-- `concurrent_requests`: Parallel request setting
+- `concurrent_requests`: Number of requests in flight at once
 - `timeout`: Request timeout in seconds
 - `max_retries`: Maximum retry attempts
-- `inference_parameters`: Model-specific parameters (e.g., truncate,
-  max_length)
+- `inference_parameters`: The request body without the texts
+  (classification only)
+- `truncation_method`: How long texts were cut (`"tok"`, `"max_chars"`,
+  `"endpoint"` or `"none"`), classification only
+- `n_empty_texts`: Number of empty or missing texts, which were not sent
+- `n_split_batches`: Number of failed batches that were split and sent
+  again
+- On TEI endpoints, the fields from `/info`: `version`, `model_id`,
+  `model_type`, `max_input_length`, `max_batch_tokens`,
+  `max_client_batch_size` and `auto_truncate`
 - `timestamp`: When the job was run
 - `key_name`: Which API key was used
 

@@ -13,11 +13,16 @@ hf_classify_df(
   max_length = 512L,
   output_dir = "auto",
   overwrite = FALSE,
-  tidy_func = tidy_classification_response,
+  tidy_func = NULL,
   chunk_size = 5000,
-  concurrent_requests = 1,
+  batch_size = 32L,
+  concurrent_requests = 16,
   max_retries = 5,
-  timeout = 60
+  timeout = 120,
+  max_chars = 2000L,
+  tokenizer = NULL,
+  engine = getOption("EndpointR.hf_engine", "auto"),
+  progress = TRUE
 )
 }
 \arguments{
@@ -27,44 +32,61 @@ hf_classify_df(
 
 \item{id_var}{Column name to use as identifier for joining (unquoted)}
 
-\item{endpoint_url}{URL of the Hugging Face Inference API endpoint}
+\item{endpoint_url}{Hugging Face Classification Endpoint}
 
 \item{key_name}{Name of environment variable containing the API key}
 
-\item{max_length}{The maximum number of tokens in the text variable. Beyond this cut-off everything is truncated.}
+\item{max_length}{Maximum number of tokens per text. Longer texts are cut.
+\code{NULL} turns client-side cutting off on TEI.}
 
 \item{output_dir}{Path to directory for the .parquet chunks}
 
 \item{overwrite}{If \code{FALSE} (default), errors when \code{output_dir} already contains chunk (\code{.parquet}) or \code{metadata.json} files. Set to \code{TRUE} to delete them and write fresh outputs; other files are left untouched.}
 
-\item{tidy_func}{Function to process API responses, defaults to
-\code{tidy_batch_classification_response}}
+\item{tidy_func}{Function to process API responses. \code{NULL} (default) picks
+\code{\link[=tidy_tei_classification_response]{tidy_tei_classification_response()}} on TEI and
+\code{tidy_batch_classification_response()} on the toolkit. A custom function
+receives the response for one batch and must return one row per text.}
 
 \item{chunk_size}{Number of texts to process in each chunk before writing to disk (default: 5000)}
 
-\item{concurrent_requests}{Integer; number of concurrent requests (default: 1)}
+\item{batch_size}{Integer; number of texts per request (default: 32)}
 
-\item{max_retries}{Integer; maximum retry attempts (default: 5)}
+\item{concurrent_requests}{Integer; number of concurrent requests (default: 16)}
 
-\item{timeout}{Numeric; request timeout in seconds (default: 30)}
+\item{max_retries}{Integer; maximum re-sends for requests that get 429 or 5xx (default: 5)}
+
+\item{timeout}{Numeric; request timeout in seconds (default: 120)}
+
+\item{max_chars}{Character limit used on TEI when no tokeniser is available}
+
+\item{tokenizer}{On TEI: a Hugging Face model id (e.g. \code{"org/model"}) or a
+\code{tok::tokenizer}, used with the \code{tok} package to cut texts to
+\code{max_length} tokens. Dedicated endpoints do not report their model id, so
+pass it here.}
+
+\item{engine}{The endpoint's inference engine: \code{"auto"} (default) detects it
+with a call to the endpoint's \verb{/info} route, \code{"tei"} for Text Embeddings
+Inference, \code{"toolkit"} for the default Hugging Face Inference Toolkit.
+Set the default for a session with \code{options(EndpointR.hf_engine = "tei")}.}
+
+\item{progress}{Logical; whether to show progress bar (default: TRUE)}
 }
 \value{
-Original data frame with additional columns for classification scores,
-or classification results table if row counts don't match
+A data frame with the ids, texts and classification scores, plus
+\code{.error}, \code{.error_msg}, \code{.status} and \code{.chunk} columns
 }
 \description{
 Classifies texts in a data frame column using a Hugging Face classification
-endpoint and joins the results back to the original data frame.
+endpoint, writing results to disk in chunks.
 }
 \details{
-This function extracts texts and IDs from the specified columns, classifies them in chunks.
-It writes
-\code{hf_classify_chunks()}, and then returns all of the chu
+This function extracts texts and IDs from the specified columns and
+classifies them with \code{\link[=hf_classify_chunks]{hf_classify_chunks()}}, which writes each chunk to a
+\code{.parquet} file in \code{output_dir} and returns all of the chunks combined.
 
-The function preserves the original data frame structure and adds new
-columns for classification scores. If the number of rows doesn't match
-after processing (due to errors), it returns the classification results
-separately with a warning.
+See \code{\link[=hf_classify_batch]{hf_classify_batch()}} for how texts are batched, retried and split, and
+\code{\link[=hf_classify_text]{hf_classify_text()}} for how texts are cut on TEI endpoints.
 
 The function does not currently handle \code{list(return_all_scores = FALSE)}.
 }
@@ -80,7 +102,9 @@ The function does not currently handle \code{list(return_all_scores = FALSE)}.
     text_var = review,
     id_var = id,
     endpoint_url = "redacted",
-    key_name = "API_KEY"
+    key_name = "API_KEY",
+    batch_size = 32,
+    concurrent_requests = 16
   )
 }
 }

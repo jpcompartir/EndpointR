@@ -82,45 +82,58 @@
   #'
   #' @description
   #' Creates an httr2 request object for obtaining a response from a Hugging Face
-  #' Inference endpoint for multiple text inputs in a single batch. This function
-  #' can be used for various tasks, such as embedding or classifying multiple inputs
-  #' simultaneously.
+  #' Inference endpoint for multiple text inputs in a single batch. The request
+  #' body depends on the endpoint's inference engine and the task.
   #'
   #' @details
-  #' For developers, this function forms the basis of batch requests, enabling
-  #' more efficient processing of multiple inputs in a single API call.
+  #' * TEI classification sends each text as a one-element list
+  #'   (`[[text], [text]]`), because TEI reads a flat list of 2 texts as one
+  #'   sentence pair. It also asks for raw scores, and EndpointR applies the
+  #'   softmax (see [tidy_tei_classification_response()]).
+  #' * TEI embeddings send `truncate = true` at the top level of the body.
+  #' * On TEI, `parameters` are added to the top level of the body, because TEI
+  #'   ignores a `parameters` field.
+  #' * Toolkit classification sends `return_all_scores`, `truncation`,
+  #'   `max_length` and `batch_size` in `parameters`. Without `batch_size`, the
+  #'   toolkit runs one text at a time on the GPU.
+  #'
+  #' Inputs are always sent as a JSON array, even for a single text.
   #'
   #' @param inputs Vector or list of character strings to process in a batch
-  #' @param parameters Parameters to send with inputs
+  #' @param parameters Parameters to send with inputs. These override the defaults.
   #' @param endpoint_url The URL of the Hugging Face Inference API endpoint
   #' @param key_name Name of the environment variable containing the API key
-  #' @param max_retries Maximum number of retry attempts for failed requests
+  #' @param max_retries Maximum number of attempts for requests that get 429 or 5xx
   #' @param timeout Request timeout in seconds
   #' @param validate Whether to validate the endpoint before creating the request
+  #' @param engine `"toolkit"` (default) or `"tei"`
+  #' @param task `"embed"` (default) or `"classify"`
+  #' @param max_length Maximum tokens per text for toolkit classification
   #'
   #' @return An httr2 request object configured for batch processing
   #' @export
   #'
   #' @examples
   #' \dontrun{
-  #'   # Create batch request using API key from environment
   #'   batch_req <- hf_build_request_batch(
   #'     inputs = c("First text to embed", "Second text to embed"),
   #'     endpoint_url = "https://my-endpoint.huggingface.cloud/embedding_api",
-  #'     key_name = "HF_API_KEY"
-  #'   )
-  #'
-  #'   # Using custom timeout and retry settings
-  #'   batch_req <- hf_build_request_batch(
-  #'     inputs = c("Text one", "Text two", "Text three"),
-  #'     endpoint_url = "https://my-endpoint.huggingface.cloud/embedding_api",
   #'     key_name = "HF_API_KEY",
-  #'     max_retries = 3,
-  #'     timeout = 15
+  #'     engine = "tei",
+  #'     task = "embed"
   #'   )
   #' }
   # hf_build_request_docs ----
-  hf_build_request_batch <- function(inputs, parameters = list(), endpoint_url, key_name, max_retries = 5, timeout = 10, validate = FALSE) {
+  hf_build_request_batch <- function(inputs,
+                                     parameters = list(),
+                                     endpoint_url,
+                                     key_name,
+                                     max_retries = 5,
+                                     timeout = 120,
+                                     validate = FALSE,
+                                     engine = c("toolkit", "tei"),
+                                     task = c("embed", "classify"),
+                                     max_length = 512L) {
 
     stopifnot("`inputs` must be a list of inputs" = inherits(inputs, "list")|is.vector(inputs),
               "endpoint_url must be provided" = !is.null(endpoint_url) && nchar(endpoint_url) > 0,
@@ -128,17 +141,30 @@
               "max_retries must be a positive integer" = is.numeric(max_retries) && max_retries > 0,
               "timeout must be a positive number" = is.numeric(timeout) && timeout > 0)
 
+    engine <- rlang::arg_match(engine)
+    task <- rlang::arg_match(task)
     api_key <- get_api_key(key_name)
 
-    req <- base_request(
-      endpoint_url = endpoint_url,
-      api_key = api_key)
+    if (validate) {
+      validate_hf_endpoint(endpoint_url, key_name)
+    }
 
-    # for embeddings, should be able to tidy this with tidy_embedding_response()
-    req <- req |>
-      httr2::req_body_json(list(inputs = inputs, parameters = parameters)) |>
-      httr2::req_timeout(timeout) |>
-      httr2::req_retry(max_tries = max_retries, backoff = ~2 ^ .x, retry_on_failure = TRUE)
+    req <- .hf_batch_request(
+      texts = unlist(inputs),
+      endpoint_url = endpoint_url,
+      api_key = api_key,
+      engine = engine,
+      task = task,
+      max_length = max_length,
+      parameters = parameters,
+      timeout = timeout
+    ) |>
+      httr2::req_retry(
+        max_tries = max_retries,
+        is_transient = \(resp) httr2::resp_status(resp) %in% .hf_transient_status,
+        backoff = \(i) min(2^i, 30),
+        retry_on_failure = TRUE
+      )
 
     return(req)
   }

@@ -11,9 +11,10 @@ hf_embed_text(
   ...,
   parameters = list(),
   tidy = TRUE,
-  max_retries = 3,
-  timeout = 10,
-  validate = FALSE
+  max_retries = 5,
+  timeout = 120,
+  validate = FALSE,
+  engine = getOption("EndpointR.hf_engine", "auto")
 )
 }
 \arguments{
@@ -25,7 +26,8 @@ hf_embed_text(
 
 \item{...}{ellipsis sent to \code{hf_perform_request}, which forwards to \code{httr2::req_perform}}
 
-\item{parameters}{Advanced usage: parameters to pass to the API endpoint}
+\item{parameters}{Advanced usage: parameters to pass to the API endpoint. On
+TEI endpoints these are added to the top level of the request body.}
 
 \item{tidy}{Whether to attempt to tidy the response or not}
 
@@ -34,6 +36,11 @@ hf_embed_text(
 \item{timeout}{Request timeout in seconds}
 
 \item{validate}{Whether to validate the endpoint before creating the request}
+
+\item{engine}{The endpoint's inference engine: \code{"auto"} (default) detects it
+with a call to the endpoint's \verb{/info} route, \code{"tei"} for Text Embeddings
+Inference, \code{"toolkit"} for the default Hugging Face Inference Toolkit.
+Set the default for a session with \code{options(EndpointR.hf_engine = "tei")}.}
 }
 \value{
 A tibble containing the embedding vectors
@@ -43,19 +50,17 @@ High-level function to generate embeddings for a single text string.
 This function handles the entire process from request creation to
 response processing.
 }
+\details{
+The text is sent as a batch of one, in the request format for the
+endpoint's inference engine (see the \code{engine} argument).
+}
 \examples{
 \dontrun{
   # Generate embeddings using API key from environment
   embeddings <- hf_embed_text(
     text = "This is a sample text to embed",
-    endpoint_url = "https://my-endpoint.huggingface.cloud"
-  )
-
-  # With custom API key environment variable name
-  embeddings <- hf_embed_text(
-    text = "This is a sample text to embed",
     endpoint_url = "https://my-endpoint.huggingface.cloud",
-    key_name = "MY_CUSTOM_API_KEY"
+    key_name = "HF_API_KEY"
   )
 }
 }

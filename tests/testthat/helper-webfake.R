@@ -2,21 +2,29 @@ withr::deferred_run()
 withr::local_envvar(HF_TEST_API_KEY = "fake-key")
 
 .app <- webfakes::new_app()
+.app$use(webfakes::mw_json())
+
+# number of texts in a request, so fakes return one result per text like real endpoints.
+# The app runs in another process, so handlers reach helpers through app$locals
+.app$locals$n_inputs <- function(req) {
+  inputs <- req$json$inputs
+  if (is.list(inputs)) length(inputs) else 1L
+}
 
 .app$post("/test_embedding", function(req, res) {
   res$
     set_status(200L)$
-    send_json(c(0.1, 0.2, 0.3))
+    send_json(rep(list(c(0.1, 0.2, 0.3)), req$app$locals$n_inputs(req)))
 })
 
 .app$post("/test_single_sentiment", function(req, res) {
-  response_data <- list(
+  response_data <- rep(list(
     list(
       list(label = "positive", score = 0.9),
       list(label = "negative", score = 0.05),
       list(label = "neutral", score = 0.05)
     )
-  )
+  ), req$app$locals$n_inputs(req))
 
   res$set_header("Content-Type", "application/json")
   json_string <- jsonlite::toJSON(response_data, auto_unbox = TRUE)

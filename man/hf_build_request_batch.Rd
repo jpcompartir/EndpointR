@@ -10,54 +10,66 @@ hf_build_request_batch(
   endpoint_url,
   key_name,
   max_retries = 5,
-  timeout = 10,
-  validate = FALSE
+  timeout = 120,
+  validate = FALSE,
+  engine = c("toolkit", "tei"),
+  task = c("embed", "classify"),
+  max_length = 512L
 )
 }
 \arguments{
 \item{inputs}{Vector or list of character strings to process in a batch}
 
-\item{parameters}{Parameters to send with inputs}
+\item{parameters}{Parameters to send with inputs. These override the defaults.}
 
 \item{endpoint_url}{The URL of the Hugging Face Inference API endpoint}
 
 \item{key_name}{Name of the environment variable containing the API key}
 
-\item{max_retries}{Maximum number of retry attempts for failed requests}
+\item{max_retries}{Maximum number of attempts for requests that get 429 or 5xx}
 
 \item{timeout}{Request timeout in seconds}
 
 \item{validate}{Whether to validate the endpoint before creating the request}
+
+\item{engine}{\code{"toolkit"} (default) or \code{"tei"}}
+
+\item{task}{\code{"embed"} (default) or \code{"classify"}}
+
+\item{max_length}{Maximum tokens per text for toolkit classification}
 }
 \value{
 An httr2 request object configured for batch processing
 }
 \description{
 Creates an httr2 request object for obtaining a response from a Hugging Face
-Inference endpoint for multiple text inputs in a single batch. This function
-can be used for various tasks, such as embedding or classifying multiple inputs
-simultaneously.
+Inference endpoint for multiple text inputs in a single batch. The request
+body depends on the endpoint's inference engine and the task.
 }
 \details{
-For developers, this function forms the basis of batch requests, enabling
-more efficient processing of multiple inputs in a single API call.
+\itemize{
+\item TEI classification sends each text as a one-element list
+(\verb{[[text], [text]]}), because TEI reads a flat list of 2 texts as one
+sentence pair. It also asks for raw scores, and EndpointR applies the
+softmax (see \code{\link[=tidy_tei_classification_response]{tidy_tei_classification_response()}}).
+\item TEI embeddings send \code{truncate = true} at the top level of the body.
+\item On TEI, \code{parameters} are added to the top level of the body, because TEI
+ignores a \code{parameters} field.
+\item Toolkit classification sends \code{return_all_scores}, \code{truncation},
+\code{max_length} and \code{batch_size} in \code{parameters}. Without \code{batch_size}, the
+toolkit runs one text at a time on the GPU.
+}
+
+Inputs are always sent as a JSON array, even for a single text.
 }
 \examples{
 \dontrun{
-  # Create batch request using API key from environment
   batch_req <- hf_build_request_batch(
     inputs = c("First text to embed", "Second text to embed"),
     endpoint_url = "https://my-endpoint.huggingface.cloud/embedding_api",
-    key_name = "HF_API_KEY"
-  )
-
-  # Using custom timeout and retry settings
-  batch_req <- hf_build_request_batch(
-    inputs = c("Text one", "Text two", "Text three"),
-    endpoint_url = "https://my-endpoint.huggingface.cloud/embedding_api",
     key_name = "HF_API_KEY",
-    max_retries = 3,
-    timeout = 15
+    engine = "tei",
+    task = "embed"
   )
 }
 }
