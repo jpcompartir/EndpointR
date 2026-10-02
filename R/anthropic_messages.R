@@ -3,8 +3,8 @@
 .ANT_MESSAGES_ENDPOINT <- "https://api.anthropic.com/v1/messages"
 .ANT_DEFAULT_MODEL <- "claude-haiku-4-5"
 # models that reject sampling parameters (temperature/top_p/top_k) with a 400:
-# Claude Opus 4.7+, Sonnet 5, Fable 5, Mythos 5. Add new families as Anthropic releases them.
-.ANT_NO_SAMPLING_REGEX <- "fable|mythos|opus-4-[789]|sonnet-5"
+# Claude Opus 4.7+, Haiku 5, Sonnet 5, Fable 5, Mythos 5. Add new families as Anthropic releases them.
+.ANT_NO_SAMPLING_REGEX <- "fable|mythos|opus-4-[789]|opus-5|sonnet-5|haiku-5"
 .ANT_EFFORT_LEVELS <- c("low", "medium", "high", "xhigh", "max")
 
 # ant_build_messages_request ----

@@ -66,6 +66,16 @@ ant_batch_create <- function(
     "batch cannot exceed 100,000 requests" = length(texts) <= 100000
   )
 
+  # Claude Opus 4.7+, Sonnet 5 and Fable 5 reject sampling parameters with a 400
+  if (!is.null(temperature) && grepl(.ANT_NO_SAMPLING_REGEX, model)) {
+    cli::cli_warn(
+      "{.arg temperature} is not supported by {.val {model}} and has been dropped from the request.",
+      .frequency = "once",
+      .frequency_id = "ant_sampling_drop"
+    )
+    temperature <- NULL
+  }
+
   bad_ids <- !grepl("^[a-zA-Z0-9_-]{1,64}$", custom_ids)
   if (any(bad_ids)) {
     n_bad <- sum(bad_ids)
@@ -100,11 +110,14 @@ ant_batch_create <- function(
     params <- list(
       model = model,
       max_tokens = as.integer(max_tokens),
-      temperature = temperature,
       messages = list(
         list(role = "user", content = text)
       )
     )
+
+    if (!is.null(temperature)) {
+      params$temperature <- temperature
+    }
 
     if (!is.null(system_prompt)) {
       params$system <- system_prompt
