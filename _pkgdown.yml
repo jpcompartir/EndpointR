@@ -94,6 +94,7 @@ reference:
   - hf_classify_chunks
   - hf_classify_df
   - tidy_classification_response
+  - tidy_tei_classification_response
 
 - title: "Hugging Face - Core Infrastructure"
   desc: "Low-level functions for building and performing Hugging Face requests"
@@ -201,6 +202,7 @@ reference:
   desc: "Datasets included with the package for examples and testing"
   contents:
   - batch_concurrent_benchmark
+  - hf_throughput_benchmark
   - sentiment_classification_example
   - df_sentiment_classification_example
   - single_embedding_hf
@@ -222,6 +224,8 @@ development:
 
 news:
   releases:
+  - text: "Version 0.3.0"
+    href: news/index.html#endpointr-030
   - text: "Version 0.2.2"
     href: news/index.html#endpointr-022
   - text: "Version 0.2.1"

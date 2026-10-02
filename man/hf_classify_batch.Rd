@@ -9,46 +9,67 @@ hf_classify_batch(
   endpoint_url,
   key_name,
   ...,
-  tidy_func = tidy_batch_classification_response,
-  parameters = list(return_all_scores = TRUE),
-  batch_size = 8,
+  tidy_func = NULL,
+  parameters = list(),
+  batch_size = 32,
   progress = TRUE,
-  concurrent_requests = 5,
+  concurrent_requests = 16,
   max_retries = 5,
-  timeout = 30,
+  timeout = 120,
   include_texts = TRUE,
-  relocate_col = 2
+  relocate_col = 2,
+  max_length = 512L,
+  max_chars = 2000L,
+  tokenizer = NULL,
+  engine = getOption("EndpointR.hf_engine", "auto")
 )
 }
 \arguments{
 \item{texts}{Character vector of texts to classify}
 
-\item{endpoint_url}{URL of the Hugging Face Inference API endpoint}
+\item{endpoint_url}{The URL of the Hugging Face Inference API endpoint}
 
-\item{key_name}{Name of environment variable containing the API key}
+\item{key_name}{Name of the environment variable containing the API key}
 
-\item{...}{Additional arguments passed to request functions}
+\item{...}{Reserved for future use}
 
-\item{tidy_func}{Function to process API responses, defaults to
-\code{tidy_batch_classification_response}}
+\item{tidy_func}{Function to process API responses. \code{NULL} (default) picks
+\code{\link[=tidy_tei_classification_response]{tidy_tei_classification_response()}} on TEI and
+\code{tidy_batch_classification_response()} on the toolkit. A custom function
+receives the response for one batch and must return one row per text.}
 
-\item{parameters}{List of parameters for the API endpoint, defaults to
-\code{list(return_all_scores = TRUE)}}
+\item{parameters}{Advanced usage: parameters to pass to the API endpoint.
+These override the defaults for the engine.}
 
-\item{batch_size}{Integer; number of texts per batch (default: 8)}
+\item{batch_size}{Integer; number of texts per request (default: 32)}
 
 \item{progress}{Logical; whether to show progress bar (default: TRUE)}
 
-\item{concurrent_requests}{Integer; number of concurrent requests (default: 5)}
+\item{concurrent_requests}{Integer; number of concurrent requests (default: 16)}
 
-\item{max_retries}{Integer; maximum retry attempts (default: 5)}
+\item{max_retries}{Integer; maximum re-sends for requests that get 429 or 5xx (default: 5)}
 
-\item{timeout}{Numeric; request timeout in seconds (default: 20)}
+\item{timeout}{Numeric; request timeout in seconds (default: 120)}
 
 \item{include_texts}{Logical; whether to include original texts in output
 (default: TRUE)}
 
 \item{relocate_col}{Integer; column position for text column (default: 2)}
+
+\item{max_length}{Maximum number of tokens per text. Longer texts are cut.
+\code{NULL} turns client-side cutting off on TEI.}
+
+\item{max_chars}{Character limit used on TEI when no tokeniser is available}
+
+\item{tokenizer}{On TEI: a Hugging Face model id (e.g. \code{"org/model"}) or a
+\code{tok::tokenizer}, used with the \code{tok} package to cut texts to
+\code{max_length} tokens. Dedicated endpoints do not report their model id, so
+pass it here.}
+
+\item{engine}{The endpoint's inference engine: \code{"auto"} (default) detects it
+with a call to the endpoint's \verb{/info} route, \code{"tei"} for Text Embeddings
+Inference, \code{"toolkit"} for the default Hugging Face Inference Toolkit.
+Set the default for a session with \code{options(EndpointR.hf_engine = "tei")}.}
 }
 \value{
 Data frame with classification scores for each text, plus columns
@@ -60,13 +81,19 @@ and returns classification scores in a tidy format. Handles batching,
 concurrent requests, and error recovery automatically.
 }
 \details{
-This function processes multiple texts efficiently by splitting them into
-batches and optionally sending concurrent requests. It includes robust
-error handling and progress reporting for large batches.
+Texts are sent in batches of \code{batch_size}, with \code{concurrent_requests}
+requests in flight. On the default Inference Toolkit, texts are sorted by
+length before batching, because the toolkit pads each batch to its longest
+text. Results are returned in input order.
 
-The function automatically handles request failures with retries and
-includes error information in the output when requests fail. Original
-text order is preserved in the results.
+When a batch fails with a client error (400, 413, 422 or 424) or a network
+error, it is split in half and sent again, down to single texts, so only the
+text at fault fails. Requests that get 429 or 5xx are re-sent unchanged, up
+to \code{max_retries} times. Empty and missing texts are not sent; they are
+returned as error rows.
+
+On TEI endpoints, EndpointR asks for raw scores and applies the softmax in
+R, and cuts long texts before sending (see \code{\link[=hf_classify_text]{hf_classify_text()}}).
 
 The function does not currently handle \code{list(return_all_scores = FALSE)}.
 }
@@ -82,7 +109,8 @@ The function does not currently handle \code{list(return_all_scores = FALSE)}.
     texts = texts,
     endpoint_url = "redacted",
     key_name = "API_KEY",
-    batch_size = 3
+    batch_size = 32,
+    concurrent_requests = 16
   )
 }
 }

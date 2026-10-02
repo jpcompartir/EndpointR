@@ -71,7 +71,7 @@ test_that("hf_embed_batch allows custom tidy_func", {
   }
 
   result <- hf_embed_batch(
-    texts = "test",
+    texts = c("test", "test two"),
     endpoint_url = server$url("/test_batch_embedding"),
     key_name = "HF_TEST_API_KEY",
     tidy_func = custom_tidy,

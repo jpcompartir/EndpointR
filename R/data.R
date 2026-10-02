@@ -1613,3 +1613,25 @@
 #' }
 #' @source Generated using Hugging Face embedding model via EndpointR functions
 "single_embedding_hf"
+
+#' Hugging Face endpoint throughput benchmark
+#'
+#' Texts per second for different ways of sending texts to Hugging Face
+#' dedicated endpoints, measured on 1 October 2026. The client was a laptop in
+#' the UK and the endpoints were A100s in AWS us-east-1. The texts were short
+#' social media posts, about 57 to 61 tokens each.
+#'
+#' @format A tibble with 18 rows and 9 variables:
+#' \describe{
+#'   \item{model}{Character; `modernbert-spam` (a ModernBERT base classifier) or `bge-m3` (an embedding model)}
+#'   \item{engine}{Character; `toolkit` (the default Hugging Face Inference Toolkit) or `tei` (Text Embeddings Inference 1.8.2)}
+#'   \item{hardware}{Character; the endpoint's GPU}
+#'   \item{method}{Character; how the texts were sent}
+#'   \item{texts_per_request}{Integer; texts sent in each request}
+#'   \item{concurrent_requests}{Integer; requests in flight at once}
+#'   \item{sorted}{Logical; whether texts were sorted by length before batching}
+#'   \item{n_texts}{Integer; number of texts in the run}
+#'   \item{texts_per_sec}{Numeric; end-to-end texts per second seen by the client}
+#' }
+#' @source Benchmarks run by the EndpointR maintainers; see `data-raw/hf_throughput_benchmark.R`
+"hf_throughput_benchmark"

@@ -4,16 +4,24 @@
 \alias{hf_get_endpoint_info}
 \title{Retrieve information about an endpoint}
 \usage{
-hf_get_endpoint_info(endpoint_url, key_name = "HF_API_KEY")
+hf_get_endpoint_info(endpoint_url, key_name = "HF_API_KEY", max_tries = 8L)
 }
 \arguments{
-\item{endpoint_url}{Hugging Face Embedding Endpoint}
+\item{endpoint_url}{Hugging Face Inference Endpoint URL}
 
 \item{key_name}{Name of environment variable containing the API key (default: "HF_API_KEY")}
+
+\item{max_tries}{Maximum attempts for the request (default: 8)}
 }
 \value{
-JSON of endpoint information
+A list of endpoint information on TEI, or \code{NULL}
 }
 \description{
-Retrieve information about an endpoint
+Calls the endpoint's \verb{/info} route. Text Embeddings Inference (TEI)
+endpoints return their model, limits and version. Endpoints that run the
+default Hugging Face Inference Toolkit have no \verb{/info} route, and this
+function returns \code{NULL} with a message for them.
+
+Retries 429 and 5xx responses, because a scaled-to-zero endpoint returns
+503 for about 2 minutes while it starts.
 }

@@ -13,10 +13,12 @@ hf_embed_df(
   output_dir = "auto",
   overwrite = FALSE,
   chunk_size = 5000L,
-  concurrent_requests = 1L,
+  batch_size = 32L,
+  concurrent_requests = 16L,
   max_retries = 5L,
-  timeout = 15L,
-  progress = TRUE
+  timeout = 120L,
+  progress = TRUE,
+  engine = getOption("EndpointR.hf_engine", "auto")
 )
 }
 \arguments{
@@ -36,13 +38,18 @@ hf_embed_df(
 
 \item{chunk_size}{The size of each chunk that will be processed and then written to a file.}
 
-\item{concurrent_requests}{Number of requests to send at once. Some APIs do not allow for multiple requests.}
+\item{batch_size}{Number of texts to send in each request (default: 32)}
 
-\item{max_retries}{Maximum number of retry attempts for failed requests.}
+\item{concurrent_requests}{Number of requests to send at once (default: 16)}
+
+\item{max_retries}{Maximum re-sends for requests that get 429 or 5xx.}
 
 \item{timeout}{Request timeout in seconds}
 
 \item{progress}{Whether to display a progress bar}
+
+\item{engine}{The endpoint's inference engine: \code{"auto"} (default), \code{"tei"}
+or \code{"toolkit"}. See \code{\link[=hf_embed_text]{hf_embed_text()}}.}
 }
 \value{
 A data frame with the original data plus embedding columns
@@ -51,34 +58,27 @@ A data frame with the original data plus embedding columns
 High-level function to generate embeddings for texts in a data frame.
 This function handles the entire process from request creation to
 response processing, with options for batching & parallel execution.
-Setting the number of retries
 
 Avoid risk of data loss by setting a low-ish chunk_size (e.g. 5,000, 10,000). Each chunk is written to a \code{.parquet} file in the \verb{output_dir=} directory, which also contains a \code{metadata.json} file which tracks important information such as the endpoint URL used. Be sure to check any output directories into .gitignore!
 }
+\details{
+See \code{\link[=hf_embed_chunks]{hf_embed_chunks()}} for how texts are batched, retried and split.
+}
 \examples{
 \dontrun{
-  # Generate embeddings for a data frame
   df <- data.frame(
     id = 1:3,
     text = c("First example", "Second example", "Third example")
   )
 
-  # Use batching without parallel processing
   embeddings_df <- hf_embed_df(
     df = df,
     text_var = text,
-    endpoint_url = "https://my-endpoint.huggingface.cloud",
-    id_var = id
-  )
-
-  # Use both chunking and parallel processing
-  embeddings_df <- hf_embed_df(
-    df = df,
-    text_var = text,
-    endpoint_url = "https://my-endpoint.huggingface.cloud",
     id_var = id,
-    chunk_size = 10000,
-    concurrent_requests = 50
+    endpoint_url = "https://my-endpoint.huggingface.cloud",
+    key_name = "HF_API_KEY",
+    batch_size = 32,
+    concurrent_requests = 16
   )
 }
 }

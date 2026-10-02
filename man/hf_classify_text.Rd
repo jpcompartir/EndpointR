@@ -9,11 +9,15 @@ hf_classify_text(
   endpoint_url,
   key_name,
   ...,
-  parameters = list(return_all_scores = TRUE),
+  parameters = list(),
   tidy = TRUE,
   max_retries = 5,
-  timeout = 20,
-  validate = FALSE
+  timeout = 120,
+  validate = FALSE,
+  max_length = 512L,
+  max_chars = 2000L,
+  tokenizer = NULL,
+  engine = getOption("EndpointR.hf_engine", "auto")
 )
 }
 \arguments{
@@ -26,8 +30,8 @@ hf_classify_text(
 \item{...}{Additional arguments passed to \code{hf_perform_request} and
 ultimately to \code{httr2::req_perform}}
 
-\item{parameters}{Advanced usage: parameters to pass to the API endpoint,
-defaults to \code{list(return_all_scores = TRUE)}.}
+\item{parameters}{Advanced usage: parameters to pass to the API endpoint.
+These override the defaults for the engine.}
 
 \item{tidy}{Logical; if TRUE (default), returns a tidied data frame}
 
@@ -37,6 +41,21 @@ defaults to \code{list(return_all_scores = TRUE)}.}
 
 \item{validate}{Logical; whether to validate the endpoint before creating
 the request}
+
+\item{max_length}{Maximum number of tokens per text. Longer texts are cut.
+\code{NULL} turns client-side cutting off on TEI.}
+
+\item{max_chars}{Character limit used on TEI when no tokeniser is available}
+
+\item{tokenizer}{On TEI: a Hugging Face model id (e.g. \code{"org/model"}) or a
+\code{tok::tokenizer}, used with the \code{tok} package to cut texts to
+\code{max_length} tokens. Dedicated endpoints do not report their model id, so
+pass it here.}
+
+\item{engine}{The endpoint's inference engine: \code{"auto"} (default) detects it
+with a call to the endpoint's \verb{/info} route, \code{"tei"} for Text Embeddings
+Inference, \code{"toolkit"} for the default Hugging Face Inference Toolkit.
+Set the default for a session with \code{options(EndpointR.hf_engine = "tei")}.}
 }
 \value{
 A tidied data frame with classification scores (if \code{tidy=TRUE})
@@ -48,32 +67,24 @@ classification scores. By default, returns a tidied data frame with
 one row and columns for each classification label.
 }
 \details{
-This function handles the entire process of creating a request to a
-Hugging Face Inference API endpoint for text classification, sending
-the request, and processing the response.
+The text is sent as a batch of one, in the request format for the
+endpoint's inference engine (see the \code{engine} argument).
 
-The function will automatically retry failed requests according to the
-\code{max_retries} parameter. If \code{tidy=TRUE} (the default), it transforms
-the nested JSON response into a tidy data frame with one row and columns
-for each classification label.
+On the default Inference Toolkit, \code{max_length} is sent to the endpoint. TEI
+ignores it and only cuts texts at the model's own limit, and long texts can
+give NaN scores, so on TEI EndpointR cuts the text before sending it. With
+the \code{tok} package and a \code{tokenizer}, it cuts at exactly \code{max_length} tokens;
+otherwise it cuts at \code{max_chars} characters.
 
 If tidying fails, the function returns the raw response with an
 informative message.
 }
 \examples{
 \dontrun{
-  # Basic classification with default parameters
   result <- hf_classify_text(
     text = "This product is excellent!",
     endpoint_url = "redacted",
     key_name = "API_KEY"
-  )
-
-  # Classification with custom parameters for a spam detection model
-  spam_result <- hf_classify_text(
-    text = "URGENT: You've won a free holiday! Call now to claim.",
-    endpoint_url = "redacted",
-    parameters = list(return_all_scores = TRUE)
   )
 
   # Get raw response without tidying

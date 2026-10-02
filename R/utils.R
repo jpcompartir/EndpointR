@@ -366,21 +366,36 @@ hf_get_model_max_length <- function(model_name, api_key = "HF_API_KEY") {
 
 #' Retrieve information about an endpoint
 #'
-#' @param endpoint_url Hugging Face Embedding Endpoint
-#' @param key_name Name of environment variable containing the API key (default: "HF_API_KEY")
+#' @description
+#' Calls the endpoint's `/info` route. Text Embeddings Inference (TEI)
+#' endpoints return their model, limits and version. Endpoints that run the
+#' default Hugging Face Inference Toolkit have no `/info` route, and this
+#' function returns `NULL` with a message for them.
 #'
-#' @returns JSON of endpoint information
+#' Retries 429 and 5xx responses, because a scaled-to-zero endpoint returns
+#' 503 for about 2 minutes while it starts.
+#'
+#' @param endpoint_url Hugging Face Inference Endpoint URL
+#' @param key_name Name of environment variable containing the API key (default: "HF_API_KEY")
+#' @param max_tries Maximum attempts for the request (default: 8)
+#'
+#' @returns A list of endpoint information on TEI, or `NULL`
 #' @export
 #'
-hf_get_endpoint_info <- function(endpoint_url, key_name = "HF_API_KEY") {
+hf_get_endpoint_info <- function(endpoint_url, key_name = "HF_API_KEY", max_tries = 8L) {
+  resp <- .hf_fetch_info(endpoint_url, key_name, max_tries)
 
-  info_endpoint_url <- glue::glue("{endpoint_url}/info")
-  api_key = get_api_key(key_name)
+  if (!inherits(resp, "httr2_response")) {
+    cli::cli_abort(c("Could not reach {.url {endpoint_url}}.", "x" = conditionMessage(resp)))
+  }
 
-  info <-httr2::request(info_endpoint_url) |>
-    httr2::req_headers(Authorization = paste("Bearer", api_key)) |>
-    httr2::req_perform() |>
-    httr2::resp_body_json()
+  if (httr2::resp_status(resp) != 200) {
+    cli::cli_inform(c(
+      "i" = "{.url {endpoint_url}} has no {.code /info} route (HTTP {httr2::resp_status(resp)}).",
+      " " = "It probably runs the Hugging Face Inference Toolkit, not TEI."
+    ))
+    return(NULL)
+  }
 
-  return(info)
+  httr2::resp_body_json(resp)
 }

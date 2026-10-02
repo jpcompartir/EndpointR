@@ -9,16 +9,21 @@ hf_classify_chunks(
   ids,
   endpoint_url,
   max_length = 512L,
-  tidy_func = tidy_classification_response,
+  tidy_func = NULL,
   output_dir = "auto",
   overwrite = FALSE,
   chunk_size = 5000L,
-  concurrent_requests = 5L,
+  batch_size = 32L,
+  concurrent_requests = 16L,
   max_retries = 5L,
-  timeout = 30L,
+  timeout = 120L,
   key_name = "HF_API_KEY",
   id_col_name = "id",
-  text_col_name = "text"
+  text_col_name = "text",
+  max_chars = 2000L,
+  tokenizer = NULL,
+  engine = getOption("EndpointR.hf_engine", "auto"),
+  progress = TRUE
 )
 }
 \arguments{
@@ -28,10 +33,13 @@ hf_classify_chunks(
 
 \item{endpoint_url}{Hugging Face Classification Endpoint}
 
-\item{max_length}{The maximum number of tokens in the text variable. Beyond this cut-off everything is truncated.}
+\item{max_length}{Maximum number of tokens per text. Longer texts are cut.
+\code{NULL} turns client-side cutting off on TEI.}
 
-\item{tidy_func}{Function to process API responses, defaults to
-\code{tidy_classification_response}}
+\item{tidy_func}{Function to process API responses. \code{NULL} (default) picks
+\code{\link[=tidy_tei_classification_response]{tidy_tei_classification_response()}} on TEI and
+\code{tidy_batch_classification_response()} on the toolkit. A custom function
+receives the response for one batch and must return one row per text.}
 
 \item{output_dir}{Path to directory for the .parquet chunks}
 
@@ -39,37 +47,57 @@ hf_classify_chunks(
 
 \item{chunk_size}{Number of texts to process in each chunk before writing to disk (default: 5000)}
 
-\item{concurrent_requests}{Integer; number of concurrent requests (default: 5)}
+\item{batch_size}{Integer; number of texts per request (default: 32)}
 
-\item{max_retries}{Integer; maximum retry attempts (default: 5)}
+\item{concurrent_requests}{Integer; number of concurrent requests (default: 16)}
 
-\item{timeout}{Numeric; request timeout in seconds (default: 30)}
+\item{max_retries}{Integer; maximum re-sends for requests that get 429 or 5xx (default: 5)}
+
+\item{timeout}{Numeric; request timeout in seconds (default: 120)}
 
 \item{key_name}{Name of environment variable containing the API key}
 
 \item{id_col_name}{Name for the ID column in output (default: "id"). When called from hf_classify_df(), this preserves the original column name.}
 
 \item{text_col_name}{Name for the text column in output (default: "text"). When called from hf_classify_df(), this preserves the original column name.}
+
+\item{max_chars}{Character limit used on TEI when no tokeniser is available}
+
+\item{tokenizer}{On TEI: a Hugging Face model id (e.g. \code{"org/model"}) or a
+\code{tok::tokenizer}, used with the \code{tok} package to cut texts to
+\code{max_length} tokens. Dedicated endpoints do not report their model id, so
+pass it here.}
+
+\item{engine}{The endpoint's inference engine: \code{"auto"} (default) detects it
+with a call to the endpoint's \verb{/info} route, \code{"tei"} for Text Embeddings
+Inference, \code{"toolkit"} for the default Hugging Face Inference Toolkit.
+Set the default for a session with \code{options(EndpointR.hf_engine = "tei")}.}
+
+\item{progress}{Logical; whether to show progress bar (default: TRUE)}
 }
 \value{
 A data frame of classified documents with successes and failures
 }
 \description{
 Classifies large batches of text using a Hugging Face classification endpoint.
-Processes texts in chunks with concurrent requests, writes intermediate results
-to disk as Parquet files, and returns a combined data frame of all classifications.
+Processes texts in chunks, sending several texts per request and several
+requests at once, writes intermediate results to disk as Parquet files, and
+returns a combined data frame of all classifications.
 }
 \details{
 The function creates a metadata JSON file in \code{output_dir} containing processing
-parameters and timestamps. Each chunk is saved as a separate Parquet file before
-being combined into the final result. Use \code{output_dir = "auto"} to generate a
-timestamped directory automatically.
+parameters, the endpoint's inference engine and (on TEI) its limits, how
+texts were cut, the number of empty texts and the number of split batches.
+Each chunk is saved as a separate Parquet file before being combined into the
+final result. Use \code{output_dir = "auto"} to generate a timestamped directory
+automatically.
 
-For single text classification, use \code{hf_classify_text()} instead.
+See \code{\link[=hf_classify_batch]{hf_classify_batch()}} for how texts are batched, retried and split, and
+\code{\link[=hf_classify_text]{hf_classify_text()}} for how texts are cut on TEI endpoints. The output's
+text column holds the original texts, not the cut ones.
 }
 \examples{
 \dontrun{
-# basic usage with vectors
 texts <- c("I love this", "I hate this", "This is ok")
 ids <- c("review_1", "review_2", "review_3")
 
