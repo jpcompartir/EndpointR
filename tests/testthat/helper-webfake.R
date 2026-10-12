@@ -385,11 +385,15 @@ withr::local_envvar(HF_TEST_API_KEY = "fake-key")
     )
   ), auto_unbox = TRUE)
 
+  # the API nests an errored request's message one level down
   line2 <- jsonlite::toJSON(list(
     custom_id = "t2",
     result = list(
       type = "errored",
-      error = list(type = "invalid_request", message = "Invalid request")
+      error = list(
+        type = "error",
+        error = list(type = "invalid_request_error", message = "Invalid request")
+      )
     )
   ), auto_unbox = TRUE)
 

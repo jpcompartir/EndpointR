@@ -280,72 +280,7 @@ ant_batch_results <- function(
     ))
   }
 
-  raw_text <- httr2::resp_body_string(response)
-  lines <- strsplit(raw_text, "\n")[[1]]
-  lines <- lines[nchar(lines) > 0]
-
-  if (length(lines) == 0) {
-    return(tibble::tibble(
-      custom_id = character(),
-      content = character(),
-      .error = logical(),
-      .error_msg = character(),
-      stop_reason = character(),
-      input_tokens = integer(),
-      output_tokens = integer()
-    ))
-  }
-
-  parsed <- purrr::imap(lines, \(line, idx) {
-    tryCatch(
-      jsonlite::fromJSON(line, simplifyVector = FALSE),
-      error = function(e) {
-        list(
-          custom_id = paste0("__PARSE_ERROR_LINE_", idx),
-          result = list(type = "errored", error = list(message = paste("Failed to parse JSONL line", idx)))
-        )
-      }
-    )
-  })
-
-  results <- purrr::map(parsed, function(item) {
-    custom_id <- item$custom_id
-    result <- item$result
-    result_type <- result$type
-
-    if (result_type == "succeeded") {
-      msg <- result$message
-      content <- .extract_content_from_batch_message(msg)
-      return(tibble::tibble(
-        custom_id = custom_id,
-        content = content,
-        .error = FALSE,
-        .error_msg = NA_character_,
-        stop_reason = msg$stop_reason %||% NA_character_,
-        input_tokens = msg$usage$input_tokens %||% NA_integer_,
-        output_tokens = msg$usage$output_tokens %||% NA_integer_
-      ))
-    }
-
-    # errored, canceled, expired
-    error_msg <- if (result_type == "errored") {
-      result$error$message %||% "Unknown error"
-    } else {
-      result_type
-    }
-
-    tibble::tibble(
-      custom_id = custom_id,
-      content = NA_character_,
-      .error = TRUE,
-      .error_msg = error_msg,
-      stop_reason = NA_character_,
-      input_tokens = NA_integer_,
-      output_tokens = NA_integer_
-    )
-  })
-
-  purrr::list_rbind(results)
+  .ant_parse_batch_results(httr2::resp_body_string(response))
 }
 
 # ant_batch_list ----
@@ -475,4 +410,77 @@ ant_batch_cancel <- function(
     }
   }
   return(NA_character_)
+}
+
+#' Parse the JSONL body of a batch's results into a tibble
+#' @param raw_text The results file as one string
+#' @return A tibble with one row per line
+#' @keywords internal
+.ant_parse_batch_results <- function(raw_text) {
+  lines <- strsplit(raw_text, "\n")[[1]]
+  lines <- lines[nchar(lines) > 0]
+
+  if (length(lines) == 0) {
+    return(tibble::tibble(
+      custom_id = character(),
+      content = character(),
+      .error = logical(),
+      .error_msg = character(),
+      stop_reason = character(),
+      input_tokens = integer(),
+      output_tokens = integer()
+    ))
+  }
+
+  parsed <- purrr::imap(lines, \(line, idx) {
+    tryCatch(
+      jsonlite::fromJSON(line, simplifyVector = FALSE),
+      error = function(e) {
+        list(
+          custom_id = paste0("__PARSE_ERROR_LINE_", idx),
+          result = list(type = "errored", error = list(message = paste("Failed to parse JSONL line", idx)))
+        )
+      }
+    )
+  })
+
+  results <- purrr::map(parsed, function(item) {
+    custom_id <- item$custom_id
+    result <- item$result
+    result_type <- result$type
+
+    if (result_type == "succeeded") {
+      msg <- result$message
+      content <- .extract_content_from_batch_message(msg)
+      return(tibble::tibble(
+        custom_id = custom_id,
+        content = content,
+        .error = FALSE,
+        .error_msg = NA_character_,
+        stop_reason = msg$stop_reason %||% NA_character_,
+        input_tokens = msg$usage$input_tokens %||% NA_integer_,
+        output_tokens = msg$usage$output_tokens %||% NA_integer_
+      ))
+    }
+
+    # errored, canceled, expired. The API nests an errored request's message
+    # one level down, in result$error$error$message
+    error_msg <- if (result_type == "errored") {
+      result$error$error$message %||% result$error$message %||% "Unknown error"
+    } else {
+      result_type
+    }
+
+    tibble::tibble(
+      custom_id = custom_id,
+      content = NA_character_,
+      .error = TRUE,
+      .error_msg = error_msg,
+      stop_reason = NA_character_,
+      input_tokens = NA_integer_,
+      output_tokens = NA_integer_
+    )
+  })
+
+  purrr::list_rbind(results)
 }

@@ -153,70 +153,13 @@ test_that("ant_batch_create sends correct request and returns batch metadata", {
   expect_equal(result$request_counts$processing, 2L)
 })
 
-test_that("ant_batch_results parses JSONL correctly into expected tibble", {
-  withr::local_envvar(ANTHROPIC_API_KEY = "test-key")
+test_that(".ant_parse_batch_results parses JSONL correctly into expected tibble", {
+  # fetch the JSONL from the mock results endpoint, then parse it as ant_batch_results() does
+  raw_text <- httr2::request(server$url("/test_ant_batch_results")) |>
+    httr2::req_perform() |>
+    httr2::resp_body_string()
 
-  # We need a mock endpoint that returns ended status with results_url pointing
-  # to our mock results endpoint. Use a custom endpoint for this.
-  # The status endpoint needs to return results_url.
-
-  # Create a special status endpoint that returns a results_url
-  results_url <- server$url("/test_ant_batch_results")
-
-  # We can't easily make the status endpoint return a dynamic results_url,
-  # so we test the JSONL parsing through the internal flow by mocking the
-  # status call. Instead, let's test the parsing directly.
-
-  # Fetch the JSONL from the mock results endpoint directly
-  response <- httr2::request(results_url) |>
-    httr2::req_headers("x-api-key" = "test-key", "anthropic-version" = "2023-06-01") |>
-    httr2::req_perform()
-
-  raw_text <- httr2::resp_body_string(response)
-  lines <- strsplit(raw_text, "\n")[[1]]
-  lines <- lines[nchar(lines) > 0]
-
-  parsed <- purrr::imap(lines, \(line, idx) {
-    jsonlite::fromJSON(line, simplifyVector = FALSE)
-  })
-
-  results <- purrr::map(parsed, function(item) {
-    custom_id <- item$custom_id
-    result <- item$result
-    result_type <- result$type
-
-    if (result_type == "succeeded") {
-      msg <- result$message
-      content <- .extract_content_from_batch_message(msg)
-      return(tibble::tibble(
-        custom_id = custom_id,
-        content = content,
-        .error = FALSE,
-        .error_msg = NA_character_,
-        stop_reason = msg$stop_reason %||% NA_character_,
-        input_tokens = msg$usage$input_tokens %||% NA_integer_,
-        output_tokens = msg$usage$output_tokens %||% NA_integer_
-      ))
-    }
-
-    error_msg <- if (result_type == "errored") {
-      result$error$message %||% "Unknown error"
-    } else {
-      result_type
-    }
-
-    tibble::tibble(
-      custom_id = custom_id,
-      content = NA_character_,
-      .error = TRUE,
-      .error_msg = error_msg,
-      stop_reason = NA_character_,
-      input_tokens = NA_integer_,
-      output_tokens = NA_integer_
-    )
-  })
-
-  result_df <- purrr::list_rbind(results)
+  result_df <- .ant_parse_batch_results(raw_text)
 
   expect_s3_class(result_df, "tbl_df")
   expect_equal(nrow(result_df), 2)
@@ -230,11 +173,21 @@ test_that("ant_batch_results parses JSONL correctly into expected tibble", {
   expect_equal(succeeded$input_tokens, 10L)
   expect_equal(succeeded$output_tokens, 5L)
 
-  # check the errored row
+  # check the errored row: the message is nested in result$error$error
   errored <- result_df[result_df$custom_id == "t2", ]
   expect_true(is.na(errored$content))
   expect_true(errored$.error)
   expect_equal(errored$.error_msg, "Invalid request")
+})
+
+test_that(".ant_parse_batch_results reads the older flat error shape and empty files", {
+  flat_error <- '{"custom_id":"a","result":{"type":"errored","error":{"message":"flat"}}}'
+  expect_equal(.ant_parse_batch_results(flat_error)$.error_msg, "flat")
+
+  expired <- '{"custom_id":"b","result":{"type":"expired"}}'
+  expect_equal(.ant_parse_batch_results(expired)$.error_msg, "expired")
+
+  expect_equal(nrow(.ant_parse_batch_results("")), 0)
 })
 
 test_that("ant_batch_create error messages with curly braces don't crash cli", {
