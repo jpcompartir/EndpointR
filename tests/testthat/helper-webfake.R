@@ -273,7 +273,12 @@ withr::local_envvar(HF_TEST_API_KEY = "fake-key")
         text = "positive"
       )
     ),
-    stop_reason = "end_turn"
+    stop_reason = "end_turn",
+    usage = list(
+      input_tokens = 12L,
+      output_tokens = 40L,
+      output_tokens_details = list(thinking_tokens = 30L)
+    )
   )
 
   res$
@@ -299,7 +304,38 @@ withr::local_envvar(HF_TEST_API_KEY = "fake-key")
     send(jsonlite::toJSON(response_data, auto_unbox = TRUE))
 })
 
+# the model spent all of max_tokens thinking, so there is no text block
+.app$post("/test_ant_out_of_tokens", function(req, res) {
+  response_data <- list(
+    content = list(
+      list(type = "thinking", thinking = "", signature = "sig")
+    ),
+    stop_reason = "max_tokens",
+    usage = list(
+      input_tokens = 12L,
+      output_tokens = 64L,
+      output_tokens_details = list(thinking_tokens = 64L)
+    )
+  )
+
+  res$
+    set_status(200L)$
+    set_header("Content-Type", "application/json")$
+    send(jsonlite::toJSON(response_data, auto_unbox = TRUE))
+})
+
 # Anthropic Batches API mock endpoints
+# echoes the request body back, so tests can check what ant_batch_create() sent
+.app$post("/test_ant_batch_create_echo", function(req, res) {
+  res$
+    set_status(200L)$
+    set_header("Content-Type", "application/json")$
+    send(jsonlite::toJSON(
+      list(id = "msgbatch_echo", processing_status = "in_progress", received = req$json),
+      auto_unbox = TRUE
+    ))
+})
+
 .app$post("/test_ant_batch_create", function(req, res) {
   response_data <- list(
     id = "msgbatch_test123",
@@ -397,7 +433,25 @@ withr::local_envvar(HF_TEST_API_KEY = "fake-key")
     )
   ), auto_unbox = TRUE)
 
-  jsonl_content <- paste0(line1, "\n", line2, "\n")
+  # the model spent all of max_tokens thinking, so there is no text block
+  line3 <- jsonlite::toJSON(list(
+    custom_id = "t3",
+    result = list(
+      type = "succeeded",
+      message = list(
+        role = "assistant",
+        content = list(list(type = "thinking", thinking = "", signature = "sig")),
+        stop_reason = "max_tokens",
+        usage = list(
+          input_tokens = 10L,
+          output_tokens = 64L,
+          output_tokens_details = list(thinking_tokens = 64L)
+        )
+      )
+    )
+  ), auto_unbox = TRUE)
+
+  jsonl_content <- paste0(line1, "\n", line2, "\n", line3, "\n")
 
   res$
     set_status(200L)$

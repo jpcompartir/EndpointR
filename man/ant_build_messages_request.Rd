@@ -16,7 +16,8 @@ ant_build_messages_request(
   endpoint_url = .ANT_MESSAGES_ENDPOINT,
   timeout = 120L,
   max_retries = 5L,
-  effort = NULL
+  effort = NULL,
+  thinking = NULL
 )
 }
 \arguments{
@@ -26,9 +27,9 @@ ant_build_messages_request(
 
 \item{model}{Anthropic model to use (default: "claude-haiku-5-5")}
 
-\item{temperature}{Sampling temperature (0-1), included in the request only when non-NULL. Dropped with a warning on models that reject sampling parameters (Claude Opus 4.7+, Sonnet 5, Fable 5).}
+\item{temperature}{Sampling temperature (0-1), included in the request only when non-NULL. Dropped with a warning on models that reject sampling parameters (Claude Opus 4.7+, Haiku 5.5, Sonnet 5, Fable 5), and when \code{thinking} is "adaptive" or a budget.}
 
-\item{max_tokens}{Maximum tokens in response}
+\item{max_tokens}{Maximum tokens in the response, including thinking tokens}
 
 \item{schema}{Optional JSON schema for structured output (json_schema object or list)}
 
@@ -44,7 +45,9 @@ requests sharing the same system prompt.}
 
 \item{max_retries}{Maximum number of retry attempts for failed requests}
 
-\item{effort}{Optional reasoning effort, one of "low", "medium", "high", "xhigh", "max". Sent as \code{output_config$effort}. Supported on Claude Opus 4.5+, Sonnet 4.6+ and Fable 5; not supported on Haiku models.}
+\item{effort}{Optional effort level, one of "low", "medium", "high", "xhigh", "max". Sent as \code{output_config$effort}. Not accepted by Haiku 4.5 or Sonnet 4.5. See the "Effort and thinking" section.}
+
+\item{thinking}{Optional thinking setting. \code{NULL} (the default) leaves it out of the request, so the model uses its own default. One of "adaptive", "disabled" or "between_tools", or a whole number for a fixed thinking budget in tokens. See the "Effort and thinking" section.}
 }
 \value{
 An httr2 request object
@@ -52,12 +55,10 @@ An httr2 request object
 \description{
 Constructs an httr2 request object for Anthropic's Messages API.
 Handles message formatting, system prompts, and optional JSON schema
-for structured outputs. When using structured outputs you must select the correct model.
+for structured outputs.
 }
 \details{
-This function creates the HTTP request but does not execute it. For
-structured outputs, you must use a supported model (Claude Sonnet 4.5
-or Opus 4.1).
+This function creates the HTTP request but does not execute it.
 
 The \code{schema} parameter accepts either:
 \itemize{
@@ -68,12 +69,61 @@ The \code{schema} parameter accepts either:
 Anthropic uses \code{output_config} with a nested \code{format} field for structured
 outputs. This is now GA and requires no beta header.
 }
+\section{Effort and thinking}{
+
+Most users only need \code{effort}. It controls how much the model thinks and
+how many tokens it uses overall. Lower effort is cheaper and faster. The
+default is "high" on most models, and "medium" on Claude Opus 5.5 and
+Claude Haiku 5.5. Haiku 4.5 and Sonnet 4.5 don't accept \code{effort}.
+
+Use \code{thinking} for two things: to turn thinking on for older models, and to
+turn it off on the models that allow it.
+\itemize{
+\item Haiku 4.5, Sonnet 4.5 and Opus 4.5 only think with a fixed budget, e.g.
+\code{thinking = 2048}. The budget must be at least 1024 and less than
+\code{max_tokens}.
+\item Models from 4.6 onwards use \code{thinking = "adaptive"}, and models from 4.7
+onwards reject a fixed budget.
+\item \code{thinking = "disabled"} turns thinking off on Opus 4.7, Opus 4.8, Sonnet 5,
+Opus 5 and Haiku 5.5. Opus 5 and Haiku 5.5 only accept it at effort "high"
+or lower.
+\item Sonnet 5.5 uses \code{thinking = "between_tools"} instead, at effort "high" or
+lower.
+\item Opus 5.5, Fable and Mythos can't turn thinking off. Lower \code{effort} instead.
+}
+
+EndpointR checks these rules before sending, and stops with a message that
+suggests a setting that works. Models it doesn't recognise are sent
+unchecked.
+
+Thinking tokens count towards \code{max_tokens}. If a model spends all of
+\code{max_tokens} thinking, the response has no text, \code{content} is \code{NA}, and
+\code{stop_reason} is "max_tokens". Raise \code{max_tokens}, or lower \code{effort} or the
+thinking budget, if that happens. A thinking budget is a target rather than
+a hard limit. In our tests, Haiku 4.5 with \code{thinking = 2048} sometimes
+thought for over 4000 tokens, so leave plenty of room above the budget.
+
+Anthropic reject a changed \code{temperature} while thinking is on, so when
+\code{thinking} is "adaptive" or a budget, \code{temperature} is dropped with a
+warning.
+
+Before you submit a large batch, send one request with
+\code{\link[=ant_complete_text]{ant_complete_text()}} using the same settings. The API only reports a bad
+setting in a batch after the whole batch has run.
+}
+
 \examples{
 \dontrun{
   # simple request
   req <- ant_build_messages_request(
     input = "What is the capital of France?",
     max_tokens = 100
+  )
+
+  # less thinking on Haiku 5.5
+  req <- ant_build_messages_request(
+    input = "What is the capital of France?",
+    effort = "low"
   )
 
   # with structured output
@@ -88,11 +138,11 @@ outputs. This is now GA and requires no beta header.
   req <- ant_build_messages_request(
     input = "What is the capital of France?",
     schema = schema,
-    max_tokens = 100,
-    model = "sonnet-4-5"
+    max_tokens = 100
   )
 }
 }
 \seealso{
-\url{https://platform.claude.com/docs/en/build-with-claude/structured-outputs}
+\url{https://platform.claude.com/docs/en/build-with-claude/structured-outputs},
+\url{https://platform.claude.com/docs/en/build-with-claude/effort}
 }

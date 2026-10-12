@@ -174,7 +174,7 @@ test_that("ant_complete_chunks processes chunks correctly", {
   texts <- paste0("text", 1:6)
   ids <- paste0("id", 1:length(texts))
   temp_dir <- withr::local_tempdir()
-  expected_cols <- c("id", "content", ".error", ".error_msg", ".status", ".chunk")
+  expected_cols <- c("id", "content", ".error", ".error_msg", "stop_reason", "input_tokens", "output_tokens", "thinking_tokens", ".status", ".chunk")
 
   withr::with_envvar(
     c("ANTHROPIC_API_KEY" = "test-key"),
@@ -242,7 +242,7 @@ test_that("ant_complete_df takes single row, multi-row data frames as inputs", {
   )
 
   expect_setequal(names(successful_response),
-                  c("id", "content", ".error", ".error_msg", ".status", ".chunk"))
+                  c("id", "content", ".error", ".error_msg", "stop_reason", "input_tokens", "output_tokens", "thinking_tokens", ".status", ".chunk"))
   expect_setequal(unique(successful_response$content), "positive")
 
   withr::with_envvar(
@@ -442,6 +442,160 @@ test_that("ant_build_messages_request adds effort to output_config", {
   # omitted by default
   req_default <- ant_build_messages_request("hello")
   expect_null(req_default$body$data$output_config$effort)
+})
+
+# thinking ----
+
+build_body <- function(...) {
+  suppressWarnings(ant_build_messages_request("hello", ...))$body$data
+}
+
+test_that("ant_build_messages_request leaves thinking out by default, and the default model is Haiku 5.5", {
+  body <- build_body()
+  expect_equal(body$model, "claude-haiku-5-5")
+  expect_null(body$thinking)
+  expect_equal(body$max_tokens, 4096L)
+})
+
+test_that("ant_build_messages_request builds each thinking setting", {
+  expect_equal(build_body(thinking = "adaptive")$thinking, list(type = "adaptive"))
+  expect_equal(build_body(thinking = "disabled")$thinking, list(type = "disabled"))
+  expect_equal(
+    build_body(model = "claude-sonnet-5-5", thinking = "between_tools")$thinking,
+    list(type = "between_tools")
+  )
+  expect_equal(
+    build_body(model = "claude-haiku-4-5", thinking = 2048)$thinking,
+    list(type = "enabled", budget_tokens = 2048L)
+  )
+
+  # effort and thinking together
+  both <- build_body(effort = "low", thinking = "adaptive")
+  expect_equal(both$output_config$effort, "low")
+  expect_equal(both$thinking$type, "adaptive")
+
+  # models EndpointR doesn't know are sent unchecked, e.g. compatible providers
+  expect_equal(build_body(model = "deepseek-chat", thinking = "between_tools")$thinking$type, "between_tools")
+})
+
+test_that("ant_build_messages_request drops temperature when thinking is on", {
+  rlang::reset_warning_verbosity("ant_thinking_temperature_drop")
+  expect_warning(
+    req <- ant_build_messages_request("hello", model = "claude-haiku-4-5", thinking = 2048),
+    "while thinking is on"
+  )
+  expect_null(req$body$data$temperature)
+
+  rlang::reset_warning_verbosity("ant_thinking_temperature_drop")
+  expect_warning(
+    req_adaptive <- ant_build_messages_request("hello", model = "claude-sonnet-4-6", thinking = "adaptive"),
+    "while thinking is on"
+  )
+  expect_null(req_adaptive$body$data$temperature)
+
+  # thinking off: temperature stays
+  req_off <- ant_build_messages_request("hello", model = "claude-sonnet-4-6", thinking = "disabled")
+  expect_equal(req_off$body$data$temperature, 0)
+})
+
+test_that("ant_build_messages_request rejects malformed thinking values", {
+  expect_error(build_body(thinking = "sometimes"), "must be one of")
+  expect_error(build_body(thinking = 2048.5), "whole number")
+  expect_error(build_body(thinking = c(1024, 2048)), "whole number")
+  expect_error(build_body(thinking = TRUE), "must be")
+})
+
+test_that("ant_build_messages_request stops on settings the model rejects", {
+  # budget size
+  expect_error(build_body(model = "claude-haiku-4-5", thinking = 1000), "at least 1024")
+  expect_error(build_body(model = "claude-haiku-4-5", thinking = 4096), "less than `max_tokens`")
+  expect_no_error(build_body(model = "claude-haiku-4-5", thinking = 4096, max_tokens = 8192))
+
+  # budget on models from 4.7 onwards
+  for (model in c("claude-opus-4-7", "claude-opus-5", "claude-sonnet-5-5", "claude-haiku-5-5", "claude-fable-5-1")) {
+    expect_error(build_body(model = model, thinking = 2048), "fixed thinking budget", info = model)
+  }
+  # still allowed, but deprecated, on the 4.6 models
+  expect_no_error(build_body(model = "claude-opus-4-6", thinking = 2048))
+
+  # adaptive on the 4.5 models
+  for (model in c("claude-haiku-4-5", "claude-sonnet-4-5", "claude-opus-4-5-20251101")) {
+    expect_error(build_body(model = model, thinking = "adaptive"), "Use a fixed budget", info = model)
+  }
+
+  # effort on models without it, and levels some models don't have
+  expect_error(build_body(model = "claude-haiku-4-5", effort = "low"), "doesn't accept `effort`")
+  expect_error(build_body(model = "claude-sonnet-4-5", effort = "low"), "doesn't accept `effort`")
+  expect_no_error(build_body(model = "claude-opus-4-5", effort = "low"))
+  expect_error(build_body(model = "claude-opus-4-6", effort = "xhigh"), "xhigh")
+  expect_no_error(build_body(model = "claude-opus-4-6", effort = "max"))
+  expect_error(build_body(model = "claude-opus-4-5", effort = "max"), "max")
+
+  # disabled where thinking can't be turned off
+  for (model in c("claude-opus-5-5", "claude-fable-5-1", "claude-mythos-5")) {
+    expect_error(build_body(model = model, thinking = "disabled"), "can't be turned off", info = model)
+  }
+  expect_error(build_body(model = "claude-sonnet-5-5", thinking = "disabled"), "between_tools")
+
+  # between_tools anywhere but Sonnet 5.5
+  expect_error(build_body(model = "claude-opus-4-8", thinking = "between_tools"), "Only Claude Sonnet 5.5")
+
+  # thinking off at xhigh or max on Opus 5, Haiku 5.5 and Sonnet 5.5
+  expect_error(build_body(model = "claude-opus-5", effort = "xhigh", thinking = "disabled"), "\"high\" or lower")
+  expect_error(build_body(model = "claude-haiku-5-5", effort = "max", thinking = "disabled"), "\"high\" or lower")
+  expect_error(
+    build_body(model = "claude-sonnet-5-5", effort = "max", thinking = "between_tools"),
+    "\"high\" or lower"
+  )
+  expect_no_error(build_body(model = "claude-opus-5", effort = "high", thinking = "disabled"))
+  # Opus 4.8 and Sonnet 5 accept disabled at any effort
+  expect_no_error(build_body(model = "claude-opus-4-8", effort = "max", thinking = "disabled"))
+  expect_no_error(build_body(model = "claude-sonnet-5", effort = "xhigh", thinking = "disabled"))
+})
+
+test_that("ant_complete_df returns the usage columns", {
+  withr::local_envvar(ANTHROPIC_API_KEY = "test-key")
+
+  result <- ant_complete_df(
+    get_review_df(),
+    review_text,
+    id,
+    endpoint_url = server$url("/test_ant_complete_df_review"),
+    concurrent_requests = 1,
+    output_dir = withr::local_tempdir()
+  ) |>
+    suppressMessages() |>
+    suppressWarnings()
+
+  expect_equal(unique(result$stop_reason), "end_turn")
+  expect_equal(unique(result$input_tokens), 12L)
+  expect_equal(unique(result$output_tokens), 40L)
+  expect_equal(unique(result$thinking_tokens), 30L)
+})
+
+test_that("both Messages routes warn when a response ran out of tokens while thinking", {
+  withr::local_envvar(ANTHROPIC_API_KEY = "test-key")
+  url <- server$url("/test_ant_out_of_tokens")
+
+  expect_warning(
+    content <- ant_complete_text("hello", endpoint_url = url, temperature = NULL),
+    "ran out of tokens"
+  )
+  expect_true(is.na(content))
+
+  expect_warning(
+    result <- ant_complete_chunks(
+      texts = c("a", "b"),
+      ids = c("1", "2"),
+      endpoint_url = url,
+      concurrent_requests = 1,
+      temperature = NULL,
+      output_dir = withr::local_tempdir()
+    ) |> suppressMessages(),
+    "2 responses ran out of tokens"
+  )
+  expect_equal(result$stop_reason, c("max_tokens", "max_tokens"))
+  expect_equal(result$thinking_tokens, c(64L, 64L))
 })
 
 test_that("ant_complete_text passes key_name through to the request", {

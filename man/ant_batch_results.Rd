@@ -19,7 +19,8 @@ ant_batch_results(
 }
 \value{
 A tibble with columns: \code{custom_id}, \code{content}, \code{.error},
-\code{.error_msg}, \code{stop_reason}, \code{input_tokens}, \code{output_tokens}
+\code{.error_msg}, \code{stop_reason}, \code{input_tokens}, \code{output_tokens},
+\code{thinking_tokens}
 }
 \description{
 Downloads and parses results from a completed message batch. The batch
@@ -29,6 +30,9 @@ must have \code{processing_status} of \code{"ended"} before results can be retri
 Results are returned as a tibble with one row per request. The function
 handles all four Anthropic result types: succeeded, errored, canceled,
 and expired.
+
+\code{thinking_tokens} is \code{NA} when the API doesn't report it. A warning is
+shown when any request ran out of tokens before writing an answer.
 }
 \examples{
 \dontrun{

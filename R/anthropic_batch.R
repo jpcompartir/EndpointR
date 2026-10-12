@@ -13,23 +13,33 @@
 #' Each request in the batch is a standalone Messages API call. The API
 #' supports up to 100,000 requests per batch.
 #'
+#' Each request is built by the same code as [ant_build_messages_request()],
+#' so a batch request and a Messages request with the same arguments send the
+#' same fields.
+#'
 #' When `system_prompt` is provided, prompt caching is automatically enabled
-#' by adding `cache_control` to each request's params. The API applies the
-#' cache breakpoint to the last cacheable block.
+#' by adding `cache_control` to the system prompt.
 #'
 #' For structured outputs, pass a `json_schema` object to `schema`. This uses
 #' the GA `output_config` format (no beta header required).
 #'
+#' The API checks each request only after the whole batch has run, so a bad
+#' setting is accepted when you submit the batch and only shows up as an
+#' error in [ant_batch_results()], up to 24 hours later. EndpointR checks the
+#' `effort` and `thinking` rules it knows about before submitting, but test
+#' one request with [ant_complete_text()] and the same settings before you
+#' submit a large batch.
+#'
 #' @param texts Character vector of texts to send to the model
 #' @param custom_ids Character vector of unique identifiers (same length as texts)
-#' @param model Anthropic model to use
 #' @param system_prompt Optional system prompt (applied to all requests)
 #' @param schema Optional JSON schema for structured output (json_schema object or list)
-#' @param max_tokens Maximum tokens per response
-#' @param temperature Sampling temperature (0-1)
+#' @param max_tokens Maximum tokens per response, including thinking tokens
 #' @param key_name Environment variable name for API key
 #' @param endpoint_url Anthropic Batches API endpoint URL
 #' @param timeout Request timeout in seconds
+#' @inheritParams ant_build_messages_request
+#' @inheritSection ant_build_messages_request Effort and thinking
 #'
 #' @return A list of batch metadata including `$id` for tracking
 #' @export
@@ -40,7 +50,8 @@
 #'   batch <- ant_batch_create(
 #'     texts = c("Hello", "World"),
 #'     custom_ids = c("t1", "t2"),
-#'     system_prompt = "Reply in one word"
+#'     system_prompt = "Reply in one word",
+#'     effort = "low"
 #'   )
 #'   # Check status later
 #'   ant_batch_status(batch$id)
@@ -55,7 +66,9 @@ ant_batch_create <- function(
   temperature = 0,
   key_name = "ANTHROPIC_API_KEY",
   endpoint_url = .ANT_BATCHES_ENDPOINT,
-  timeout = 60L
+  timeout = 60L,
+  effort = NULL,
+  thinking = NULL
 ) {
 
   stopifnot(
@@ -65,16 +78,6 @@ ant_batch_create <- function(
     "custom_ids must be unique" = !anyDuplicated(custom_ids),
     "batch cannot exceed 100,000 requests" = length(texts) <= 100000
   )
-
-  # Claude Opus 4.7+, Sonnet 5 and Fable 5 reject sampling parameters with a 400
-  if (!is.null(temperature) && grepl(.ANT_NO_SAMPLING_REGEX, model)) {
-    cli::cli_warn(
-      "{.arg temperature} is not supported by {.val {model}} and has been dropped from the request.",
-      .frequency = "once",
-      .frequency_id = "ant_sampling_drop"
-    )
-    temperature <- NULL
-  }
 
   bad_ids <- !grepl("^[a-zA-Z0-9_-]{1,64}$", custom_ids)
   if (any(bad_ids)) {
@@ -87,47 +90,21 @@ ant_batch_create <- function(
     ))
   }
 
-  if (!is.null(system_prompt)) {
-    if (!rlang::is_scalar_character(system_prompt)) {
-      cli::cli_abort("{.arg system_prompt} must be a {.cls character} of length 1")
-    }
-  }
+  # build the params once with the same code as the Messages route, which also
+  # checks the arguments, then swap in each text
+  params <- .ant_build_body(
+    input = texts[[1]],
+    model = model,
+    max_tokens = max_tokens,
+    temperature = temperature,
+    system_prompt = system_prompt,
+    schema = schema,
+    effort = effort,
+    thinking = thinking
+  )
 
-  # pre-format schema once
-  formatted_schema <- NULL
-  if (!is.null(schema)) {
-    if (inherits(schema, "EndpointR::json_schema")) {
-      formatted_schema <- .ant_format_schema(schema)
-    } else if (is.list(schema)) {
-      formatted_schema <- schema
-    } else {
-      cli::cli_abort("{.arg schema} must be an EndpointR json_schema object or a list")
-    }
-  }
-
-  # build the requests array
   requests <- purrr::map2(texts, custom_ids, function(text, id) {
-    params <- list(
-      model = model,
-      max_tokens = as.integer(max_tokens),
-      messages = list(
-        list(role = "user", content = text)
-      )
-    )
-
-    if (!is.null(temperature)) {
-      params$temperature <- temperature
-    }
-
-    if (!is.null(system_prompt)) {
-      params$system <- system_prompt
-      params$cache_control <- list(type = "ephemeral")
-    }
-
-    if (!is.null(formatted_schema)) {
-      params$output_config <- formatted_schema
-    }
-
+    params$messages[[1]]$content <- text
     list(
       custom_id = id,
       params = params
@@ -224,10 +201,14 @@ ant_batch_status <- function(
 #' handles all four Anthropic result types: succeeded, errored, canceled,
 #' and expired.
 #'
+#' `thinking_tokens` is `NA` when the API doesn't report it. A warning is
+#' shown when any request ran out of tokens before writing an answer.
+#'
 #' @inheritParams ant_batch_status
 #'
 #' @return A tibble with columns: `custom_id`, `content`, `.error`,
-#'   `.error_msg`, `stop_reason`, `input_tokens`, `output_tokens`
+#'   `.error_msg`, `stop_reason`, `input_tokens`, `output_tokens`,
+#'   `thinking_tokens`
 #' @export
 #'
 #' @examples
@@ -280,7 +261,10 @@ ant_batch_results <- function(
     ))
   }
 
-  .ant_parse_batch_results(httr2::resp_body_string(response))
+  results <- .ant_parse_batch_results(httr2::resp_body_string(response))
+  .ant_warn_out_of_tokens(results$content, results$stop_reason)
+
+  results
 }
 
 # ant_batch_list ----
@@ -420,16 +404,19 @@ ant_batch_cancel <- function(
   lines <- strsplit(raw_text, "\n")[[1]]
   lines <- lines[nchar(lines) > 0]
 
+  empty_results <- tibble::tibble(
+    custom_id = character(),
+    content = character(),
+    .error = logical(),
+    .error_msg = character(),
+    stop_reason = character(),
+    input_tokens = integer(),
+    output_tokens = integer(),
+    thinking_tokens = integer()
+  )
+
   if (length(lines) == 0) {
-    return(tibble::tibble(
-      custom_id = character(),
-      content = character(),
-      .error = logical(),
-      .error_msg = character(),
-      stop_reason = character(),
-      input_tokens = integer(),
-      output_tokens = integer()
-    ))
+    return(empty_results)
   }
 
   parsed <- purrr::imap(lines, \(line, idx) {
@@ -445,40 +432,39 @@ ant_batch_cancel <- function(
   })
 
   results <- purrr::map(parsed, function(item) {
-    custom_id <- item$custom_id
     result <- item$result
-    result_type <- result$type
 
-    if (result_type == "succeeded") {
-      msg <- result$message
-      content <- .extract_content_from_batch_message(msg)
+    if (result$type == "succeeded") {
+      fields <- .ant_message_fields(result$message)
       return(tibble::tibble(
-        custom_id = custom_id,
-        content = content,
+        custom_id = item$custom_id,
+        content = fields$content,
         .error = FALSE,
         .error_msg = NA_character_,
-        stop_reason = msg$stop_reason %||% NA_character_,
-        input_tokens = msg$usage$input_tokens %||% NA_integer_,
-        output_tokens = msg$usage$output_tokens %||% NA_integer_
+        stop_reason = fields$stop_reason,
+        input_tokens = fields$input_tokens,
+        output_tokens = fields$output_tokens,
+        thinking_tokens = fields$thinking_tokens
       ))
     }
 
     # errored, canceled, expired. The API nests an errored request's message
     # one level down, in result$error$error$message
-    error_msg <- if (result_type == "errored") {
+    error_msg <- if (result$type == "errored") {
       result$error$error$message %||% result$error$message %||% "Unknown error"
     } else {
-      result_type
+      result$type
     }
 
     tibble::tibble(
-      custom_id = custom_id,
+      custom_id = item$custom_id,
       content = NA_character_,
       .error = TRUE,
       .error_msg = error_msg,
       stop_reason = NA_character_,
       input_tokens = NA_integer_,
-      output_tokens = NA_integer_
+      output_tokens = NA_integer_,
+      thinking_tokens = NA_integer_
     )
   })
 
