@@ -443,3 +443,15 @@ test_that("ant_build_messages_request adds effort to output_config", {
   req_default <- ant_build_messages_request("hello")
   expect_null(req_default$body$data$output_config$effort)
 })
+
+test_that("ant_complete_text passes key_name through to the request", {
+  withr::local_envvar(ANTHROPIC_API_KEY = NA, MY_ANT_API_KEY = "test-key")
+  expect_no_error(
+    ant_complete_text(
+      "hello",
+      key_name = "MY_ANT_API_KEY",
+      endpoint_url = server$url("/test_ant_schemaless"),
+      temperature = NULL
+    )
+  )
+})
