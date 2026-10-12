@@ -9,12 +9,12 @@ ant_build_messages_request(
   endpointr_id = NULL,
   model = .ANT_DEFAULT_MODEL,
   temperature = 0,
-  max_tokens = 500L,
+  max_tokens = 4096L,
   schema = NULL,
   system_prompt = NULL,
   key_name = "ANTHROPIC_API_KEY",
   endpoint_url = .ANT_MESSAGES_ENDPOINT,
-  timeout = 30L,
+  timeout = 120L,
   max_retries = 5L,
   effort = NULL
 )
@@ -24,7 +24,7 @@ ant_build_messages_request(
 
 \item{endpointr_id}{An id that will persist through to response}
 
-\item{model}{Anthropic model to use (default: "claude-haiku-4.5")}
+\item{model}{Anthropic model to use (default: "claude-haiku-5-5")}
 
 \item{temperature}{Sampling temperature (0-1), included in the request only when non-NULL. Dropped with a warning on models that reject sampling parameters (Claude Opus 4.7+, Sonnet 5, Fable 5).}
 

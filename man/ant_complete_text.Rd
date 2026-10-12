@@ -10,11 +10,11 @@ ant_complete_text(
   system_prompt = NULL,
   schema = NULL,
   temperature = 0,
-  max_tokens = 500L,
+  max_tokens = 4096L,
   key_name = "ANTHROPIC_API_KEY",
   endpoint_url = .ANT_MESSAGES_ENDPOINT,
   max_retries = 5L,
-  timeout = 30L,
+  timeout = 120L,
   tidy = TRUE,
   effort = NULL
 )
@@ -22,7 +22,7 @@ ant_complete_text(
 \arguments{
 \item{text}{Character string to send to the model}
 
-\item{model}{Anthropic model to use (default: "claude-sonnet-4-5-20250929")}
+\item{model}{Anthropic model to use (default: "claude-haiku-5-5")}
 
 \item{system_prompt}{Optional system prompt}
 

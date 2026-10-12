@@ -20,7 +20,7 @@ test_that("ant_build_messages_request validates inputs and generates valid reque
   expect_equal(req$url, "https://api.anthropic.com/v1/messages")
   expect_equal(req$method, "POST")
   expect_equal(req$policies$retry_max_tries, 5)
-  expect_equal(req$options$timeout_ms, 30000)
+  expect_equal(req$options$timeout_ms, 120000)
 
   expect_error(
     ant_build_messages_request("hello",temperature = 2),
@@ -406,12 +406,12 @@ test_that("ant_complete_df's input validation is working", {
 
 
 test_that("ant_build_messages_request omits temperature when NULL and drops it on models without sampling support", {
-  # default: temperature still included for models that accept sampling (haiku)
-  req <- ant_build_messages_request("hello")
+  # temperature still included for models that accept sampling (Haiku 4.5)
+  req <- ant_build_messages_request("hello", model = "claude-haiku-4-5")
   expect_equal(req$body$data$temperature, 0)
 
   # NULL: omitted from the body entirely
-  req_null <- ant_build_messages_request("hello", temperature = NULL)
+  req_null <- ant_build_messages_request("hello", model = "claude-haiku-4-5", temperature = NULL)
   expect_false("temperature" %in% names(req_null$body$data))
 
   # models that reject sampling params (Opus 4.7+, Sonnet 5, Fable 5): dropped with a warning

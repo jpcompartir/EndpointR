@@ -51,7 +51,7 @@ ant_batch_create <- function(
   model = .ANT_DEFAULT_MODEL,
   system_prompt = NULL,
   schema = NULL,
-  max_tokens = 1024L,
+  max_tokens = 4096L,
   temperature = 0,
   key_name = "ANTHROPIC_API_KEY",
   endpoint_url = .ANT_BATCHES_ENDPOINT,

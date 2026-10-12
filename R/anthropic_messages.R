@@ -1,7 +1,7 @@
 # constants ----
 .ANT_API_VERSION <- "2023-06-01"
 .ANT_MESSAGES_ENDPOINT <- "https://api.anthropic.com/v1/messages"
-.ANT_DEFAULT_MODEL <- "claude-haiku-4-5"
+.ANT_DEFAULT_MODEL <- "claude-haiku-5-5"
 # models that reject sampling parameters (temperature/top_p/top_k) with a 400:
 # Claude Opus 4.7+, Haiku 5, Sonnet 5, Fable 5, Mythos 5. Add new families as Anthropic releases them.
 .ANT_NO_SAMPLING_REGEX <- "fable|mythos|opus-4-[789]|opus-5|sonnet-5|haiku-5"
@@ -30,7 +30,7 @@
 #'
 #' @param input Text input to send to the model
 #' @param endpointr_id An id that will persist through to response
-#' @param model Anthropic model to use (default: "claude-haiku-4.5")
+#' @param model Anthropic model to use (default: "claude-haiku-5-5")
 #' @param temperature Sampling temperature (0-1), included in the request only when non-NULL. Dropped with a warning on models that reject sampling parameters (Claude Opus 4.7+, Sonnet 5, Fable 5).
 #' @param max_tokens Maximum tokens in response
 #' @param schema Optional JSON schema for structured output (json_schema object or list)
@@ -76,12 +76,12 @@ ant_build_messages_request <- function(
   endpointr_id = NULL,
   model = .ANT_DEFAULT_MODEL,
   temperature = 0,
-  max_tokens = 500L,
+  max_tokens = 4096L,
   schema = NULL,
   system_prompt = NULL,
   key_name = "ANTHROPIC_API_KEY",
   endpoint_url = .ANT_MESSAGES_ENDPOINT,
-  timeout = 30L,
+  timeout = 120L,
   max_retries = 5L,
   effort = NULL
   ) {
@@ -187,7 +187,7 @@ ant_build_messages_request <- function(
 #' optional structured output support.
 #'
 #' @param text Character string to send to the model
-#' @param model Anthropic model to use (default: "claude-sonnet-4-5-20250929")
+#' @param model Anthropic model to use (default: "claude-haiku-5-5")
 #' @param system_prompt Optional system prompt
 #' @param schema Optional JSON schema for structured output
 #' @param temperature Sampling temperature (0-1), included in the request only when non-NULL. Dropped with a warning on models that reject sampling parameters (Claude Opus 4.7+, Sonnet 5, Fable 5).
@@ -230,11 +230,11 @@ ant_complete_text <- function(text,
                               system_prompt = NULL,
                               schema = NULL,
                               temperature = 0,
-                              max_tokens = 500L,
+                              max_tokens = 4096L,
                               key_name = "ANTHROPIC_API_KEY",
                               endpoint_url = .ANT_MESSAGES_ENDPOINT,
                               max_retries = 5L,
-                              timeout = 30L,
+                              timeout = 120L,
                               tidy = TRUE,
                               effort = NULL) {
 
@@ -351,16 +351,16 @@ ant_complete_text <- function(text,
 ant_complete_chunks <- function(texts,
                                 ids,
                                 chunk_size = 5000L,
-                                model = "claude-haiku-4-5",
+                                model = .ANT_DEFAULT_MODEL,
                                 system_prompt = NULL,
                                 output_dir = "auto",
                                 overwrite = FALSE,
                                 schema = NULL,
                                 concurrent_requests = 5L,
                                 temperature = 0,
-                                max_tokens = 1024L,
+                                max_tokens = 4096L,
                                 max_retries = 5L,
-                                timeout = 30L,
+                                timeout = 120L,
                                 key_name = "ANTHROPIC_API_KEY",
                                 endpoint_url = .ANT_MESSAGES_ENDPOINT,
                                 id_col_name = "id",
@@ -594,7 +594,7 @@ ant_complete_chunks <- function(texts,
 ant_complete_df <- function(df,
                             text_var,
                             id_var,
-                            model = "claude-haiku-4-5",
+                            model = .ANT_DEFAULT_MODEL,
                             output_dir = "auto",
                             overwrite = FALSE,
                             system_prompt = NULL,
@@ -602,9 +602,9 @@ ant_complete_df <- function(df,
                             chunk_size = 5000L,
                             concurrent_requests = 5L,
                             max_retries = 5L,
-                            timeout = 30,
+                            timeout = 120L,
                             temperature = 0,
-                            max_tokens = 1024L,
+                            max_tokens = 4096L,
                             key_name = "ANTHROPIC_API_KEY",
                             endpoint_url = .ANT_MESSAGES_ENDPOINT,
                             effort = NULL) {
