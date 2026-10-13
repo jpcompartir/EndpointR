@@ -8,7 +8,7 @@ ant_complete_df(
   df,
   text_var,
   id_var,
-  model = "claude-haiku-4-5",
+  model = .ANT_DEFAULT_MODEL,
   output_dir = "auto",
   overwrite = FALSE,
   system_prompt = NULL,
@@ -16,12 +16,13 @@ ant_complete_df(
   chunk_size = 5000L,
   concurrent_requests = 5L,
   max_retries = 5L,
-  timeout = 30,
+  timeout = 120L,
   temperature = 0,
-  max_tokens = 1024L,
+  max_tokens = 4096L,
   key_name = "ANTHROPIC_API_KEY",
   endpoint_url = .ANT_MESSAGES_ENDPOINT,
-  effort = NULL
+  effort = NULL,
+  thinking = NULL
 )
 }
 \arguments{
@@ -31,7 +32,7 @@ ant_complete_df(
 
 \item{id_var}{Column name (unquoted) for unique row identifiers}
 
-\item{model}{Anthropic model to use}
+\item{model}{Anthropic model to use (default: "claude-haiku-5-5")}
 
 \item{output_dir}{Directory for parquet chunks}
 
@@ -49,18 +50,22 @@ ant_complete_df(
 
 \item{timeout}{Request timeout in seconds}
 
-\item{temperature}{Sampling temperature (0-1), included in the request only when non-NULL. Dropped with a warning on models that reject sampling parameters (Claude Opus 4.7+, Sonnet 5, Fable 5).}
+\item{temperature}{Sampling temperature (0-1), included in the request only when non-NULL. Dropped with a warning on models that reject sampling parameters (Claude Opus 4.7+, Haiku 5.5, Sonnet 5, Fable 5), and when \code{thinking} is "adaptive" or a budget.}
 
-\item{max_tokens}{Maximum tokens per response}
+\item{max_tokens}{Maximum tokens in the response, including thinking tokens}
 
 \item{key_name}{Environment variable name for API key}
 
 \item{endpoint_url}{Anthropic API endpoint URL}
 
-\item{effort}{Optional reasoning effort, one of "low", "medium", "high", "xhigh", "max". Supported on Claude Opus 4.5+, Sonnet 4.6+ and Fable 5; not supported on Haiku models.}
+\item{effort}{Optional effort level, one of "low", "medium", "high", "xhigh", "max". Sent as \code{output_config$effort}. Not accepted by Haiku 4.5 or Sonnet 4.5. See the "Effort and thinking" section.}
+
+\item{thinking}{Optional thinking setting. \code{NULL} (the default) leaves it out of the request, so the model uses its own default. One of "adaptive", "disabled" or "between_tools", or a whole number for a fixed thinking budget in tokens. See the "Effort and thinking" section.}
 }
 \value{
-A tibble with results
+A tibble with columns: \code{id_var}, \code{content}, \code{.error},
+\code{.error_msg}, \code{stop_reason}, \code{input_tokens}, \code{output_tokens},
+\code{thinking_tokens}, \code{.status} and \code{.chunk}
 }
 \description{
 Takes a data frame with text inputs and processes each row through
@@ -76,4 +81,51 @@ along with a metadata.json file containing processing parameters.
 
 When using a custom \code{output_dir}, existing chunk files are protected
 by default. Set \code{overwrite = TRUE} to replace them.
+
+The results have the same \code{stop_reason}, \code{input_tokens}, \code{output_tokens}
+and \code{thinking_tokens} columns as \code{\link[=ant_batch_results]{ant_batch_results()}}. \code{thinking_tokens}
+is \code{NA} when the API doesn't report it.
 }
+\section{Effort and thinking}{
+
+Most users only need \code{effort}. It controls how much the model thinks and
+how many tokens it uses overall. Lower effort is cheaper and faster. The
+default is "high" on most models, and "medium" on Claude Opus 5.5 and
+Claude Haiku 5.5. Haiku 4.5 and Sonnet 4.5 don't accept \code{effort}.
+
+Use \code{thinking} for two things: to turn thinking on for older models, and to
+turn it off on the models that allow it.
+\itemize{
+\item Haiku 4.5, Sonnet 4.5 and Opus 4.5 only think with a fixed budget, e.g.
+\code{thinking = 2048}. The budget must be at least 1024 and less than
+\code{max_tokens}.
+\item Models from 4.6 onwards use \code{thinking = "adaptive"}, and models from 4.7
+onwards reject a fixed budget.
+\item \code{thinking = "disabled"} turns thinking off on Opus 4.7, Opus 4.8, Sonnet 5,
+Opus 5 and Haiku 5.5. Opus 5 and Haiku 5.5 only accept it at effort "high"
+or lower.
+\item Sonnet 5.5 uses \code{thinking = "between_tools"} instead, at effort "high" or
+lower.
+\item Opus 5.5, Fable and Mythos can't turn thinking off. Lower \code{effort} instead.
+}
+
+EndpointR checks these rules before sending, and stops with a message that
+suggests a setting that works. Models it doesn't recognise are sent
+unchecked.
+
+Thinking tokens count towards \code{max_tokens}. If a model spends all of
+\code{max_tokens} thinking, the response has no text, \code{content} is \code{NA}, and
+\code{stop_reason} is "max_tokens". Raise \code{max_tokens}, or lower \code{effort} or the
+thinking budget, if that happens. A thinking budget is a target rather than
+a hard limit. In our tests, Haiku 4.5 with \code{thinking = 2048} sometimes
+thought for over 4000 tokens, so leave plenty of room above the budget.
+
+Anthropic reject a changed \code{temperature} while thinking is on, so when
+\code{thinking} is "adaptive" or a budget, \code{temperature} is dropped with a
+warning.
+
+Before you submit a large batch, send one request with
+\code{\link[=ant_complete_text]{ant_complete_text()}} using the same settings. The API only reports a bad
+setting in a batch after the whole batch has run.
+}
+
