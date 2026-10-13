@@ -9,7 +9,7 @@ must have processing_status of "ended" before results can be retrieved.'></head>
 
     <a class="navbar-brand me-2" href="../index.html">EndpointR</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="Released version">0.3.0</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="Released version">0.3.1</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -101,13 +101,16 @@ must have <code>processing_status</code> of <code>"ended"</code> before results 
     <div class="section level2">
     <h2 id="value">Value<a class="anchor" aria-label="anchor" href="#value"></a></h2>
     <p>A tibble with columns: <code>custom_id</code>, <code>content</code>, <code>.error</code>,
-<code>.error_msg</code>, <code>stop_reason</code>, <code>input_tokens</code>, <code>output_tokens</code></p>
+<code>.error_msg</code>, <code>stop_reason</code>, <code>input_tokens</code>, <code>output_tokens</code>,
+<code>thinking_tokens</code></p>
     </div>
     <div class="section level2">
     <h2 id="details">Details<a class="anchor" aria-label="anchor" href="#details"></a></h2>
     <p>Results are returned as a tibble with one row per request. The function
 handles all four Anthropic result types: succeeded, errored, canceled,
 and expired.</p>
+<p><code>thinking_tokens</code> is <code>NA</code> when the API doesn't report it. A warning is
+shown when any request ran out of tokens before writing an answer.</p>
     </div>
 
     <div class="section level2">

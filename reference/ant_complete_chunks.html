@@ -11,7 +11,7 @@ Handles concurrent requests, automatic retries, and structured outputs."></head>
 
     <a class="navbar-brand me-2" href="../index.html">EndpointR</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="Released version">0.3.0</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="Released version">0.3.1</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -82,20 +82,21 @@ Handles concurrent requests, automatic retries, and structured outputs.</p>
 <span>  <span class="va">texts</span>,</span>
 <span>  <span class="va">ids</span>,</span>
 <span>  chunk_size <span class="op">=</span> <span class="fl">5000L</span>,</span>
-<span>  model <span class="op">=</span> <span class="st">"claude-haiku-4-5"</span>,</span>
+<span>  model <span class="op">=</span> <span class="va">.ANT_DEFAULT_MODEL</span>,</span>
 <span>  system_prompt <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  output_dir <span class="op">=</span> <span class="st">"auto"</span>,</span>
 <span>  overwrite <span class="op">=</span> <span class="cn">FALSE</span>,</span>
 <span>  schema <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  concurrent_requests <span class="op">=</span> <span class="fl">5L</span>,</span>
 <span>  temperature <span class="op">=</span> <span class="fl">0</span>,</span>
-<span>  max_tokens <span class="op">=</span> <span class="fl">1024L</span>,</span>
+<span>  max_tokens <span class="op">=</span> <span class="fl">4096L</span>,</span>
 <span>  max_retries <span class="op">=</span> <span class="fl">5L</span>,</span>
-<span>  timeout <span class="op">=</span> <span class="fl">30L</span>,</span>
+<span>  timeout <span class="op">=</span> <span class="fl">120L</span>,</span>
 <span>  key_name <span class="op">=</span> <span class="st">"ANTHROPIC_API_KEY"</span>,</span>
 <span>  endpoint_url <span class="op">=</span> <span class="va">.ANT_MESSAGES_ENDPOINT</span>,</span>
 <span>  id_col_name <span class="op">=</span> <span class="st">"id"</span>,</span>
-<span>  effort <span class="op">=</span> <span class="cn">NULL</span></span>
+<span>  effort <span class="op">=</span> <span class="cn">NULL</span>,</span>
+<span>  thinking <span class="op">=</span> <span class="cn">NULL</span></span>
 <span><span class="op">)</span></span></code></pre></div>
     </div>
 
@@ -116,7 +117,7 @@ Handles concurrent requests, automatic retries, and structured outputs.</p>
 
 
 <dt id="arg-model">model<a class="anchor" aria-label="anchor" href="#arg-model"></a></dt>
-<dd><p>Anthropic model to use</p></dd>
+<dd><p>Anthropic model to use (default: "claude-haiku-5-5")</p></dd>
 
 
 <dt id="arg-system-prompt">system_prompt<a class="anchor" aria-label="anchor" href="#arg-system-prompt"></a></dt>
@@ -142,11 +143,11 @@ system prompt is shared across many requests.</p></dd>
 
 
 <dt id="arg-temperature">temperature<a class="anchor" aria-label="anchor" href="#arg-temperature"></a></dt>
-<dd><p>Sampling temperature (0-1), included in the request only when non-NULL. Dropped with a warning on models that reject sampling parameters (Claude Opus 4.7+, Sonnet 5, Fable 5).</p></dd>
+<dd><p>Sampling temperature (0-1), included in the request only when non-NULL. Dropped with a warning on models that reject sampling parameters (Claude Opus 4.7+, Haiku 5.5, Sonnet 5, Fable 5), and when <code>thinking</code> is "adaptive" or a budget.</p></dd>
 
 
 <dt id="arg-max-tokens">max_tokens<a class="anchor" aria-label="anchor" href="#arg-max-tokens"></a></dt>
-<dd><p>Maximum tokens per response</p></dd>
+<dd><p>Maximum tokens in the response, including thinking tokens</p></dd>
 
 
 <dt id="arg-max-retries">max_retries<a class="anchor" aria-label="anchor" href="#arg-max-retries"></a></dt>
@@ -170,12 +171,18 @@ system prompt is shared across many requests.</p></dd>
 
 
 <dt id="arg-effort">effort<a class="anchor" aria-label="anchor" href="#arg-effort"></a></dt>
-<dd><p>Optional reasoning effort, one of "low", "medium", "high", "xhigh", "max". Supported on Claude Opus 4.5+, Sonnet 4.6+ and Fable 5; not supported on Haiku models.</p></dd>
+<dd><p>Optional effort level, one of "low", "medium", "high", "xhigh", "max". Sent as <code>output_config$effort</code>. Not accepted by Haiku 4.5 or Sonnet 4.5. See the "Effort and thinking" section.</p></dd>
+
+
+<dt id="arg-thinking">thinking<a class="anchor" aria-label="anchor" href="#arg-thinking"></a></dt>
+<dd><p>Optional thinking setting. <code>NULL</code> (the default) leaves it out of the request, so the model uses its own default. One of "adaptive", "disabled" or "between_tools", or a whole number for a fixed thinking budget in tokens. See the "Effort and thinking" section.</p></dd>
 
 </dl></div>
     <div class="section level2">
     <h2 id="value">Value<a class="anchor" aria-label="anchor" href="#value"></a></h2>
-    <p>A tibble with all results</p>
+    <p>A tibble with columns: the id column, <code>content</code>, <code>.error</code>,
+<code>.error_msg</code>, <code>stop_reason</code>, <code>input_tokens</code>, <code>output_tokens</code>,
+<code>thinking_tokens</code>, <code>.status</code> and <code>.chunk</code></p>
     </div>
     <div class="section level2">
     <h2 id="details">Details<a class="anchor" aria-label="anchor" href="#details"></a></h2>
@@ -186,6 +193,45 @@ writes results to disk to minimise memory usage and possibility of data loss.</p
 along with a metadata.json file containing processing parameters.</p>
 <p>When using a custom <code>output_dir</code>, existing chunk files are protected
 by default. Set <code>overwrite = TRUE</code> to replace them.</p>
+<p>The results have the same <code>stop_reason</code>, <code>input_tokens</code>, <code>output_tokens</code>
+and <code>thinking_tokens</code> columns as <code><a href="ant_batch_results.html">ant_batch_results()</a></code>. <code>thinking_tokens</code>
+is <code>NA</code> when the API doesn't report it.</p>
+    </div>
+    <div class="section level2">
+    <h2 id="effort-and-thinking">Effort and thinking<a class="anchor" aria-label="anchor" href="#effort-and-thinking"></a></h2>
+
+
+<p>Most users only need <code>effort</code>. It controls how much the model thinks and
+how many tokens it uses overall. Lower effort is cheaper and faster. The
+default is "high" on most models, and "medium" on Claude Opus 5.5 and
+Claude Haiku 5.5. Haiku 4.5 and Sonnet 4.5 don't accept <code>effort</code>.</p>
+<p>Use <code>thinking</code> for two things: to turn thinking on for older models, and to
+turn it off on the models that allow it.</p><ul><li><p>Haiku 4.5, Sonnet 4.5 and Opus 4.5 only think with a fixed budget, e.g.
+<code>thinking = 2048</code>. The budget must be at least 1024 and less than
+<code>max_tokens</code>.</p></li>
+<li><p>Models from 4.6 onwards use <code>thinking = "adaptive"</code>, and models from 4.7
+onwards reject a fixed budget.</p></li>
+<li><p><code>thinking = "disabled"</code> turns thinking off on Opus 4.7, Opus 4.8, Sonnet 5,
+Opus 5 and Haiku 5.5. Opus 5 and Haiku 5.5 only accept it at effort "high"
+or lower.</p></li>
+<li><p>Sonnet 5.5 uses <code>thinking = "between_tools"</code> instead, at effort "high" or
+lower.</p></li>
+<li><p>Opus 5.5, Fable and Mythos can't turn thinking off. Lower <code>effort</code> instead.</p></li>
+</ul><p>EndpointR checks these rules before sending, and stops with a message that
+suggests a setting that works. Models it doesn't recognise are sent
+unchecked.</p>
+<p>Thinking tokens count towards <code>max_tokens</code>. If a model spends all of
+<code>max_tokens</code> thinking, the response has no text, <code>content</code> is <code>NA</code>, and
+<code>stop_reason</code> is "max_tokens". Raise <code>max_tokens</code>, or lower <code>effort</code> or the
+thinking budget, if that happens. A thinking budget is a target rather than
+a hard limit. In our tests, Haiku 4.5 with <code>thinking = 2048</code> sometimes
+thought for over 4000 tokens, so leave plenty of room above the budget.</p>
+<p>Anthropic reject a changed <code>temperature</code> while thinking is on, so when
+<code>thinking</code> is "adaptive" or a budget, <code>temperature</code> is dropped with a
+warning.</p>
+<p>Before you submit a large batch, send one request with
+<code><a href="ant_complete_text.html">ant_complete_text()</a></code> using the same settings. The API only reports a bad
+setting in a batch after the whole batch has run.</p>
     </div>
 
   </main><aside class="col-md-3"><nav id="toc" aria-label="Table of contents"><h2>On this page</h2>

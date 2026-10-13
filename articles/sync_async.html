@@ -23,7 +23,7 @@
 
     <a class="navbar-brand me-2" href="../index.html">EndpointR</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="Released version">0.3.0</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="Released version">0.3.1</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -326,6 +326,15 @@ needed.</p>
 <p>The workflow is three compositional steps: <strong>create</strong>,
 <strong>check status</strong>, and <strong>retrieve
 results</strong>.</p>
+<p>The API checks each request only after the whole batch has run, so a
+bad setting is accepted when you submit the batch, and you only see the
+error in the results, up to 24 hours later. Before you submit a large
+batch, send one request with <code><a href="../reference/ant_complete_text.html">ant_complete_text()</a></code> using the
+same model, <code>effort</code>, <code>thinking</code> and
+<code>max_tokens</code>. <code><a href="../reference/ant_batch_create.html">ant_batch_create()</a></code> takes the same
+<code>effort</code> and <code>thinking</code> arguments as
+<code><a href="../reference/ant_complete_text.html">ant_complete_text()</a></code>, and see
+<code><a href="../articles/llm_providers.html">vignette("llm_providers")</a></code> for when to use each.</p>
 <div class="section level3">
 <h3 id="batch-messages">Batch Messages<a class="anchor" aria-label="anchor" href="#batch-messages"></a>
 </h3>

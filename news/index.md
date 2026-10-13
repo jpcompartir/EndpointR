@@ -1,5 +1,100 @@
 # Changelog
 
+## EndpointR 0.3.1
+
+### Effort and thinking for Anthropic
+
+- [`ant_batch_create()`](https://jpcompartir.github.io/EndpointR/reference/ant_batch_create.md)
+  gains an `effort` argument, which works the same way as on
+  [`ant_complete_text()`](https://jpcompartir.github.io/EndpointR/reference/ant_complete_text.md),
+  [`ant_complete_chunks()`](https://jpcompartir.github.io/EndpointR/reference/ant_complete_chunks.md)
+  and
+  [`ant_complete_df()`](https://jpcompartir.github.io/EndpointR/reference/ant_complete_df.md).
+- All five functions, and
+  [`ant_build_messages_request()`](https://jpcompartir.github.io/EndpointR/reference/ant_build_messages_request.md),
+  gain a `thinking` argument. Set it to “adaptive”, “disabled” or
+  “between_tools”, or to a whole number for a fixed thinking budget. The
+  default, `NULL`, leaves thinking out of the request, as in 0.3.0.
+- EndpointR checks `effort` and `thinking` against the model before
+  sending, and stops with a message that suggests a setting that works,
+  e.g. a fixed budget on Haiku 5.5, or `thinking = "disabled"` on Opus
+  5.5. The checks help most with batches, because the API only reports a
+  bad setting after the whole batch has run. Models EndpointR doesn’t
+  recognise are sent unchecked.
+- When `thinking` is “adaptive” or a budget, `temperature` is dropped
+  with a warning, because Anthropic reject a changed temperature while
+  thinking is on.
+- When a model spends all of `max_tokens` thinking, its `content` is
+  `NA`.
+  [`ant_complete_text()`](https://jpcompartir.github.io/EndpointR/reference/ant_complete_text.md),
+  [`ant_complete_df()`](https://jpcompartir.github.io/EndpointR/reference/ant_complete_df.md),
+  [`ant_complete_chunks()`](https://jpcompartir.github.io/EndpointR/reference/ant_complete_chunks.md)
+  and
+  [`ant_batch_results()`](https://jpcompartir.github.io/EndpointR/reference/ant_batch_results.md)
+  now warn when that happens, and suggest raising `max_tokens`, or
+  lowering `effort` or the thinking budget. A thinking budget is a
+  target rather than a hard limit.
+- The docs explain when to use `effort` and when to use `thinking`. Most
+  users only need `effort`.
+
+### Changes to defaults
+
+- The default Anthropic model is now `claude-haiku-5-5`, up from
+  `claude-haiku-4-5`. Haiku 5.5 rejects `temperature`, so with the
+  default `temperature = 0`, EndpointR drops it and warns once per
+  session. Haiku 5.5 thinks by default at effort “medium”. Pass
+  `model = "claude-haiku-4-5"` to keep the old behaviour.
+- The default `max_tokens` is now 4096 for every Anthropic function, up
+  from 500 for
+  [`ant_build_messages_request()`](https://jpcompartir.github.io/EndpointR/reference/ant_build_messages_request.md)
+  and
+  [`ant_complete_text()`](https://jpcompartir.github.io/EndpointR/reference/ant_complete_text.md)
+  and 1024 for the others, because thinking tokens count towards
+  `max_tokens`. You only pay for the tokens the model uses.
+- The default `timeout` for the Anthropic Messages functions is now 120
+  seconds, up from 30. In live tests, a request that thought for 4096
+  tokens took 31 seconds, and a request that times out is retried and
+  billed again.
+
+### Changes to results
+
+- **The results of
+  [`ant_complete_df()`](https://jpcompartir.github.io/EndpointR/reference/ant_complete_df.md)
+  and
+  [`ant_complete_chunks()`](https://jpcompartir.github.io/EndpointR/reference/ant_complete_chunks.md)
+  have four new columns**: `stop_reason`, `input_tokens`,
+  `output_tokens` and `thinking_tokens`. They sit between `.error_msg`
+  and `.status`. Code that selects columns by position may need
+  updating.
+- [`ant_batch_results()`](https://jpcompartir.github.io/EndpointR/reference/ant_batch_results.md)
+  gains a `thinking_tokens` column. It is `NA` when the API doesn’t
+  report thinking tokens.
+
+### Batches
+
+- [`ant_batch_create()`](https://jpcompartir.github.io/EndpointR/reference/ant_batch_create.md)
+  builds each request with the same code as
+  [`ant_build_messages_request()`](https://jpcompartir.github.io/EndpointR/reference/ant_build_messages_request.md),
+  so the two routes send the same fields.
+- [`ant_batch_create()`](https://jpcompartir.github.io/EndpointR/reference/ant_batch_create.md)
+  now checks that `temperature` is between 0 and 1, like the Messages
+  route.
+- [`ant_batch_create()`](https://jpcompartir.github.io/EndpointR/reference/ant_batch_create.md)
+  now puts `cache_control` on the system prompt, as the Messages route
+  does. In 0.3.0 it set `cache_control` on the whole request, which
+  caches up to the end of each request’s own text, so requests with
+  different texts could not share the cached system prompt.
+- [`ant_batch_results()`](https://jpcompartir.github.io/EndpointR/reference/ant_batch_results.md)
+  now reports the API’s message for a failed request. In 0.3.0 it read
+  the message from the wrong level of the result and reported “Unknown
+  error”.
+
+### Other fixes
+
+- [`ant_complete_text()`](https://jpcompartir.github.io/EndpointR/reference/ant_complete_text.md)
+  now passes `key_name` to the request. In 0.3.0 it always read the key
+  from `ANTHROPIC_API_KEY`.
+
 ## EndpointR 0.3.0
 
 ### Faster Hugging Face inference

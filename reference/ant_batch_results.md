@@ -32,13 +32,16 @@ ant_batch_results(
 ## Value
 
 A tibble with columns: `custom_id`, `content`, `.error`, `.error_msg`,
-`stop_reason`, `input_tokens`, `output_tokens`
+`stop_reason`, `input_tokens`, `output_tokens`, `thinking_tokens`
 
 ## Details
 
 Results are returned as a tibble with one row per request. The function
 handles all four Anthropic result types: succeeded, errored, canceled,
 and expired.
+
+`thinking_tokens` is `NA` when the API doesn't report it. A warning is
+shown when any request ran out of tokens before writing an answer.
 
 ## Examples
 

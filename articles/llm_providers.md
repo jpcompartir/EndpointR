@@ -501,7 +501,7 @@ Before getting started with Anthropic:
   Console](https://console.anthropic.com/) and store it as
   “ANTHROPIC_API_KEY” with
   [`set_api_key()`](https://jpcompartir.github.io/EndpointR/reference/set_api_key.md)
-- Second, choose your model - EndpointR defaults to “claude-haiku-4-5”
+- Second, choose your model. EndpointR defaults to “claude-haiku-5-5”
   for cost efficiency, but you can use any Claude model
 - Third, note that Anthropic’s temperature range is 0-1 (unlike OpenAI’s
   0-2)
@@ -575,19 +575,63 @@ ant_complete_df(
     5     5 "The sentiment is negative."                           FALSE  NA              NA      1
     >
 
+### Anthropic - effort and thinking
+
+Most users only need the `effort` argument. It controls how much the
+model thinks and how many tokens it uses overall, and it takes “low”,
+“medium”, “high”, “xhigh” or “max”. Lower effort is cheaper and faster,
+so “low” is a good place to start for classification. The default is
+“high” on most models, and “medium” on Claude Opus 5.5 and Claude Haiku
+5.5. Haiku 4.5 and Sonnet 4.5 don’t accept `effort`.
+
+``` r
+
+ant_complete_text(
+  text = text,
+  system_prompt = sentiment_system_prompt,
+  effort = "low"
+)
+```
+
+The `thinking` argument is for turning thinking on for older models, or
+off on the models that allow it:
+
+- Haiku 4.5, Sonnet 4.5 and Opus 4.5 only think with a fixed budget,
+  e.g. `thinking = 2048`. The budget must be at least 1024 and less than
+  `max_tokens`.
+- Models from 4.6 onwards use `thinking = "adaptive"`, and models from
+  4.7 onwards reject a fixed budget.
+- `thinking = "disabled"` turns thinking off on Opus 4.7, Opus 4.8,
+  Sonnet 5, Opus 5 and Haiku 5.5. Opus 5 and Haiku 5.5 only accept it at
+  effort “high” or lower.
+- Sonnet 5.5 uses `thinking = "between_tools"` instead, at effort “high”
+  or lower.
+- Opus 5.5, Fable and Mythos can’t turn thinking off, so lower `effort`
+  instead.
+
+EndpointR checks these rules before it sends a request, and stops with a
+message that suggests a setting that works.
+
+Thinking tokens count towards `max_tokens`. If a model spends all of
+`max_tokens` thinking, the response has no text, so `content` is `NA`
+and `stop_reason` is “max_tokens”, and EndpointR shows a warning. Raise
+`max_tokens`, or lower `effort` or the thinking budget, if you see that
+warning. A thinking budget is a target rather than a hard limit, so
+leave plenty of room above it. In our tests, Haiku 4.5 with
+`thinking = 2048` sometimes thought for over 4000 tokens. The
+`thinking_tokens` column in the results of
+[`ant_complete_df()`](https://jpcompartir.github.io/EndpointR/reference/ant_complete_df.md)
+shows how many tokens each response spent thinking, when the API reports
+it.
+
 ## Anthropic - Quick Start - Structured Outputs
 
 Anthropic supports [structured
 outputs](https://platform.claude.com/docs/en/build-with-claude/structured-outputs)
-(currently in beta) for the Claude 4.5 series models:
-`claude-haiku-4-5`, `claude-sonnet-4-5`, and `claude-opus-4-5`. Like
-with OpenAI, we can use a schema to ensure predictable, parseable
-responses:
-
-> **NOTE**: Structured outputs are in beta and may change faster than we
-> can track in this documentation. Check the [official
-> documentation](https://platform.claude.com/docs/en/build-with-claude/structured-outputs)
-> for the latest requirements.
+on current Claude models. Like with OpenAI, we can use a schema to
+ensure predictable, parseable responses. Check the [official
+documentation](https://platform.claude.com/docs/en/build-with-claude/structured-outputs)
+for which models support them.
 
 ``` r
 
@@ -713,7 +757,7 @@ Passed as a separate `system` parameter (not in messages array) -
 
 #### Structured Outputs with Anthropic
 
-Anthropic’s structured outputs use the `output_format` parameter with
+Anthropic’s structured outputs use the `output_config` parameter with
 JSON schemas:
 
 ``` r
@@ -726,9 +770,10 @@ structured_request <- ant_build_messages_request(
 )
 ```
 
-When a schema is provided, the request automatically includes: - The
-`output_format` parameter with your schema - The `anthropic-beta` header
-for structured outputs support
+When a schema is provided, the request includes your schema in
+`output_config$format`. Structured outputs are generally available, so
+no beta header is needed. If you also set `effort`, it goes in
+`output_config$effort` next to the schema.
 
 The schema is validated and formatted automatically by EndpointR’s
 [`create_json_schema()`](https://jpcompartir.github.io/EndpointR/reference/create_json_schema.md)

@@ -7,7 +7,7 @@
 
     <a class="navbar-brand me-2" href="../index.html">EndpointR</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="Released version">0.3.0</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="Released version">0.3.1</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -65,6 +65,48 @@
       <small>Source: <a href="https://github.com/jpcompartir/EndpointR/tree/main/NEWS.md" class="external-link"><code>NEWS.md</code></a></small>
     </div>
 
+    <div class="section level2">
+<h2 class="pkg-version" data-toc-text="0.3.1" id="endpointr-031">EndpointR 0.3.1<a class="anchor" aria-label="anchor" href="#endpointr-031"></a></h2>
+<div class="section level3">
+<h3 id="effort-and-thinking-for-anthropic-0-3-1">Effort and thinking for Anthropic<a class="anchor" aria-label="anchor" href="#effort-and-thinking-for-anthropic-0-3-1"></a></h3>
+<ul><li>
+<code><a href="../reference/ant_batch_create.html">ant_batch_create()</a></code> gains an <code>effort</code> argument, which works the same way as on <code><a href="../reference/ant_complete_text.html">ant_complete_text()</a></code>, <code><a href="../reference/ant_complete_chunks.html">ant_complete_chunks()</a></code> and <code><a href="../reference/ant_complete_df.html">ant_complete_df()</a></code>.</li>
+<li>All five functions, and <code><a href="../reference/ant_build_messages_request.html">ant_build_messages_request()</a></code>, gain a <code>thinking</code> argument. Set it to “adaptive”, “disabled” or “between_tools”, or to a whole number for a fixed thinking budget. The default, <code>NULL</code>, leaves thinking out of the request, as in 0.3.0.</li>
+<li>EndpointR checks <code>effort</code> and <code>thinking</code> against the model before sending, and stops with a message that suggests a setting that works, e.g. a fixed budget on Haiku 5.5, or <code>thinking = "disabled"</code> on Opus 5.5. The checks help most with batches, because the API only reports a bad setting after the whole batch has run. Models EndpointR doesn’t recognise are sent unchecked.</li>
+<li>When <code>thinking</code> is “adaptive” or a budget, <code>temperature</code> is dropped with a warning, because Anthropic reject a changed temperature while thinking is on.</li>
+<li>When a model spends all of <code>max_tokens</code> thinking, its <code>content</code> is <code>NA</code>. <code><a href="../reference/ant_complete_text.html">ant_complete_text()</a></code>, <code><a href="../reference/ant_complete_df.html">ant_complete_df()</a></code>, <code><a href="../reference/ant_complete_chunks.html">ant_complete_chunks()</a></code> and <code><a href="../reference/ant_batch_results.html">ant_batch_results()</a></code> now warn when that happens, and suggest raising <code>max_tokens</code>, or lowering <code>effort</code> or the thinking budget. A thinking budget is a target rather than a hard limit.</li>
+<li>The docs explain when to use <code>effort</code> and when to use <code>thinking</code>. Most users only need <code>effort</code>.</li>
+</ul></div>
+<div class="section level3">
+<h3 id="changes-to-defaults-0-3-1">Changes to defaults<a class="anchor" aria-label="anchor" href="#changes-to-defaults-0-3-1"></a></h3>
+<ul><li>The default Anthropic model is now <code>claude-haiku-5-5</code>, up from <code>claude-haiku-4-5</code>. Haiku 5.5 rejects <code>temperature</code>, so with the default <code>temperature = 0</code>, EndpointR drops it and warns once per session. Haiku 5.5 thinks by default at effort “medium”. Pass <code>model = "claude-haiku-4-5"</code> to keep the old behaviour.</li>
+<li>The default <code>max_tokens</code> is now 4096 for every Anthropic function, up from 500 for <code><a href="../reference/ant_build_messages_request.html">ant_build_messages_request()</a></code> and <code><a href="../reference/ant_complete_text.html">ant_complete_text()</a></code> and 1024 for the others, because thinking tokens count towards <code>max_tokens</code>. You only pay for the tokens the model uses.</li>
+<li>The default <code>timeout</code> for the Anthropic Messages functions is now 120 seconds, up from 30. In live tests, a request that thought for 4096 tokens took 31 seconds, and a request that times out is retried and billed again.</li>
+</ul></div>
+<div class="section level3">
+<h3 id="changes-to-results-0-3-1">Changes to results<a class="anchor" aria-label="anchor" href="#changes-to-results-0-3-1"></a></h3>
+<ul><li>
+<strong>The results of <code><a href="../reference/ant_complete_df.html">ant_complete_df()</a></code> and <code><a href="../reference/ant_complete_chunks.html">ant_complete_chunks()</a></code> have four new columns</strong>: <code>stop_reason</code>, <code>input_tokens</code>, <code>output_tokens</code> and <code>thinking_tokens</code>. They sit between <code>.error_msg</code> and <code>.status</code>. Code that selects columns by position may need updating.</li>
+<li>
+<code><a href="../reference/ant_batch_results.html">ant_batch_results()</a></code> gains a <code>thinking_tokens</code> column. It is <code>NA</code> when the API doesn’t report thinking tokens.</li>
+</ul></div>
+<div class="section level3">
+<h3 id="batches-0-3-1">Batches<a class="anchor" aria-label="anchor" href="#batches-0-3-1"></a></h3>
+<ul><li>
+<code><a href="../reference/ant_batch_create.html">ant_batch_create()</a></code> builds each request with the same code as <code><a href="../reference/ant_build_messages_request.html">ant_build_messages_request()</a></code>, so the two routes send the same fields.</li>
+<li>
+<code><a href="../reference/ant_batch_create.html">ant_batch_create()</a></code> now checks that <code>temperature</code> is between 0 and 1, like the Messages route.</li>
+<li>
+<code><a href="../reference/ant_batch_create.html">ant_batch_create()</a></code> now puts <code>cache_control</code> on the system prompt, as the Messages route does. In 0.3.0 it set <code>cache_control</code> on the whole request, which caches up to the end of each request’s own text, so requests with different texts could not share the cached system prompt.</li>
+<li>
+<code><a href="../reference/ant_batch_results.html">ant_batch_results()</a></code> now reports the API’s message for a failed request. In 0.3.0 it read the message from the wrong level of the result and reported “Unknown error”.</li>
+</ul></div>
+<div class="section level3">
+<h3 id="other-fixes-0-3-1">Other fixes<a class="anchor" aria-label="anchor" href="#other-fixes-0-3-1"></a></h3>
+<ul><li>
+<code><a href="../reference/ant_complete_text.html">ant_complete_text()</a></code> now passes <code>key_name</code> to the request. In 0.3.0 it always read the key from <code>ANTHROPIC_API_KEY</code>.</li>
+</ul></div>
+</div>
     <div class="section level2">
 <h2 class="pkg-version" data-toc-text="0.3.0" id="endpointr-030">EndpointR 0.3.0<a class="anchor" aria-label="anchor" href="#endpointr-030"></a></h2>
 <div class="section level3">

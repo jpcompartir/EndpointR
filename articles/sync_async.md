@@ -231,6 +231,19 @@ accepts requests directly — no file upload step is needed.
 The workflow is three compositional steps: **create**, **check status**,
 and **retrieve results**.
 
+The API checks each request only after the whole batch has run, so a bad
+setting is accepted when you submit the batch, and you only see the
+error in the results, up to 24 hours later. Before you submit a large
+batch, send one request with
+[`ant_complete_text()`](https://jpcompartir.github.io/EndpointR/reference/ant_complete_text.md)
+using the same model, `effort`, `thinking` and `max_tokens`.
+[`ant_batch_create()`](https://jpcompartir.github.io/EndpointR/reference/ant_batch_create.md)
+takes the same `effort` and `thinking` arguments as
+[`ant_complete_text()`](https://jpcompartir.github.io/EndpointR/reference/ant_complete_text.md),
+and see
+[`vignette("llm_providers")`](https://jpcompartir.github.io/EndpointR/articles/llm_providers.md)
+for when to use each.
+
 ### Batch Messages
 
 ``` r
